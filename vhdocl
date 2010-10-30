@@ -1,36 +1,95 @@
 #!/usr/bin/perl
 
-#    This is vnv, a VHDL documentation utility.
-#    Copyright (c) 2007-08 Volker Schatz (vnv at volkerschatz dot com).
+#    This is VHDocL, a VHDL documentation utility.
+#    Copyright (c) 2007-08 Volker Schatz (vhdocl at volkerschatz dot com).
 #
-#    vnv is free software; you can redistribute it and/or modify
+#    VHDocL is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation; either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    vnv is distributed in the hope that it will be useful,
+#    VHDocL is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
 #
 #    You should have received a copy of the GNU General Public License
-#    along with vnv; if not, see <http://www.gnu.org/licenses/>.
+#    along with VHDocL; if not, see <http://www.gnu.org/licenses/>.
 
 
 use strict;
 use warnings;
 use File::Spec;
+use File::Path;
 use Cwd 'abs_path';
 
-my $VNVversion= "0.1alpha";
+my $version= "0.1beta3";
 
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
-  "compat" => 0, "cwd" => "", "searchpath" => [],
+  "compat" => 0, "cwd" => "", 
   "parsedebug" => 0, "quiet" => 0, "cellpadding" => 3, "indentation" => 50, 
-  "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "" );
+  "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
+  "title" => "" );
 
 my $cp;
 my $iw;
+
+
+##############################################################################
+##############################################################################
+####			Auxiliary functions
+##############################################################################
+##############################################################################
+
+# An auxiliary function for obtaining the canonical form of a file name.
+# Required to work around Cwd::abs_path()'s intolerance towards non-existing
+# files and directories.
+# -> File name including path
+# <- File name made canonical with Cwd::abs_path() if possible, with
+#    File::Spec->canonpath() otherwise.  The latter does not consult the file
+#    system and therefore cannot resolve symbolic links.
+sub mycanonpath
+{
+  my ($file)= @_;
+  my $canonfile= eval { Cwd::abs_path($file) };
+  return $canonfile unless $@ || !defined($canonfile);
+  return File::Spec->canonpath($file);
+}
+
+
+# Transforms a file name which is relative to a different directory to one
+# which is relative to the current working directory.  Absolute file names and
+# URLs are left unchanged
+# -> File name
+#    Directory path
+# <- Transformed file name
+sub fixpath
+{
+  my ($file, $dir)= @_;
+
+  if( $file =~ /^\w+:\/\//i || File::Spec->file_name_is_absolute($file) ) {
+    return $file;
+  }
+  else {
+    $file= File::Spec->rel2abs($file, $dir);
+    $file= mycanonpath($file);		# get rid of interior /../ if possible
+    $file= File::Spec->abs2rel($file, $config{"cwd"});
+    return $file;
+  }
+}
+
+
+# Another auxiliary function which exits the program with return value 1 after
+# optionally printing a message to STDERR.  Akin to die but without the silly
+# line number output which users don't have any use for.
+# -> Error message
+sub croak
+{
+  my ($msg)= @_;
+
+  print STDERR "$msg\n" if defined($msg) && "$msg";
+  exit 1;
+}
 
 
 ##############################################################################
@@ -51,14 +110,16 @@ my @options= (
 [ "c", "cellpadding", "#", "cellpadding" ],
 [ "i", "indentation", "#", "indentation" ],
 [ "m", "compatibility", "?", "compat" ],
-[ "s", "searchpath", "\\", "searchpath" ],
 [ "", "stylesheet", "/", "stylesheet" ],
 [ "", "leftlogo", "/", "leftlogo" ],
 [ "", "rightlogo", "/", "rightlogo" ],
+[ "", "title", "*", "title" ],
 [ "", "toplink", "/", "toplink" ] );
 
 
-# Parse command line argument vector.
+# Parse command line argument arrray.
+# -> Reference to array of command-line arguments.
+# <- Reference to array of source files.  Options values are written to %config.
 sub parseargv
 {
   my ($argv)= @_;
@@ -80,10 +141,10 @@ sub parseargv
     else {
       print STDERR "The option ", $$argv[0], " requires an argument.  ",
       			"Aborting.\n";
-      die;
+      croak;
     }
   }
-  if( $#$files == 0 && $files->[0]->{"name"} =~ /\.vnv$/i ) {
+  if( $#$files == 0 && $files->[0]->{"name"} =~ /\.vhdocl$/i ) {
     my $cfile= $files->[0]->{"name"};
     $files= [];
     parsecfgfile($cfile, $files, $config{"cwd"});
@@ -114,20 +175,20 @@ sub parseopt
     my $optname= lc($1);
     my $onoff= 1;
     $value= $2;
-    die "Unknown long option $nextarg.  Aborting."
+    croak "Unknown long option $nextarg.  Aborting."
     	unless $optname =~ /^\w+$/;
     my @opts= grep($_->[1] =~ /^$optname/i, @options);
     if( !@opts && $optname =~ s/^no(.)/$1/i ) {
       @opts= grep($_->[2] eq "?" && $_->[1] =~ /^$optname/i, @options);
       $onoff= 0;
     }
-    die "Unknown long option $nextarg.  Aborting."
+    croak "Unknown long option $nextarg.  Aborting."
     	unless @opts;
     if( @opts > 1 ) {
       print STDERR "Ambiguous long option $nextarg.  (Could be --",
       		join(", --", map($_->[1], @opts[0..$#opts-1])), " or --",
 		$opts[$#opts]->[1], ".)  Aborting.\n";
-      die;
+      croak;
     }
     if( $opts[0]->[2] eq "?" ) {
       $config{$opts[0]->[3]}= $onoff;
@@ -145,7 +206,7 @@ sub parseopt
     my $firstchar= $2;
     my $remainder= $3;
     my ($thisopt)= grep($_->[0] eq $firstchar, @options);
-    die "Unknown short option -$firstchar.  Aborting."
+    croak "Unknown short option -$firstchar.  Aborting."
       unless $thisopt;
     if( $thisopt->[2] eq "?" || $thisopt->[2] eq "&" ) {
       if( $thisopt->[2] eq "?" ) {
@@ -157,7 +218,7 @@ sub parseopt
       my @optchars= split(//, $remainder);
       for my $optchar (@optchars) {
 	($thisopt)= grep($_->[0] eq $optchar, @options);
-	die "Unknown short option -$optchar.  Aborting."
+	croak "Unknown short option -$optchar.  Aborting."
 	  unless $thisopt;
 	if( $thisopt->[2] eq "?" ) {
 	  $config{$thisopt->[3]}= $onoff;
@@ -168,13 +229,24 @@ sub parseopt
 	else {
 	  print STDERR "Cannot bundle short options with arguments (-",
 		       $thisopt->[0], ").  Aborting.\n";
-	  die;
+	  croak;
 	}
       }
       return 1;
     }
+    elsif( $remainder =~ /^=/ ) {
+      $value= substr($remainder, 1);
+    }
+    elsif( length($remainder) ) {
+      print STDERR "Cannot bundle short options with arguments (-",
+		   $thisopt->[0], ").  Aborting.\n";
+      croak;
+    }
+    else {
+      $value= undef;
+    }
+    # $value= $remainder if $remainder; # value without space
     $opt= $thisopt;
-    $value= $remainder if $remainder;
   }
   elsif( $nextarg eq "-" ) {
     unshift @$arglist, $nextarg;
@@ -211,47 +283,23 @@ sub parseopt
       print STDERR "The argument of", ($opt->[0]? " -".$opt->[0]." /": ""),
 		   " --", $opt->[1], " may only contain letters, digits and ",
 		   "the underscore.  Aborting.\n";
-      die;
+      croak;
     }
   }
   elsif( $opt->[2] eq "#" ) {
     unless( $value =~ /^\d+$/ ) {
       print STDERR "The argument of", ($opt->[0]? " -".$opt->[0]." /": ""),
 		   " --", $opt->[1], " must be numerical.  Aborting.\n";
-      die;
+      croak;
     }
   }
   if( $opt->[2] eq "<" ) {
     parsecfgfile($value, $filelist);
   }
-  elsif( $opt->[2] eq "\\" ) {
-    push @{$config{$opt->[3]}}, $value;
-  }
   else {
     $config{$opt->[3]}= $value;
   }
   return 1;
-}
-
-
-# Transforms a file name which is relative to a different directory to one
-# which is relative to the current working directory.
-# -> File name
-#    Directory path
-# <- Transformed file name
-sub fixpath
-{
-  my ($file, $dir)= @_;
-
-  if( $file =~ /^\w+:\/\//i || File::Spec->file_name_is_absolute($file) ) {
-    return $file;
-  }
-  else {
-    $file= File::Spec->rel2abs($file, $dir);
-    $file= Cwd::abs_path($file);	# get rid of interior /../
-    $file= File::Spec->abs2rel($file, $config{"cwd"});
-    return $file;
-  }
 }
 
 
@@ -266,12 +314,12 @@ sub parsecfgfile
 {
   my ($fname, $filelist, $track)= @_;
   my ($vol, $dir)= File::Spec->splitpath($fname);
-  my $basedir= File::Spec->catpath($vol, $dir, "");
-  $basedir= Cwd::abs_path($basedir);
+  my $basedir= File::Spec->catpath($vol, $dir, "") || ".";
+  $basedir= mycanonpath($basedir);
   my $line;
 
   $track ||= [];
-  open(CFG, "<$fname") or die "Could not open config file $fname - $!";
+  open(CFG, "<$fname") or croak "Could not open config file $fname - $!";
   while( <CFG> )
   {
     s/#.*$//;
@@ -280,11 +328,11 @@ sub parsecfgfile
     $line .= " " . $_;
     next if $line =~ s/\s*\\$//;
     $line =~ /^\s*([^\s=]+)\s*(=)?\s*([^=]*?)\s*$/
-    	or die "Cannot understand line $. in $fname: $line";
+    	or croak "Cannot understand line $. in $fname: $line";
     my $optname= $1;
     my $value= $3;
     my $onoff= 1;
-    die "Unknown option $optname in $fname, line $..  Aborting."
+    croak "Unknown option $optname in $fname, line $..  Aborting."
     	unless $optname =~ /^\w+$/;
     $line= "";
     $value =~ s/^\s+//;
@@ -321,13 +369,13 @@ sub parsecfgfile
       @opts= grep($_->[2] eq "?" && $_->[1] =~ /^$optname/i, @options);
       $onoff= 0;
     }
-    die "Unknown option $optname in $fname, line $..  Aborting."
+    croak "Unknown option $optname in $fname, line $..  Aborting."
     	unless @opts;
     if( @opts > 1 ) {
       print STDERR "Ambiguous option $optname in $fname, line $..  (Could be ",
       		   join(", ", map($_->[1], @opts[0..$#opts-1])), " or ",
 		   $opts[$#opts]->[1], ".)  Aborting.\n";
-      die;
+      croak;
     }
     if( $opts[0]->[2] eq "&" ) {
       print STDERR "Ignoring option $optname in $fname.\n";
@@ -346,7 +394,7 @@ sub parsecfgfile
     elsif( $opts[0]->[2] eq "?" ) {
       if( $value ) {
 	if( !$onoff ) {
-	  die "Cannot give value for negated option $optname in $fname, line $..  Aborting.";
+	  croak "Cannot give value for negated option $optname in $fname, line $..  Aborting.";
 	}
 	elsif( $value =~ /^(?:1|yes|on|true)$/i ) {
 	  $config{$opts[0]->[3]}= 1;
@@ -355,7 +403,7 @@ sub parsecfgfile
 	  $config{$opts[0]->[3]}= 0;
 	}
 	else {
-	  die "Illegal value for boolean option $optname in $fname, line $..  Aborting.";
+	  croak "Illegal value for boolean option $optname in $fname, line $..  Aborting.";
 	}
       }
       else {
@@ -368,25 +416,20 @@ sub parsecfgfile
 	  print STDERR "The argument of option $optname may only contain ",
 		       "letters, digits and the underscore in $fname, line ",
 		       "$..  Aborting.\n";
-	  die;
+	  croak;
 	}
       }
       elsif( $opts[0]->[2] eq "#" ) {
 	unless( $value =~ /^\d+$/ ) {
 	  print STDERR "The argument of option $optname must be numerical ",
 		       "in $fname, line $..  Aborting.\n";
-	  die;
+	  croak;
 	}
       }
-      elsif( $opts[0]->[2] eq "/" || $opts[0]->[2] eq "\\" ) {
+      elsif( $opts[0]->[2] eq "/" ) {
 	$value= fixpath($value, $basedir);
       }
-      if( $opts[0]->[2] eq "\\" ) {
-	push @{$config{$opts[0]->[3]}}, $value;
-      }
-      else {
-	$config{$opts[0]->[3]}= $value;
-      }
+      $config{$opts[0]->[3]}= $value;
     }
   }
   close CFG;
@@ -396,7 +439,7 @@ sub parsecfgfile
 # Print version
 sub printversion
 {
-  print "This is VNV version $VNVversion.\n";
+  print "This is VHDocL version $version.\n";
   exit;
 }
 
@@ -405,14 +448,14 @@ sub printversion
 sub printhelp
 {
   print <<EOF;
-VNV is a VHDL documentation and structure examination utility.
+VHDocL is a VHDL documentation and structure examination utility.
 Usage:
-    vnv [options] input files... [ [-l <library>] input files...]
-VNV generates HTML documentation for hardware designs written in VHDL.  It
+    vhdocl [options] input files... [ [-l <library>] input files...]
+VHDocL generates HTML documentation for hardware designs written in VHDL.  It
 outputs an HTML page for each entity, architecture, configuration and package
 and a list of entities and of packages and the design's instantiation
 hierarchy.
-The most basic command-line options are:
+The most important command-line options are:
     -o, --outputdir     Output directory (default: "doc")
     -p, --prefix        Prefix for all HTML files
     -l, --library       Library to which the following source files belong
@@ -420,69 +463,71 @@ The most basic command-line options are:
     -i, --indentation   Indentation in pixels for HTML tables
 Long options may be abbreviated.
 
-VNV's manual is embedded in the Perl script vnv in POD format and can be
+VHDocL's manual is embedded in the Perl script vhdocl in POD format and can be
 extracted using pod2man, pod2html and similar programs which come with Perl.
 For instance, a manual page can be generated and viewed as follows:
-  pod2man vnv > vnv.1
-  man ./vnv.1
-It can also be read online at http://www.volkerschatz.com/science/vnv.html.
+  pod2man vhdocl > vhdocl.1
+  man ./vhdocl.1
+It can also be read online at http://www.volkerschatz.com/hardware/vhdocl.html.
 
-In order to install vnv on your system, execute the following commands as root:
-  install -m 755 vnv /usr/local/bin
-  install -m 644 vnv.1 /usr/local/man/man1
+In order to install VHDocL on your system, execute the following commands as
+root:
+  install -m 755 vhdocl /usr/local/bin
+  install -m 644 vhdocl.1 /usr/local/man/man1
 This assumes the target directories already exist; otherwise create them first.
-If you do not have root privileges, install vnv in your home directory (~/bin
-and ~/man or similar) and set your PATH appropriately.
+If you do not have root privileges, install VHDocL in your home directory
+(~/bin and ~/man/man1 or similar) and set your PATH appropriately.
 EOF
   exit;
 }
 
 
+=pod
+
 =head1 NAME
 
-VNV - a VHDL documentation and structure examination utility
+vhdocl - a VHDL documentation and structure examination utility
 
 
 =head1 SYNOPSIS
 
-B<vnv> [options] E<lt>input files...E<gt> [ [-l E<lt>libraryE<gt>] E<lt>input files...E<gt>]
+B<vhdocl> [options] E<lt>input files...E<gt> [ [-l E<lt>libraryE<gt>] E<lt>input files...E<gt>]
 
-print_filenames | B<vnv> [options] -
+print_filenames | B<vhdocl> [options] -
 
-B<vnv> [-f] E<lt>config.vnvE<gt>
+B<vhdocl> [-f] E<lt>config.vhdoclE<gt>
 
 
 =head1 DESCRIPTION
 
-VNV is the pendant of doxygen, kdoc or javadoc for the hardware description
+VHDocL is the pendant of doxygen, kdoc or javadoc for the hardware description
 language VHDL.  It generates a set of interlinked HTML pages from a hardware
 design.  Specially formatted comments in the VHDL code are read and
-incorporated into the HTML pages (see B<MARKUP LANGUAGE> below).  For
-undocumented designs, VNV can still help understanding by making the structure
-of the design apparent.  VNV was created out of dissatisfaction with a similar
-tool and therefore stands for for "VNV's Not Vhdldoc".
+incorporated into the HTML pages (see L</MARKUP LANGUAGE> below).  For
+undocumented designs, VHDocL can still help understanding by making the
+structure of the design apparent.
 
 An HTML page is generated for every entity, architecture, configuration and
 package or package body.  Documented items include processes, instantiations,
 ports, generic constants, component declarations, function and procedure
 declarations.  Instances are bound to their matching entity and hyperlinked to
-its HTML page.  See B<OUTPUT> below for more information on VNV's output.
+its HTML page.  See L</OUTPUT> below for more information on VHDocL's output.
 
-Besides, VNV creates a global list of entities (with their architectures and
+Besides, VHDocL creates a global list of entities (with their architectures and
 configurations) and packages and an instantiation hierarchy.  The hierarchy
 results from the bindings of instantiations of components, entities and
-configurations within architectures or configurations.  VNV takes for...use
+configurations within architectures or configurations.  VHDocL takes for...use
 statements, configurations and default bindings of components into account when
 determining bindings of component instantiations.  Nested configurations (ie
 configurations which configure sub-instances within instantiated modules) are
 also supported.
 
-VNV is not a VHDL syntax checker.  It tries to be as tolerant as possible
+VHDocL is not a VHDL syntax checker.  It tries to be as tolerant as possible
 regarding coding style and as a consequence may occasionally accept incorrect
 VHDL.  Usually, however, incorrect code will cause it to fail without any
-useful error message.  VNV parses its input using regular expressions designed
-to match those elements of VHDL which are relevant to its task and will simply
-ignore what it does not recognise.
+useful error message.  VHDocL parses its input using regular expressions
+designed to match those elements of VHDL which are relevant to its task and
+will simply ignore what it does not recognise.
 
 
 =head1 OPTIONS
@@ -494,13 +539,13 @@ ignore what it does not recognise.
 Cell padding of HTML tables, in pixels.  This determines the spacing in almost
 all lists in the output.  The default value is 3 pixels.
 
-=item B<-f> I<file.vnv>, B<--configfile>=I<file.vnv>
+=item B<-f> I<file.vhdocl>, B<--configfile>=I<file.vhdocl>
 
-Tells VNV to interrupt command line argument processing and to read options and
-input file names from the given configuration file.  If given, this will
+Tells VHDocL to interrupt command line argument processing and to read options
+and input file names from the given configuration file.  If given, this will
 usually be the only option (but need not be).  Processing of command-line
-arguments will resume after the config file has been read.  See B<CONFIGURATION
-FILE> below for the configuration file's format.
+arguments will resume after the config file has been read.  See
+L</CONFIGURATION FILE> below for the configuration file's format.
 
 =item B<-h>, B<--help>
 
@@ -547,8 +592,8 @@ directory without interference.
 
 =item B<-q>, B<--quiet>
 
-Do not output what VNV is doing.  Parsing errors will still be reported, though
-less verbosely than they would normally.
+Do not output what VHDocL is doing.  Parsing errors will still be reported,
+though less verbosely than they would normally.
 
 =item B<--rightlogo>=I<image>
 
@@ -561,16 +606,22 @@ File name or URL of a CSS stylesheet to reference in the headers of all
 generated HTML files.  This allows the user to influence the appearance of the
 generated HTML.
 
-=item B<--toplink>=I<text|file.html>
+=item B<--title>
+
+Title string to be printed at the top of every documentation file.  Intended
+to contain a brief description of the purpose of the design documented.
+
+=item B<--toplink>=[I<text|>]I<file.html>
 
 Gives a hyperlink to appear in the navigation bar of all generated HTML files.
 Intended for "interfacing" with other local documentation of which the
 generated design docs are part.  If present, the text before the vertical bar
-is used for the text of the hyperlink reference.
+is used for the text of the hyperlink reference.  Be aware that your shell may
+try to interpret the vertical bar and escape it if necessary.
 
 =item B<--version>
 
-Print version of VNV and exit.  No processing will be done if this option is
+Print version of VHDocL and exit.  No processing will be done if this option is
 encountered.
 
 =back
@@ -584,37 +635,38 @@ overrides the others.
 
 =head1 USAGE
 
-The most immediately obvious way to use VNV is by giving the source files to be
-parsed on the command line, like this:
+The most immediately obvious way to use VHDocL is by giving the source files to
+be parsed on the command line, like this:
 
-    vnv submodule1.vhd topmodule.vhd submodule2.vhd
+    vhdocl submodule1.vhd topmodule.vhd submodule2.vhd
 
-This will cause VNV to read the VHDL files, create the default output directory
-"doc" and some subdirectories and generate HTML pages in these directories.
-The file extension .vhd/.vhdl may be omitted when specifying source files.
+This will cause VHDocL to read the VHDL files, create the default output
+directory "doc" and some subdirectories and generate HTML pages in these
+directories.  The file extension .vhd/.vhdl may be omitted when specifying
+source files.
 
-It is not necessary to tell VNV every single source file name.  If all your
+It is not necessary to tell VHDocL every single source file name.  If all your
 design files are located in a single directory, it is sufficient to say:
 
-    vnv .
+    vhdocl .
 
-(Assuming you are currently in that directory.)  VNV will then process all
+(Assuming you are currently in that directory.)  VHDocL will then process all
 files with the extension .vhd or .vhdl in that directory, though not in
 subdirectories.  If you want to process all VHDL files in a directory tree
 without manually making a list, you could do the following:
 
-    find . -iname \*.vhd | vnv -
+    find . -iname \*.vhd | vhdocl -
 
 (Assuming all your source files have the extension .vhd rather than .vhdl.)
-The argument "-" causes VNV to interrupt command-line processing and read
+The argument "-" causes VHDocL to interrupt command-line processing and read
 arguments from standard input.
 
-It is not necessary to tell VNV which of the source files contains the top
+It is not necessary to tell VHDocL which of the source files contains the top
 module, as it will automatically resolve instantiations and treat those modules
 which are instantiated nowhere as top modules.  (So unless you omit testbench
 files from the source file list, they will be regarded as top modules.)
 
-Arguments to VNV, both options and input file names, can be given in three
+Arguments to VHDocL, both options and input file names, can be given in three
 ways: on the command line, on standard input and in the configuration file (see
 below).  These three possibilities can in principle be intermixed freely
 (though in how far that is a good idea is a different matter).  Parsing of
@@ -627,9 +679,9 @@ currently in the directory of the play library, which does not have any
 subdirectories and is located beside the directory containing the work library,
 you can generate documentation with:
 
-    find ../work -iname \*.vhd | vnv - -l play .
+    find ../work -iname \*.vhd | vhdocl - -l play .
 
-VNV will read all file names found by C<find> from standard input and assign
+VHDocL will read all file names found by C<find> from standard input and assign
 them to the default library work.  Then it encounters the library option and
 the directory ".".  It finds all VHDL files in this directory and assigns them
 to the library play.
@@ -637,17 +689,17 @@ to the library play.
 
 =head1 CONFIGURATION FILE
 
-Instead of on the command line, VNV options and input files can be given in a
-configuration file.  This allows VNV's arguments to be saved as part of a
+Instead of on the command line, VHDocL options and input files can be given in
+a configuration file.  This allows VHDocL's arguments to be saved as part of a
 design project.  A configuration file to be read is specified with the B<-f>
-option.  As a special case, if only one file name is specified on VNV's command
-line and if that file has the extension .vnv, this is taken to be a
+option.  As a special case, if only one file name is specified on VHDocL's
+command line and if that file has the extension .vhdocl, this is taken to be a
 configuration file not a source file.
 
-The configuration file is a plain text file containing VNV options, input files
-and possibly comments.  An option is specified by the option name, which is
-identical to the long command line option without the "--", an optional equals
-sign and its value.
+The configuration file is a plain text file containing VHDocL options, input
+files and possibly comments.  An option is specified by the option name, which
+is identical to the long command line option without the "--", an optional
+equals sign and its value.
 
 Boolean-valued options can be specified by just giving their name or its
 negated form.  Otherwise they may only have the values "1", "on", "yes",
@@ -675,7 +727,7 @@ line.
 A configuration file could for example look like this:
 
     ######################################################
-    #  Contrived VNV config file for non-existent design
+    #  Contrived VHDocL config file for non-existent design
     ######################################################
     
     quiet= true
@@ -696,8 +748,8 @@ reading file names from standard input is not allowed in config files.
 
 =head1 MARKUP LANGUAGE
 
-Though VNV helps to understand undocumented designs, its primary purpose is as
-a documentation tool.  Most VHDL declarative items can have a description
+Though VHDocL helps to understand undocumented designs, its primary purpose is
+as a documentation tool.  Most VHDL declarative items can have a description
 associated with them, which will be printed in the relevant HTML page.  These
 descriptions are given in comments in the VHDL code which start with --*
 instead of --.  They have to directly precede the declarative item to which
@@ -709,11 +761,11 @@ text.
 Here is an example:
 
     --* This process defines an up-counter.  This would not normally warrant
-    --* much of a description, but this is to demonstrate that VNV
+    --* much of a description, but this is to demonstrate that VHDocL
     --* documentation comments can extend over several comment lines.
     --*
     --* Here is an equally contrived second paragraph, again designed to show
-    --* how to write documentation for VNV.
+    --* how to write documentation for VHDocL.
     upctr : process( reset, clk ) is
     begin
       if reset = '1' then
@@ -764,7 +816,7 @@ For instance, the C<pre> tag can be used to create ASCII graphics:
       );
     end entity adder4;
 
-The example demonstrates another feature of VNV:  If a documentation comment
+The example demonstrates another feature of VHDocL:  If a documentation comment
 starts with --+ instead of --*, the given description is added not just to the
 following declaration, but to all following declarations of the same type
 (ports in this case), until a different description is encountered.  --+ is
@@ -784,7 +836,7 @@ architectures and for ...  use statements in architectures and configurations.
 Local declarations of constants, functions etc. within other functions,
 generate statements of similar declarations with their own declarative part
 cannot be documented and will not be output to the generated HTML pages.  See
-B<OUTPUT> below for a description of what VNV generates.
+L</OUTPUT> below for a description of what VHDocL generates.
 
 The description of entities, architectures, configurations, packages and
 package bodies can contain the following markup codes, which are similar to
@@ -847,25 +899,33 @@ Version information.
 revision management system such as Subversion
 (L<http://subversion.tigris.org/>).  (@author is a different matter since
 Subversion merely substitutes the author who did the last commit.)  If you use
-Subversion and have enables keyword substitution in your VHDL files, you may
-write in the description of an entity:
+Subversion, you canenable keyword substitution for your VHDL file with the
+following command:
+
+    svn propset svn:keywords="Date Id Rev" source.vhd
+
+You can then write in the description of an entity:
 
     --* @date $Date$
     --* @id $Id$
-    --* @version $Revision$
+    --* @version $Rev$
 
-and have the Subversion-generated date, ID and version number in the
-documentation from VNV.  Not that VNV descriptions relate to an entity or an
-architecture (or other declarative item), whereas Subversion keywords relate to
-files.  So a changed date does not necessarily mean that something changed in
-the entity declaration.  But if you have a separate file for each
-entity/architecture and package/package body pair, having Subversion data in
-their description is still meaningful.
+The date, ID and version number of the last change to source.vhd will then be
+inserted into the documentation comments by Subversion.  VHDocL strips the
+Subversion keywords and dollar signs,leaving only the information substituted
+by Subversion.  This is in fact done for all Subversion keywords in all
+documentation comments, so you may also use them in your documentation text if
+you like.  Note that VHDocL descriptions relate to an entity or an architecture
+(or other declarative item), whereas Subversion keywords relate to files.  So a
+changed date does not necessarily mean that something changed in the entity
+declaration.  But if you have a separate file for each entity/architecture and
+package/package body pair, having Subversion data in their description is still
+meaningful.
 
 
 =head1 OUTPUT
 
-VNV generates four top-level documentation pages which are located in the
+VHDocL generates four top-level documentation pages which are located in the
 output directory: A list of entities (with their architectures and
 configurations), a list of packages, an instantiation overview and an
 instantiation hierarchy.  They are named entities.html, packages.html,
@@ -873,16 +933,17 @@ instantiations.html and hierarchy.html, possibly preceded by the prefix.  The
 difference between the instantiation overview and hierarchy is that the
 overview merely shows the first-level instantiations in each architecture and
 configuration, while the hierarchy recursively shows all instantiations in
-sub-(sub-...)modules.  The hierarchy stops at recursive instantiations, if
-applicable.
+sub-(sub-...)modules.  Both list every instantiated module only once, even when
+it is instantiated several times.  The hierarchy stops at recursive
+instantiations, if applicable.
 
-There is no overall top-level index.html or similar (though one could be added
-and referenced with the --toplink option).  Readers are supposed to start at
-one of these top-level files.  The top-level declarations listed in the
-top-level HTML files are hyperlinked to the HTML file which describes them in
-detail, located in the accordingly named subdirectory of the output directory.
-If a @brief/@short description is available, the top-level HTML files display
-it.
+There is also an index.html in the output directory which links to the four
+pages mentioned above.  If a top-level URL is given  with the --toplink option,
+this is supposed to replace it, and index.html will not be generated.  The
+top-level declarations listed in the top-level HTML files are hyperlinked to
+the HTML file which describes them in detail, located in the accordingly named
+subdirectory of the output directory.  If a @brief/@short description is
+available, the top-level HTML files display it.
 
 All entities, architectures, configurations, packages and package bodies are
 described in HTML files of their own located in the respective subdirectory.
@@ -939,14 +1000,14 @@ components.
 =head1 BUGS AND LIMITATIONS
 
 VHDL is acknowledged to be a hard language to parse, and it offers many
-freedoms which lead to large differences in coding style.  VNV performs a
+freedoms which lead to large differences in coding style.  VHDocL performs a
 basic parsing of the declarative elements in the input files by trying to
 identify them using regular expressions.  The parsing has now been tested on a
 largish number of designs, most of them not coded by the author.  Still, it is
 possible that your design may be incorrectly parsed.  If so, you can help me
 greatly by sending me a copy of the VHDL file which failed to be parsed.
 
-Purely syntactical issues aside, the more advanced features of VNV (such as
+Purely syntactical issues aside, the more advanced features of VHDocL (such as
 support for multiple libraries and for configurations) could not be tested as
 thoroughly as its more frequenly used features.  If something breaks there, I
 would also be interested in your design, or even better a simple test case.
@@ -955,16 +1016,19 @@ Instantiations without a port map are not supported.
 
 Records and unit declarations are recognised but not documented in detail.
 
-The home page of VNV is L<http://www.volkerschatz.com/science/vnv.html>.
-Backfeed is welcome to the e-mail vnv at that domain.  (Hopefully this
+Nested declarations, such as functions inside functions, constants inside
+processes, etc. are parsed but not documented.
+
+The home page of VHDocL is L<http://www.volkerschatz.com/hardware/vhdocl.html>.
+Backfeed is welcome to the e-mail vhdocl at that domain.  (Hopefully this
 formulation will defeat the spambots.)
 
 
 =head1 COPYRIGHT
 
-VNV is (c) 2007-08 Volker Schatz.  It is free software and may be redistributed
-and/or modified under the terms of the GNU General Public License, version 3 or
-later.
+VHDocL is (c) 2007-08 Volker Schatz.  It is free software and may be
+redistributed and/or modified under the terms of the GNU General Public
+License, version 3 or later.
 
 =cut
 
@@ -974,7 +1038,6 @@ later.
 ####			VHDL parsing functions
 ##############################################################################
 ##############################################################################
-
 
 # Parse documentation (--*) comment.  Escape HTML's reserved characters but
 # leave some tags untouched which are allowed in descriptions.
@@ -986,6 +1049,7 @@ sub parsedoccom
   my $dcom= shift;
   my $tags= qr/b|i|tt|u|big|small|sub|sup|em|strong|code|var|ul|ol|li|
   		br|center|pre|table|tr|td|th|(?:a|span|img)(?:\s+[^>]+)?/ix;
+  my $svnkeys= qr/(?:LastChanged)?(?:Date|Revision)|Rev|Id|Author|(?:Head)?URL/;
 
   $dcom =~ s/<(\/?$tags)>/\x01$1\x02/go;
   $dcom =~ s/&/&amp;/g;
@@ -995,6 +1059,8 @@ sub parsedoccom
   $dcom =~ tr/\x01\x02/<>/;
   my @doclines= split /\s+(?=\@)|\n[ \t\r]*\n/, $dcom;
   chomp(@doclines);
+  # Remove supported Subversion keywords:
+  map { $_ =~ s/\$$svnkeys:\s*(.*?)\s*\$/$1/go; } @doclines;
   for my $line ( @doclines )
   {
     next if $line =~ /^$/;
@@ -1026,6 +1092,7 @@ sub parsedoccom
       push @{$doc{"description"}}, $line;
     }
   }
+  $doc{"id"} =~ s/\$Id:\s*(.*?)\s*\$/$1/ if $doc{"id"};
   return \%doc;
 }
 
@@ -1060,17 +1127,23 @@ my $ANY= qr/(?:$STR|[^"])*/o;
 my $MANY= qr/(?:$STR|[^"])*?/o;
 
 
-# Check whether parentheses are balanced and return net imbalance
-# -> String containg nested parentheses.  At no point must more parentheses
-#    be closed than have been opened, ie "())(()" would be illegal.
-# <- String containing parentheses remaining after eliminating all matching
-#    pairs, empty string if parentheses are balanced.
-sub net_parens
+# This function extracts a procedure argument list or process sensitivity list
+# from a string and determines whether it is complete by keeping track of pairs
+# of parentheses.
+# -> String containing argument/sensitivity list without top-level opening
+#    parenthesis, possibly followed by other stuff.
+# <- Argument/sensitivity list without top-level parentheses, or undef if given
+#    string does not contain a complete list.  No white space removal or other
+#    cleaning up is done to the list, so its length can be used to remove it
+#    from the input string.
+sub paren_list
 {
-  ($_)= @_;
-  s/[^()]+//g;
-  while( s/\(\)//g ) {}
-  return $_;
+  my ($str)= @_;
+  my $orig= $str;
+
+  while( $str =~ s/^([^)]*)\([^()]*\)/$1/g ) {}
+  return undef unless $str =~ s/^[^()]*\)/\)/;
+  return substr($orig, 0, length($orig)-length($str));
 }
 
 
@@ -1156,7 +1229,7 @@ sub parsefile
   my ($doccomment, $aheaddoccom, $lastdoccom);
   my ($keepdoccom, $keepdoctype, $readahead);
 
-  open(VHDL, $fname) or die "Could not open $fname!  Aborting.";
+  open(VHDL, $fname) or croak "Could not open $fname!  Aborting.";
   print "Parsing $fname...\n" unless $config{"quiet"};
   $aheaddoccom= "";
 vhdlline:
@@ -1240,13 +1313,9 @@ vhdlline:
 		or next vhdlline;
 	my ($name, $parlist, $is)= ($1, $2 || "", $3);
 	if( $parlist ) { 
-	  my $netp= net_parens($parlist);
+	  $parlist= paren_list($parlist);
 	  # keep reading until all parentheses are closed:
-	  next vhdlline unless $netp =~ /^\)/;
-	  # build regex to remove code after parameter list:
-	  $netp= join("[^()]*\\", split(//, $netp));
-	  $netp= "\\" . $netp;
-	  $parlist =~ s/$netp[^()]*$//;
+	  next vhdlline unless defined($parlist);
 	  $vline =~ s/^procedure\s+$ID\s*\(\s*//io;
 	  $vline= substr($vline, length($parlist));
 	  $vline =~ s/^\)\s*(?:\b(is)\b|;)//i;
@@ -1287,13 +1356,9 @@ vhdlline:
 			    (?:\s*\(\s*($STUFF\s*\)))?\s*[^\s(]/iox ) {
 	  my ($name, $post, $sens)=($1 || "", lc($2) eq "postponedprocess", $3);
 	  if( $sens ) {
-	    my $netp= net_parens($sens);
+	    $sens= paren_list($sens);
 	    # keep reading until all parentheses are closed:
-	    next vhdlline unless $netp =~ /^\)/;
-	    # build regex to remove code after parameter list:
-	    $netp= join("[^()]*\\", split(//, $netp));
-	    $netp= "\\" . $netp;
-	    $sens =~ s/$netp[^()]*$//;
+	    next vhdlline unless defined($sens);
 	    $vline =~ s/^(?:$ID\s*:\s*)?\b(?:process|postponedprocess)\s*\(\s*//io;
 	    $vline= substr($vline, length($sens));
 	    $vline =~ s/^\)//;
@@ -1316,19 +1381,16 @@ vhdlline:
       elsif( $vline =~ /^$ID\s*:\s*block\b/io ) {
 	if( $vline =~ /^($ID)\s*:\s*block\b(?:\s*\(\s*($STUFF\s*\)))?
       			\s*[^\s(]/iox ) {
-	  my ($name, $guard)= ($1, $2);
+	  my ($name, $guard)= ($1, $2 || "");
 	  if( $guard ) {
-	    $doccomment .= $aheaddoccom;
-	    $aheaddoccom= "";
-	    $readahead= 0;
-	    my $netp= net_parens($guard);
-	    next vhdlline unless $netp =~ /^\)/;
-	    $netp= join("[^()]*\\", split(//, $netp));
-	    $netp= "\\" . $netp;
-	    $guard =~ s/$netp[^()]*$//;
+	    $guard= paren_list($guard);
+	    # keep reading until all parentheses are closed:
+	    next vhdlline unless defined($guard);
 	    $vline =~ s/^$ID\s*:\s*block\s*\(\s*//io;
 	    $vline= substr($vline, length($guard));
-	    $vline =~ s/^\)\s*//i;
+	    $vline =~ s/^\)//i;
+	    $doccomment .= $aheaddoccom;
+	    $aheaddoccom= "";
 	  }
 	  else {
 	    $vline =~ s/^$ID\s*:\s*block\s*//io;
@@ -1366,7 +1428,7 @@ vhdlline:
 	push @newentries, ( map +{ "type", "library", "name", $_ }, split(/\s*,\s*/, $1) );
       }
       elsif( $vline =~ /^for\s+$ID/io ) {
-	if( $vline =~ s/^for\s+($IDLIST)\s*:\s*($ID)\s+use/use/io ) {
+	if( $vline =~ s/^for\s+($IDLIST)\s*:\s*($ID)\s*([^\s])/$3/io ) {
 	  $newchild= { "type", "for", "subtype", "instance", "objtype", $2,
 					 "objnames", [split(/\s*,\s*/, $1)] };
 	  unless( $inconfiguration ) {
@@ -1394,9 +1456,13 @@ vhdlline:
       # We can read ahead "port map" here since neither generic map nor port
       # map take doc comments.
       elsif( $vline =~
-	    s/^generic\s+map\s*\(\s*($STUFF)\s*\)\s*(port\s+map\b|;)/$2/io ) {
-	next vhdlline if net_parens($1);
-	push @newentries, { "type", "genericmap", "map", parsemap($1) };
+	    /^generic\s+map\s*\(\s*($STUFF\s*\))\s*(?:port\s+map\b|;)/io ) {
+	my $map= paren_list($1);
+	next vhdlline unless defined($map);
+	$vline =~ s/^generic\s+map\s*\(\s*//io;
+	$vline= substr($vline, length($map));
+	$vline =~ s/^\)//i;
+	push @newentries, { "type", "genericmap", "map", parsemap($map) };
       }
       elsif( $vline =~ s/^use\s+($SIDLIST)\s*;//io ) {
 	push @newentries, ( map +{ "type", "use", "subtype", "package",
@@ -1458,6 +1524,7 @@ vhdlline:
 	$keepdoccom= 0;
         $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
 	$doccomment= $aheaddoccom;
+	$aheaddoccom= "";
 	push @{$parent->{"children"}}, $newchild;
 	push @parsestack, { "backtrack", $parent, 
 		"type", $newchild->{"type"}, "name", $newchild->{"name"} };
@@ -1537,12 +1604,12 @@ sub uniq_files
   my $cwd= $config{"cwd"};
 
   for my $elem (@$files) {
-    my $absname= Cwd::abs_path(File::Spec->rel2abs($elem->{"name"}, $cwd));
+    my $absname= mycanonpath(File::Spec->rel2abs($elem->{"name"}, $cwd));
     for my $elem2 (@$files) {
       next unless defined($elem2);
       last if $elem2 == $elem;
       if( $absname eq
-		Cwd::abs_path(File::Spec->rel2abs($elem2->{"name"}, $cwd)) ) {
+		mycanonpath(File::Spec->rel2abs($elem2->{"name"}, $cwd)) ) {
 	unless( $config{"quiet"} ) {
 	  print STDERR "Duplicate source file ", $elem2->{"name"};
 	  if( $elem->{"libname"} ne $elem2->{"libname"} ) {
@@ -1562,40 +1629,6 @@ sub uniq_files
   }
   @$files= grep defined($_), @$files;
   return $removed;
-}
-
-
-my (%findvhdl_result, %findvhdl_result_lc);
-
-# Callback function for File::Find which saves the paths of VHDL files in the
-# global hash %findvhdl_result.
-sub findvhdl_callback
-{
-  use File::Find;
-
-  if( -f && s/\.(?:vhd|vhdl)$//i ) {
-    push @{$findvhdl_result{$_}}, $File::Find::name;
-    push @{$findvhdl_result_lc{lc($_)}}, $File::Find::name;
-  }
-}
-
-# Find VHDL files in search path
-# -> Reference to array of search paths
-#    Reference to array of references to hashes representing files which will
-#    be parsed anyway.  These will not be returned again.
-# <- Reference to hash mapping truncated file names to reference to array of
-#    complete file names
-#    Reference to hash mapping truncated lowercased file names to reference to
-#    array of file names
-sub search_vhdl
-{
-  use File::Find;
-
-  my ($paths, $files)= @_;
-
-  File::Find::find({ wanted => \&findvhdl_callback, follow => 0 }, @$paths);
-
-  return (\%findvhdl_result, \%findvhdl_result_lc);
 }
 
 
@@ -2036,7 +2069,7 @@ sub resolve_configuration
 	  if( $use->{"archname"} ) {
 	    $for->{"archname"}= $use->{"archname"};
 	    ($for->{"bindarch"})= ($use->{"architecture"})=
-		grep $_->{"name"} eq $use->{"archname"},
+		grep lc($_->{"name"}) eq lc($use->{"archname"}),
 		      @{$for->{"binding"}->{"architectures"}};
 	  }
 	  elsif( @{$for->{"binding"}->{"architectures"}} ) {
@@ -2070,26 +2103,29 @@ sub resolve_configuration
 # or top-level nodes.  This is used to prevent duplicate instantiations in the
 # instantiation hierarchy.  The comparison performed is slightly asymmetrical
 # as required in the situations where this function is used: Child nodes
-# representing configuration instantiations are not expected to have been
-# resolved yet (= have an entity and architecture assigned to them), but
-# top-level configuration nodes in the array may have.
+# representing configuration instantiations need not have been resolved yet (=
+# have an entity and architecture assigned to them), but top-level
+# configuration nodes in the array may have.  (See the third argument, though.)
 # -> Reference to the hash representing the child node
 #    Reference to the array of hash references representing the other nodes
+#    optional: if 1, the "confname" and "configuration" entries of the first
+#    argument are ignored, and the comparison is based solely on the
+#    entity and architecture to which the configuration node has been resolved.
 # <- The hash reference of the node from the array if an equivalent node has
 #    been found; otherwise undef
 sub grep_hier
 {
-  my ($child, $ary)= @_;
+  my ($child, $ary, $ignoreconf)= @_;
   my $result;
 
-  if( $child->{"confname"} ) {
+  if( !$ignoreconf && $child->{"confname"} ) {
     if( $child->{"configuration"} ) {
       ($result)= grep $_->{"configuration"} &&
 		    $_->{"configuration"} == $child->{"configuration"}, @$ary;
     }
     else {
       ($result)= grep !$_->{"configuration"} && $_->{"confname"} &&
-      		      $_->{"confname"} eq $child->{"confname"}, @$ary;
+      		      lc($_->{"confname"}) eq lc($child->{"confname"}), @$ary;
     }
   }
   elsif( $child->{"architecture"} ) {
@@ -2098,15 +2134,45 @@ sub grep_hier
   }
   elsif( $child->{"entity"} ) {
     ($result)= grep $_->{"entity"} && !$_->{"architecture"} &&
-	      !$_->{"confname"} && $_->{"entity"} == $child->{"entity"} &&
-	      ($_->{"archname"} || "") eq ($child->{"archname"} || ""), @$ary;
+		!$_->{"confname"} && $_->{"entity"} == $child->{"entity"} &&
+	  lc($_->{"archname"} || "") eq lc($child->{"archname"} || ""), @$ary;
   }
   else {
     ($result)= grep !$_->{"entity"} && !$_->{"architecture"} &&
-	       !$_->{"confname"} && $_->{"entname"} eq $child->{"entname"} &&
-	       ($_->{"archname"} || "") eq ($child->{"archname"} || ""), @$ary;
+	 !$_->{"confname"} && lc($_->{"entname"}) eq lc($child->{"entname"}) &&
+	 lc($_->{"archname"} || "") eq lc($child->{"archname"} || ""), @$ary;
   }
   return $result;
+}
+
+
+# Compares two sub-hierarchies of instantiations.  Children are compared in
+# order, which is sufficient if equal subtrees were generated by the same
+# algorithm.
+# -> Two hierarchy nodes which are the roots of the sub-hierarchies to be
+#    compared.
+# <- 1 if equal, 0 otherwise
+sub hier_equal
+{
+  my ($node1, $node2)= @_;
+
+  return 1 if $node1 == $node2;
+  return 0
+      if ($node1->{"configuration"} || 0) != ($node2->{"configuration"} || 0);
+  return 0 if lc($node1->{"confname"} || "") ne lc($node2->{"confname"} || "");
+  return 1 if $node1->{"proxy"} && $node2->{"proxy"} &&
+  		$node1->{"proxy"} == $node2->{"proxy"};
+  return 0
+  	if ($node1->{"architecture"} || 0) != ($node2->{"architecture"} || 0);
+  return 0 if ($node1->{"entity"} || 0) != ($node2->{"entity"} || 0);
+  return 0 if lc($node1->{"archname"} || "") ne lc($node2->{"archname"} || "");
+  return 0 if lc($node1->{"entname"} || "") ne lc($node2->{"entname"} || "");
+  return 0 if $#{$node1->{"children"}} != $#{$node2->{"children"}};
+  for my $ind (0..$#{$node1->{"children"}}) {
+    return 0 unless hier_equal($node1->{"children"}->[$ind],
+    				$node2->{"children"}->[$ind]);
+  }
+  return 1;
 }
 
 
@@ -2180,7 +2246,7 @@ sub configure_hierarchy
     if( $node->{"entity"}->{"architectures"}->[0] ) {
       $node->{"architecture"}= $node->{"entity"}->{"architectures"}->[0];
       $node->{"archname"}= $node->{"architecture"}->{"name"};
-      if( my ($anode)= grep_hier($node, @$ahier) ) {
+      if( my ($anode)= grep_hier($node, @$ahier, 1) ) {
 	$node->{"proxy"}= $anode;
 	$anode->{"instantiated"}= 1;
       }
@@ -2212,7 +2278,7 @@ sub configure_hierarchy_arch
   unless( @nextfors ) {
     # Pathological case #2: empty architecture for statement - bind entity to
     # this architecture.
-    if( my ($anode)= grep_hier($node, $ahier) ) {
+    if( my ($anode)= grep_hier($node, $ahier, 1) ) {
       $node->{"proxy"}= $anode;
       $anode->{"instantiated"}= 1;
     }
@@ -2235,9 +2301,11 @@ confarchinst:
     for my $ind (0..$#nextfors) {
       my $nfor= $nextfors[$ind];
       if( grep($_ == $inst, @{$nfor->{"objects"}}) ) {
-	delete $nextfors[$ind];
+	next confarchinst if $nfor->{"hier_done"};
+	$nfor->{"hier_done"}= 1;
 	$new= configure_hierarchy_for($nfor, $node, $ahier, $chier);
-	push @{$node->{"children"}}, $new;
+	push @{$node->{"children"}}, $new
+		unless grep hier_equal($new, $_), @{$node->{"children"}};
 	next confarchinst;
       }
     }
@@ -2260,7 +2328,7 @@ confarchinst:
 	}
 	else {
 	  $new= { "entity" => $inst->{"binding"},
-		  "entname"=> $inst->{"bindname"},
+		  "entname" => $inst->{"bindname"},
 		  "architecture" => $inst->{"bindarch"}, 
 		  "archname" => $inst->{"archname"} };
 	}
@@ -2274,6 +2342,9 @@ confarchinst:
       push @{$node->{"children"}}, $new;
       push @archildren, $new;
     }
+  }
+  for (@nextfors) {
+    undef $_->{"hier_done"};
   }
 }
 
@@ -2308,10 +2379,16 @@ sub configure_hierarchy_for
 	     "architecture" => $arch, "archname" => $for->{"archname"},
 	     "configuration" => $confnode->{"configuration"},
 	     "confname" => $confnode->{"confname"} };
-    my ($archfor)= grep $_->{"objname"} eq $node->{"archname"},
+    my ($archfor)= grep lc($_->{"objname"}) eq lc($node->{"archname"}),
     				find_children($for, "type", "for");
     if( $archfor ) {
       configure_hierarchy_arch($archfor, $node, $ahier, $chier);
+    }
+    else {
+      if( my ($anode)= grep_hier($node, $ahier, 1) ) {
+        $node->{"proxy"}= $anode;
+	$anode->{"instantiated"}= 1;
+      }
     }
   }
   return $node;
@@ -2358,8 +2435,10 @@ sub hier_max_depth
 sub prepareoutput
 {
   my $dir= $config{"outputdir"};
-
-  for my $d ("$dir", "$dir/entities", "$dir/architectures",
+ 
+  eval { File::Path::mkpath( [ $dir ] ); };
+  croak "Cannot create output directory `$dir' - $@" if $@;
+  for my $d ("$dir/entities", "$dir/architectures",
     		"$dir/configurations", "$dir/packages")
   {
     if( opendir(DIR, $d) ) {
@@ -2368,10 +2447,10 @@ sub prepareoutput
     }
     if( open(FILE, $d) ) {
       close FILE;
-      die "Cannot create output directory $d - a file of the same name exists!";
+      croak "Cannot create output directory `$d' - a file of the same name exists!";
     }
     if( !mkdir($d) ) {
-      die "Cannot create output directory $d - $!";
+      croak "Cannot create output directory `$d' - $!";
     }
   }
   # Now make all relative external links relative to output dir
@@ -2417,6 +2496,16 @@ sub prepareoutput
     $config{"toplink"}= File::Spec->abs2rel($config{"toplink"}, $dir)
 	unless $config{"toplinkabs"};
   }
+  else {
+    $config{"toplink"}= $config{"prefix"} . "index.html";
+    $config{"toplinktext"}= "Home";
+    $config{"toplinkabs"}= 0;
+    my $fname= $config{"outputdir"} . "/" . $config{"toplink"};
+    open INDEX, ">$fname" or croak "Could not create index.html.\n";
+    printhtmlheader(*INDEX{IO}, "Home", 1);
+    print INDEX "<p></p>\n";
+    printhtmlfooter(*INDEX{IO}, 1);
+  }
   $cp= $config{"cellpadding"};
   $iw= $config{"indentation"};
 }
@@ -2433,11 +2522,14 @@ sub printhtmlheader
   my $prepre= ($global? "": "../");
   my $prefix= $prepre . $config{"prefix"};
   my $top;
+  my $doctitle;
   my $stylesheet;
   my $leftlogo;
   my $rightlogo;
   my $toplink;
 
+  $doctitle= length($config{"title"})?
+  		"\n<center>" . $config{"title"} . "</center><hr>\n" : "";
   $top= $config{"stylesheetabs"}? "" : $prepre;
   $stylesheet= $config{"stylesheet"}? 
   		"<link rel=\"stylesheet\" type=\"text/css\" href=\"" . $top .
@@ -2462,7 +2554,7 @@ sub printhtmlheader
     $stylesheet
 </head>
 <body>
-
+$doctitle
 <table border="0" width="100%"><tr><td align="left">
 $leftlogo
 </td><td align="center">
@@ -2488,22 +2580,22 @@ my @monthname= qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
 
 # Print the footer of a HTML documentation file
 # -> File handle to print to
+#    Optional flag indicating that the vertical bar should be omitted
 sub printhtmlfooter
 {
-  my $handle= $_[0];
+  my ($handle, $nobar)= @_;
   my ($sec,$min,$hour,$mday,$mon,$year)= localtime(time);
 
   $year += 1900;
   $mon= $monthname[$mon];
   $min= sprintf("%02d", $min);
   $sec= sprintf("%02d", $sec);
+  print $handle "\n<hr>\n" unless $nobar;
   print $handle <<EOF
 
-<hr>
-
 Generated on $mday $mon $year $hour:$min:$sec with <a
-href="http://www.volkerschatz.com/science/vnv.html">vnv</a>
-V$VNVversion
+href="http://www.volkerschatz.com/hardware/vhdocl.html">VHDocL</a>
+V$version
 
 </body>
 </html>
@@ -2626,7 +2718,7 @@ sub printlibusehtml
     		  "</td></tr>\n";
   }
   elsif( $use->{"object"} && (my $link= $use->{"object"}->{"doclink"}) ) {
-    print $handle "<tr><td colspan=\"2\">use <a href=", $link, "\">",
+    print $handle "<tr><td colspan=\"2\">use <a href=\"", $link, "\">",
     		  $use->{"name"}, "</a></td></tr>\n";
   }
   elsif( $use->{"package"} ) {
@@ -3127,7 +3219,7 @@ sub printconfightml
 	  if( $for->{"bindarch"} ) {
 	    print $handle " (<a href=\"../architectures/",
 	    		  $for->{"bindarch"}->{"docfilename"}, "\">",
-			  $for->{"bindarch"}->{"name"}, "</a>)</td></tr>\n";
+			  $for->{"archname"}, "</a>)</td></tr>\n";
 	  }
 	  elsif( $use->{"archname"} ) {
 	    print $handle " (", $use->{"archname"}, ")</td></tr>\n";
@@ -3347,15 +3439,17 @@ sub entitylisthtml
 		     "configurations", $_->{"configurations"} }, @$ents);
   @list= sort { $a->{"name"} cmp $b->{"name"} } @list;
   printhtmlheader(*LIST{IO}, "Entities, Architectures and Configurations", 1);
-  print LIST "\n<h1>List of entities, architectures and configurations</h1>\n";
+  print LIST "\n<h1>List of entities", ($haveconfs?
+     ", architectures and configurations" : " and architectures"), "</h1>\n";
   if( !@list ) {
     print LIST "\n<p>No entities, architectures or configurations were ",
 		"found.</p>\n";
     printhtmlfooter(*LIST{IO});
     return;
   }
-  print LIST "\n<p>Configurations are given in <i>italics</i>.</p>\n"
-	if $haveconfs;
+  elsif( $haveconfs ) {
+    print LIST "\n<p>Configurations are given in <i>italics</i>.</p>\n";
+  }
   print LIST "\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
   for my $item (@list) {
     if( $item->{"entity"} ) {
@@ -3620,10 +3714,6 @@ for my $file (@vhdlfiles) {
   push @{$libraries{lc($file->{"libname"})}}, @{$file->{"children"}};
 }
 
-if( scalar(@{$config{"searchpath"}}) ) {
-  my ($found, $foundlc)= search_vhdl($config{"searchpath"}, @vhdlfiles);
-}
-
 
 print "Scrunching and twisting everything together...\n" unless $config{"quiet"};
 
@@ -3632,21 +3722,21 @@ my @architectures;
 my @configurations;
 my @packages;
 my @packagebodies;
-my $duplicate;
+my $duplicate= 0;
 
 # Build entity, architecture, configuration and package lists
 for my $lib (keys(%libraries)) {
   my $decls= $libraries{$lib};
   my @ents= grep $_->{"type"} eq "entity", @$decls;
-  $duplicate ||= uniq_objs(\@ents);
+  $duplicate += uniq_objs(\@ents);
   my @archs= grep $_->{"type"} eq "architecture", @$decls;
-  $duplicate ||= uniq_objs(\@archs);
+  $duplicate += uniq_objs(\@archs);
   my @confs= grep $_->{"type"} eq "configuration", @$decls;
-  $duplicate ||= uniq_objs(\@confs);
+  $duplicate += uniq_objs(\@confs);
   my @packs= grep $_->{"type"} eq "package", @$decls;
-  $duplicate ||= uniq_objs(\@packs);
+  $duplicate += uniq_objs(\@packs);
   my @pbods= grep $_->{"type"} eq "packagebody", @$decls;
-  $duplicate ||= uniq_objs(\@pbods);
+  $duplicate += uniq_objs(\@pbods);
   map { $_->{"fullname"}= $lib . "." . $_->{"name"}; } @ents;
   for my $ac (@archs, @confs) {
     next if $ac->{"objname"} =~ /\..*\./ || 
@@ -4023,10 +4113,16 @@ bindcompinst:
       # matching component declaration, if any.
       if( $inst->{"component"} ) {
 	$inst->{"binding"}= $inst->{"component"}->{"binding"};
-	if( $inst->{"binding"} && @{$inst->{"binding"}->{"architectures"}} ) {
-	  $inst->{"bindarch"}= $inst->{"binding"}->{"architectures"}->[0];
-	  $inst->{"archname"}= $inst->{"bindarch"}->{"name"};
-	}
+      }
+      # Aaargh... the component is not even declared.  Sloppy designer!  So we
+      # resolve the instantiation by name.
+      else {
+	$inst->{"binding"}= resolve_selname($inst->{"objname"}, "entity",
+					    \%libraries, $file->{"libname"});
+      }
+      if( $inst->{"binding"} && @{$inst->{"binding"}->{"architectures"}} ) {
+	$inst->{"bindarch"}= $inst->{"binding"}->{"architectures"}->[0];
+	$inst->{"archname"}= $inst->{"bindarch"}->{"name"};
       }
     }
   }
