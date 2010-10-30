@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #    This is VHDocL, a VHDL documentation utility.
-#    Copyright (c) 2007-08 Volker Schatz (vhdocl at volkerschatz dot com).
+#    Copyright (c) 2007-10 Volker Schatz (vhdocl at volkerschatz dot com).
 #
 #    VHDocL is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ use File::Spec;
 use File::Path;
 use Cwd 'abs_path';
 
-my $version= "0.1beta3";
+my $version= "0.1beta5";
 
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "compat" => 0, "cwd" => "", 
@@ -74,8 +74,34 @@ sub fixpath
     $file= File::Spec->rel2abs($file, $dir);
     $file= mycanonpath($file);		# get rid of interior /../ if possible
     $file= File::Spec->abs2rel($file, $config{"cwd"});
+    $file ||= ".";		# some versions of abs2rel return "" for "."
     return $file;
   }
+}
+
+
+{
+my $pathsep;
+
+# Return a hyperlink to the corresponding source file for entities,
+# architectures etc. documented in subdirectories of the output directories.
+sub sourcelink
+{
+  my ($filename)= @_;
+
+  if( File::Spec->file_name_is_absolute($filename) ) {
+    return "file://$filename";
+  }
+  else {
+    $pathsep ||= File::Spec->catdir("","") || "/";
+    $filename= File::Spec->abs2rel($filename, $config{"absoutputdir"});
+    # Convert path separators to slashes.  This will work for Windoze, for
+    # other systems we would probably have to use URI::file.
+    $filename =~ s!$pathsep!/!g unless $pathsep eq "/";
+    return "../" . $filename;
+  }
+}
+
 }
 
 
@@ -896,13 +922,13 @@ Version information.
 
 
 @date, @id and @version tally nicely with keywords automatically substituted by
-revision management system such as Subversion
+revision management systems such as Subversion
 (L<http://subversion.tigris.org/>).  (@author is a different matter since
 Subversion merely substitutes the author who did the last commit.)  If you use
-Subversion, you canenable keyword substitution for your VHDL file with the
+Subversion, you can enable keyword substitution for your VHDL file with the
 following command:
 
-    svn propset svn:keywords="Date Id Rev" source.vhd
+    svn propset svn:keywords "Date Id Rev" source.vhd
 
 You can then write in the description of an entity:
 
@@ -912,7 +938,7 @@ You can then write in the description of an entity:
 
 The date, ID and version number of the last change to source.vhd will then be
 inserted into the documentation comments by Subversion.  VHDocL strips the
-Subversion keywords and dollar signs,leaving only the information substituted
+Subversion keywords and dollar signs, leaving only the information substituted
 by Subversion.  This is in fact done for all Subversion keywords in all
 documentation comments, so you may also use them in your documentation text if
 you like.  Note that VHDocL descriptions relate to an entity or an architecture
@@ -1026,7 +1052,7 @@ formulation will defeat the spambots.)
 
 =head1 COPYRIGHT
 
-VHDocL is (c) 2007-08 Volker Schatz.  It is free software and may be
+VHDocL is (c) 2007-10 Volker Schatz.  It is free software and may be
 redistributed and/or modified under the terms of the GNU General Public
 License, version 3 or later.
 
@@ -2434,7 +2460,7 @@ sub hier_max_depth
 # (<->) %config
 sub prepareoutput
 {
-  my $dir= $config{"outputdir"};
+  my $dir= $config{"absoutputdir"};
  
   eval { File::Path::mkpath( [ $dir ] ); };
   croak "Cannot create output directory `$dir' - $@" if $@;
@@ -3690,6 +3716,8 @@ sub hierarchyhtml
 
 my @vhdlfiles= @{parseargv(\@ARGV)};
 
+$config{"absoutputdir"}= mycanonpath($config{"outputdir"});
+
 if( uniq_files(\@vhdlfiles) ) {
   print STDERR "Warning: Duplicate source file names were removed.\n";
 }
@@ -3828,12 +3856,7 @@ for my $ent (@entities)
   # HTML file name
   $ent->{"docfilename"}= $config{"prefix"} . $ent->{"fullname"} . ".html";
   # Link to source file
-  if( File::Spec->file_name_is_absolute($ent->{"filename"}) ) {
-    $ent->{"filelink"}= $ent->{"filename"};
-  }
-  else {
-    $ent->{"filelink"}= "../" . File::Spec->abs2rel($ent->{"filename"}, $config{"outputdir"});
-  }
+  $ent->{"filelink"}= sourcelink($ent->{"filename"});
 }
 
 
@@ -3854,12 +3877,7 @@ for my $arch (@architectures) {
     }
   }
   # Link to source file
-  if( File::Spec->file_name_is_absolute($arch->{"filename"}) ) {
-    $arch->{"filelink"}= $arch->{"filename"};
-  }
-  else {
-    $arch->{"filelink"}= "../" . File::Spec->abs2rel($arch->{"filename"}, $config{"outputdir"});
-  }
+  $arch->{"filelink"}= sourcelink($arch->{"filename"});
 }
 
 
@@ -3872,12 +3890,7 @@ for my $conf (@configurations) {
   $conf->{"docfilename"}= $config{"prefix"} . $conf->{"objname"} . "-" .
 			  $conf->{"name"} . ".html";
   # Link to source file
-  if( File::Spec->file_name_is_absolute($conf->{"filename"}) ) {
-    $conf->{"filelink"}= $conf->{"filename"};
-  }
-  else {
-    $conf->{"filelink"}= "../" . File::Spec->abs2rel($conf->{"filename"}, $config{"outputdir"});
-  }
+  $conf->{"filelink"}= sourcelink($conf->{"filename"});
   # Now assign objects to the use statements
   resolve_configuration($conf, \%libraries);
 }
@@ -3912,12 +3925,7 @@ for my $pack (@packages)
   map { $_->{"binding"}= resolve_selname($_->{"name"}, "entity",
 			    \%libraries, $libname, $pack->{"name"}); } @comps;
   # Link to source file
-  if( File::Spec->file_name_is_absolute($pack->{"filename"}) ) {
-    $pack->{"filelink"}= $pack->{"filename"};
-  }
-  else {
-    $pack->{"filelink"}= "../" . File::Spec->abs2rel($pack->{"filename"}, $config{"outputdir"});
-  }
+  $pack->{"filelink"}= sourcelink($pack->{"filename"});
 }
 
 
@@ -3932,12 +3940,7 @@ for my $pbody (@packagebodies)
   # HTML file name
   $pbody->{"docfilename"}= $config{"prefix"} . $pbody->{"fullname"} . ".html";
   # Link to source file
-  if( File::Spec->file_name_is_absolute($pbody->{"filename"}) ) {
-    $pbody->{"filelink"}= $pbody->{"filename"};
-  }
-  else {
-    $pbody->{"filelink"}= "../" . File::Spec->abs2rel($pbody->{"filename"}, $config{"outputdir"});
-  }
+  $pbody->{"filelink"}= sourcelink($pbody->{"filename"});
 }
 
 for my $opb (@orphanedpbodies)
