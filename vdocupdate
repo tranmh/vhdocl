@@ -1,0 +1,109 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+my %ports;
+my %generics;
+my $otherdocs;
+my $curport= "";
+my $curgen= "";
+my $state= "";
+my $retval= 0;
+
+while( <> )
+{
+  if( /^\s*--\*/ ) {
+    if( /^\s*--\*\s*\@port\s+(\w+)\s+(.*)$/ ) {
+      $ports{lc($1)}= "--* $2\n";
+      $curport= lc($1);
+      $curgen= "";
+    }
+    elsif( /^\s*--\*\s*\@generic\s+(\w+)\s+(.*)$/ ) {
+      $generics{lc($1)}= "--* $2\n";
+      $curgen= lc($1);
+      $curport= "";
+    }
+    elsif( /^\s*--\*\s*$/ ) {
+      $curport= "";
+      $curgen= "";
+      $otherdocs .= $_;
+    }
+    elsif( $curport || $curgen ) {
+      if( $curport ) {
+	$ports{$curport} .= $_;
+      }
+      else {
+	$generics{$curgen} .= $_;
+      }
+    }
+    else {
+      $otherdocs .= $_;
+    }
+  }
+  else {
+    $curport= "";
+    $curgen= "";
+    if( /^\s*--\/\s*$/ ) {
+      $otherdocs .= "\n";
+    }
+    elsif( /^\s*(?:use\b|library\b|--)/ || /^\s*$/ ) {
+      print;
+    }
+    else {
+      if( $otherdocs ) {
+	print $otherdocs;
+	$otherdocs= "";
+      }
+      if( /^\s*entity\b/i ) {
+	$state= "entity";
+	print;
+      }
+      elsif( /\s*architecture\b/i ) {
+	$state= "";
+	print;
+      }
+      elsif( $state ) {
+	if( s/^(\s*generic\s*\(\s*)//i ) {
+	  $state= "generics";
+	  print $1;
+	  print "\n" unless /^\s*$/;
+	}
+	elsif( s/^(\s*port\s*\(\s*)//i ) {
+	  $state= "ports";
+	  print $1;
+	  print "\n" unless /^\s*$/;
+	}
+	if( /^\s*(\w+)\s*:/ ) {
+	  if( $state eq "ports" ) {
+	    if( grep $_ eq lc($1), keys(%ports) ) {
+	      print $ports{lc($1)};
+	      delete $ports{lc($1)};
+	    }
+	  }
+	  elsif( $state eq "generics" ) {
+	    if( grep $_ eq lc($1), keys(%generics) ) {
+	      print $generics{lc($1)};
+	      delete $generics{lc($1)};
+	    }
+	  }
+	}
+	print;
+      }
+      else {
+	print;
+      }
+    }
+  }
+}
+
+if( keys(%ports) ) {
+  print STDERR "Could not find port(s) ", join(", ", keys(%ports)), "\n";
+  $retval= 1;
+}
+if( keys(%generics) ) {
+  print STDERR "Could not find generic(s) ", join(", ", keys(%generics)), "\n";
+  $retval= 1;
+}
+
+exit $retval;
+
