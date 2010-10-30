@@ -1,0 +1,29 @@
+
+0.1beta5
+ - fixed wrong source file links
+
+0.1beta4
+ - worked around abs2rel() bug in fixpath()
+ - fixed typos in documentation
+
+0.1beta3
+ - allow "=" between option and argument but disallowed directly following
+   arguments which might be confused with bundled options
+ - use File::Path::mkpath() for creating output directory
+
+0.1beta2
+ - regexes parsing for..use statements and generic/port maps corrected
+ - bugs in parsing argument and sensitivity lists fixed
+ - fixed erroneous duplicates in instantiation hierarchy
+ - added search for binding in the absence of component declarations
+ - minor fixes and improvements of HTML output
+ - subversion keywords removed from substitutions
+ - replaced die statements by function which does not print source line numbers
+
+0.1beta1
+ - first revision as VHDocL
+
+0.1alpha
+ - initial revision under the name VNV
+
+
