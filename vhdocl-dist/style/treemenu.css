@@ -1,0 +1,38 @@
+ul {
+  margin: 0em;
+  padding: 0em;
+  list-style-type: none;
+}
+li {
+  padding: 0em;
+  margin: 0em;
+  border-left: 1px solid #000000;
+  margin-left: 1.5em;
+  padding-bottom: 0.5em;
+}
+li.ende {
+  border-left: none;
+}
+li div {
+  padding-top:0.5em;
+}
+li div span {
+  border-bottom: 1px solid #000000;
+  padding-left: 10px;
+}
+li.ende > div {
+  border-left: 1px solid #000000;
+}
+
+  /* Formatierung des Baums */
+  span.childs {
+    cursor: pointer;
+  }
+  
+  /* Klassen für das öffnen und schließen eines Knotens */
+  li.treeMenu_opened ul {
+    display: block;
+  }
+  li.treeMenu_closed ul {
+    display: none;
+  }

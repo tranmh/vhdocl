@@ -21,15 +21,22 @@ use strict;
 use warnings;
 use File::Spec;
 use File::Path;
+use File::Copy;
+use Digest::MD5;
 use Cwd 'abs_path';
 
-my $version= "0.1beta5";
+my $version= "0.1beta6";
 
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "compat" => 0, "cwd" => "", 
   "parsedebug" => 0, "quiet" => 0, "cellpadding" => 3, "indentation" => 50, 
   "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
   "title" => "" );
+
+my %requisites= ( "treestyle" => "treemenu.css", "treejava" => "treemenu.js",
+    "synstyle1" => "shCore.css", "synstyle2" => "shThemeDefault.css",
+    "synimg" => "wrapping.png",
+    "synjava1" => "shCore.js", "synjava2" => "shBrushVhdl.js" );
 
 my $cp;
 my $iw;
@@ -83,25 +90,52 @@ sub fixpath
 {
 my $pathsep;
 
-# Return a hyperlink to the corresponding source file for entities,
-# architectures etc. documented in subdirectories of the output directories.
+# Return a hyperlink to a source file from a top-level HTML file.
 sub sourcelink
 {
   my ($filename)= @_;
 
+  # We convert non-"/" path separators to slashes.  This will work for Windoze,
+  # for other systems we would probably have to use URI::file.
+  $pathsep ||= File::Spec->catdir("","") || "/";
   if( File::Spec->file_name_is_absolute($filename) ) {
+    $filename =~ s!$pathsep!/!g unless $pathsep eq "/";
     return "file://$filename";
   }
   else {
-    $pathsep ||= File::Spec->catdir("","") || "/";
     $filename= File::Spec->abs2rel($filename, $config{"absoutputdir"});
-    # Convert path separators to slashes.  This will work for Windoze, for
-    # other systems we would probably have to use URI::file.
     $filename =~ s!$pathsep!/!g unless $pathsep eq "/";
-    return "../" . $filename;
+    return $filename;
   }
 }
 
+}
+
+
+# Return the file extension of a file name (i.e. the portion after the last
+# ".").
+# -> File name
+# <- Extension (without the ".")
+sub fileext
+{
+  my ($fname)= @_;
+
+  (undef, undef, $fname)= File::Spec->splitpath($fname);
+  $fname =~ /\.([^\.]*)$/;
+  return $1 || "";
+}
+
+
+# Copy a file.  Uses File::Copy->copy() but prevents croaking.
+# -> Source file name
+#    Destination file name or target directory
+# <- 1 if successful, 0 on error
+sub copyfile
+{
+  my ($from, $to)= @_;
+
+  eval { File::Copy::copy($from, $to); };
+  return $@? 0 : 1;
 }
 
 
@@ -279,7 +313,8 @@ sub parseopt
     return 0;
   }
   elsif( -d $nextarg ) {
-    my @vhdl= grep -f, glob("$nextarg/*.[vV][hH][dD]{,[lL]}");
+    $nextarg= File::Spec->catfile($nextarg, "*.[vV][hH][dD]{,[lL]}");
+    my @vhdl= grep -f, glob($nextarg);
     push @$filelist, map +{ "type", "file", "name", $_,
 			    "libname", $config{"curlib"} }, @vhdl;
     return 1;
@@ -1052,9 +1087,9 @@ formulation will defeat the spambots.)
 
 =head1 COPYRIGHT
 
-VHDocL is (c) 2007-10 Volker Schatz.  It is free software and may be
-redistributed and/or modified under the terms of the GNU General Public
-License, version 3 or later.
+VHDocL is (c) 2007-10 Volker Schatz, with enhancements by Minh Cuong Tran.  It
+is free software and may be redistributed and/or modified under the terms of
+the GNU General Public License, version 3 or later.
 
 =cut
 
@@ -1187,8 +1222,8 @@ sub parsearglist
     $item =~ /^\s*(?:(constant|signal|variable|file)\s+)?($IDLIST)\s*:\s*
     		(?:(in|out|inout|buffer|linkage)\s+)?($MSTUFF)
     		(?:\s*:=\s*(\S.*?\S))?\s*$/iox or next;
-    push @args, (map +{ "name", $_, "type", $4, "subtype", lc($1), 
-		    "direction", lc($3), "value", $5 }, split(/\s*,\s*/, $2));
+    push @args, (map +{ "name", $_, "type", $4, "subtype", lc($1 || ""), 
+              "direction", lc($3 || ""), "value", $5 }, split(/\s*,\s*/, $2));
   }
   return \@args;
 }
@@ -1363,7 +1398,7 @@ vhdlline:
 		or next vhdlline;
 	my ($pure, $name, $parlist, $return, $is)= ($1, $2, $3 || "", $4, $5);
 	$newchild= { "type", "function", "name", $name, "subtype", $return, 
-		     "pure", lc($pure), "parlist", $parlist,
+		     "pure", lc($pure || ""), "parlist", $parlist,
 		     "parameters", parsearglist($parlist) };
 	if( !$is ) {
 	  push @newentries, $newchild;
@@ -1437,7 +1472,7 @@ vhdlline:
       }
       elsif( $vline =~ s/^(?:($ID)\s*:\s*)?(?:(while|for)\b\s*$MSTUFF\s*)?
       			\bloop\b//iox ) {
-	$newchild= { "type", "loop", "name", $1, "subtype", lc($2) || "loop" };
+	$newchild= { "type", "loop", "name", $1, "subtype", lc($2 || "loop") };
       }
       elsif( $vline =~ s/^(type|subtype)\s+($ID)\s+is\b\s*($MSTUFF)??\s*
 		  (?:\b(record|units|protected|protectedbody)\b|;)//iox ) {
@@ -1476,7 +1511,7 @@ vhdlline:
       elsif( $vline =~ s/^use\s+(?:(entity)\s+($SID)(?:\s*\(\s*($ID)\s*\))?|
 		  	(configuration)\s+($SID)|(open)\b)
       			\s*(generic\s+map\b|port\s+map\b|;)/$7/iox ) {
-	push @newentries, { "type", "use", "subtype", lc($1) || lc($4) || lc($6), 
+	push @newentries, { "type", "use", "subtype", lc($1 || $4 || $6), 
 			    "name", $2 || $5, "archname", $3 };
       }
       # We can read ahead "port map" here since neither generic map nor port
@@ -1517,7 +1552,7 @@ vhdlline:
       elsif( $portsnow && $vline =~ s/^($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
 				  ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*;//iox ) {
 	push @newentries, ( map +{ "type", "port", "name", $_,
-			      "direction", lc($2) || "in", "subtype", $3,
+			      "direction", lc($2 || "in"), "subtype", $3,
 			      "value", $4 }, split(/\s*,\s*/, $1) );
 	$portsnow= 2;
       }
@@ -1534,7 +1569,7 @@ vhdlline:
 	($SID)(?:\s*\(\s*($ID)\s*\))?(?:\s*generic\s+map\s*\(\s*($STUFF)\s*\))?
 	  \s*port\s+map\s*\(\s*($STUFF)\s*\)\s*;//iox ) {
 	push @newentries, { "type", "instance", "name", $1, "objname", $3,
-			    "subtype", lc($2) || "component", "archname", $4,
+			    "subtype", lc($2 || "component"), "archname", $4,
 			    "genericmap", parsemap($5) };
       }
       elsif( $vline =~ s/^elsif\b\s*$MSTUFF\s*\bthen\b//i || 
@@ -2461,54 +2496,77 @@ sub hier_max_depth
 sub prepareoutput
 {
   my $dir= $config{"absoutputdir"};
- 
-  eval { File::Path::mkpath( [ $dir ] ); };
+  my $datadir;
+  my $item;
+
+  eval { File::Path::make_path( $dir ); };
   croak "Cannot create output directory `$dir' - $@" if $@;
-  for my $d ("$dir/entities", "$dir/architectures",
-    		"$dir/configurations", "$dir/packages")
+  for my $d ("entities", "architectures", "configurations", "packages",
+            "sources", "style")
   {
-    if( opendir(DIR, $d) ) {
+    my $subdir= File::Spec->catdir($dir, $d);
+    $config{"datadir"}= $datadir;
+    if( opendir(DIR, $subdir) ) {
       closedir DIR;
       next;
     }
-    if( open(FILE, $d) ) {
+    if( open(FILE, $subdir) ) {
       close FILE;
-      croak "Cannot create output directory `$d' - a file of the same name exists!";
+      croak "Cannot create output directory `$subdir' - a file of the same name exists!";
     }
-    if( !mkdir($d) ) {
-      croak "Cannot create output directory `$d' - $!";
+    if( !mkdir($subdir) ) {
+      croak "Cannot create output directory `$subdir' - $!";
     }
   }
-  # Now make all relative external links relative to output dir
-  if( $config{"stylesheet"} ) {
-    $config{"stylesheetabs"}= $config{"stylesheet"} =~ /^\w+:\/\// ||
-             File::Spec->file_name_is_absolute($config{"stylesheet"});
-    if( $config{"stylesheetabs"} && $config{"stylesheet"} !~ /^\w+:\/\// ) {
-      print STDERR "Warning: Absolute style sheet file name will not be",
-      		   " portable across systems.\n" unless $config{"quiet"};
-    }
-    $config{"stylesheet"}= File::Spec->abs2rel($config{"stylesheet"}, $dir)
-	unless $config{"stylesheetabs"};
+  my $styledir= File::Spec->catdir($dir, "style");
+  if( $^O eq "MSWin32" || $^O eq "MacOS" ) {
+    $datadir= $ENV{"VHDOCL_DATADIR"};
   }
-  if( $config{"leftlogo"} ) {
-    $config{"leftlogoabs"}= $config{"leftlogo"} =~ /^\w+:\/\// ||
-             File::Spec->file_name_is_absolute($config{"leftlogo"});
-    if( $config{"leftlogoabs"} && $config{"leftlogo"} !~ /^\w+:\/\// ) {
-      print STDERR "Warning: Absolute left logo file name will not be",
-      		   " portable across systems.\n" unless $config{"quiet"};
-    }
-    $config{"leftlogo"}= File::Spec->abs2rel($config{"leftlogo"}, $dir)
-	unless $config{"leftlogoabs"};
+  else {
+    ($datadir)= grep $_ && -d $_, ($ENV{"VHDOCL_DATADIR"},
+                            "/usr/local/share/vhdocl", "/usr/share/vhdocl");
   }
-  if( $config{"rightlogo"} ) {
-    $config{"rightlogoabs"}= $config{"rightlogo"} =~ /^\w+:\/\// ||
-             File::Spec->file_name_is_absolute($config{"rightlogo"});
-    if( $config{"rightlogoabs"} && $config{"rightlogo"} !~ /^\w+:\/\// ) {
-      print STDERR "Warning: Absolute right logo file name will not be",
-      		   " portable across systems.\n" unless $config{"quiet"};
+  if( $datadir ) {
+    my $styledatadir= File::Spec->catdir($datadir, "style");
+    if( ! -d $styledatadir ) {
+      print STDERR "Directory `$styledatadir' not found.  Cannot copy style ",
+                    "files.  Continuing regardless.\n"
+        unless $config{"quiet"};
     }
-    $config{"rightlogo"}= File::Spec->abs2rel($config{"rightlogo"}, $dir)
-	unless $config{"rightlogoabs"};
+    else {
+      my $copyerr= 0;
+      for $item (values %requisites) {
+        $copyerr ||= ! copyfile(File::Spec->catfile($styledatadir, $item),
+                                    $styledir);
+      }
+      if( $copyerr && !$config{"quiet"} ) {
+        print STDERR "Could not copy all style files.  Continuing regardless.\n";
+      }
+    }
+  }
+  else {
+    print STDERR <<EOF unless $config{"quiet"};
+No data directory found.  Set the environment variable VHDOCL_DATADIR to
+indicate its location.  Cannot copy style files.  Continuing regardless.
+EOF
+  }
+  # Now copy all style files not given as URLs
+  for $item ("stylesheet", "leftlogo", "rightlogo") {
+    if( $config{$item} ) {
+      $config{$item."url"}= $config{$item} =~ /^\w+:\/\//;
+      if( !$config{$item."url"} ) {
+        my $destname= File::Spec->catfile($styledir,
+                        $config{"prefix"} . $item . fileext($config{$item}));
+        if( ! copyfile($config{$item}, $destname) ) {
+          print STDERR "Could not copy `", $config{$item}, "to style",
+                    " directory.  Continuing regardless.\n"
+            unless $config{"quiet"};
+        }
+        else {
+          $config{$item}= $destname;
+        }
+      }
+    }
   }
   if( $config{"toplink"} ) {
     $config{"toplink"} =~ s/^([^|]*)\|//;
@@ -2520,7 +2578,7 @@ sub prepareoutput
       		   " portable across systems.\n" unless $config{"quiet"};
     }
     $config{"toplink"}= File::Spec->abs2rel($config{"toplink"}, $dir)
-	unless $config{"toplinkabs"};
+        unless $config{"toplinkabs"};
   }
   else {
     $config{"toplink"}= $config{"prefix"} . "index.html";
@@ -2531,6 +2589,7 @@ sub prepareoutput
     printhtmlheader(*INDEX{IO}, "Home", 1);
     print INDEX "<p></p>\n";
     printhtmlfooter(*INDEX{IO}, 1);
+    close INDEX;
   }
   $cp= $config{"cellpadding"};
   $iw= $config{"indentation"};
@@ -2538,7 +2597,7 @@ sub prepareoutput
 
 
 # Print the header of an HTML documentation file
-# -> File handle to print to
+# -> File handle or scalar reference to print to
 #    Page title
 #    Global page flag, !=0 for entity list, instantiation hierarchy, etc., and
 #    0 for documentation of single entity, architecture etc.
@@ -2553,18 +2612,19 @@ sub printhtmlheader
   my $leftlogo;
   my $rightlogo;
   my $toplink;
+  my $html;
 
   $doctitle= length($config{"title"})?
   		"\n<center>" . $config{"title"} . "</center><hr>\n" : "";
-  $top= $config{"stylesheetabs"}? "" : $prepre;
+  $top= $config{"stylesheeturl"}? "" : $prepre;
   $stylesheet= $config{"stylesheet"}? 
   		"<link rel=\"stylesheet\" type=\"text/css\" href=\"" . $top .
 		$config{"stylesheet"} . "\">" : "";
-  $top= $config{"leftlogoabs"}? "" : $prepre;
+  $top= $config{"leftlogourl"}? "" : $prepre;
   $leftlogo= $config{"leftlogo"}?
   		"<img style=\"vertical-align:middle\" src=\"" . $top .
 		$config{"leftlogo"} . "\">" : "";
-  $top= $config{"rightlogoabs"}? "" : $prepre;
+  $top= $config{"rightlogourl"}? "" : $prepre;
   $rightlogo= $config{"rightlogo"}?
   		"<img style=\"vertical-align:middle\" src=\"" . $top .
 		$config{"rightlogo"} . "\">" : "";
@@ -2573,7 +2633,7 @@ sub printhtmlheader
   		"\">" .  $config{"toplinktext"} .
 		"</a>\n&nbsp;&nbsp; -- &nbsp;&nbsp;" : "";
 
-  print $handle <<EOF
+  $html= <<EOF;
 <html>
 <head>
     <title>$title</title>
@@ -2592,6 +2652,8 @@ $toplink
 <a href="${prefix}instantiations.html">Instantiations</a>
 &nbsp;&nbsp; -- &nbsp;&nbsp;
 <a href="${prefix}hierarchy.html">Hierarchy</a>
+&nbsp;&nbsp; -- &nbsp;&nbsp;
+<a href="${prefix}sources.html">Sources</a>
 </td><td align="right">
 $rightlogo
 </td></tr></table>
@@ -2599,6 +2661,12 @@ $rightlogo
 <hr>
 
 EOF
+  if( ref($handle) eq "SCALAR" ) {
+    $$handle= $html;
+  }
+  else {
+    print $handle $html;
+  }
 }
 
 
@@ -2785,7 +2853,8 @@ sub printgenporthtml
 sub entityhtml
 {
   my ($ent)= @_;
-  my $fname= $config{"outputdir"} . "/entities/" . $ent->{"docfilename"};
+  my $fname= File::Spec->catfile($config{"outputdir"}, "entities",
+                                 $ent->{"docfilename"});
 
   if( !open(ENT, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
@@ -2834,6 +2903,7 @@ sub entityhtml
     print ENT "</table>\n\n";
   }
   printhtmlfooter(*ENT{IO});
+  close ENT;
 }
 
 
@@ -3113,7 +3183,8 @@ sub printinsthtml
 sub architecturehtml
 {
   my ($arch)= @_;
-  my $fname= $config{"outputdir"} . "/architectures/" . $arch->{"docfilename"};
+  my $fname= File::Spec->catfile($config{"outputdir"}, "architectures",
+                                 $arch->{"docfilename"});
   my $ent= $arch->{"entity"};
   my $headname= $arch->{"name"} . " of " . $arch->{"objname"};
 
@@ -3182,6 +3253,7 @@ sub architecturehtml
     print ARCH "</table>\n\n";
   }
   printhtmlfooter(*ARCH{IO});
+  close ARCH;
 }
 
 
@@ -3285,7 +3357,8 @@ sub printconfightml
 sub configurationhtml
 {
   my ($conf)= @_;
-  my $fname= $config{"outputdir"} . "/configurations/" . $conf->{"docfilename"};
+  my $fname= File::Spec->catfile($config{"outputdir"}, "configurations",
+                                 $conf->{"docfilename"});
   my $ent= $conf->{"entity"};
   my $headname= $conf->{"name"} . " of " . $conf->{"objname"};
   my $maxdepth;
@@ -3323,6 +3396,7 @@ sub configurationhtml
   printconfightml(*CONF{IO}, \@topfors, 0, $maxdepth);
   print CONF "</table>\n";
   printhtmlfooter(*CONF{IO});
+  close CONF;
 }
 
 
@@ -3331,7 +3405,8 @@ sub configurationhtml
 sub packagehtml
 {
   my ($pack)= @_;
-  my $fname= $config{"outputdir"} . "/packages/" . $pack->{"docfilename"};
+  my $fname= File::Spec->catfile($config{"outputdir"}, "packages",
+                                 $pack->{"docfilename"});
   my $pbody;
 
   if( !open(PACK, ">$fname") ) {
@@ -3382,6 +3457,7 @@ sub packagehtml
     $pbody= $pack->{"packagebody"};
     unless( $pbody ) {
       printhtmlfooter(*PACK{IO});
+      close PACK;
       return;
     }
     print PACK "\n\n<hr>\n\n";
@@ -3423,6 +3499,52 @@ sub packagehtml
     print PACK "</table>\n\n";
   }
   printhtmlfooter(*PACK{IO});
+  close PACK;
+}
+
+
+# Generate the HTML page for a source file.
+# -> Reference to hash representing the VHDL file
+sub sourcehtml
+{
+  my ($file)= @_;
+  my $srcfname= $file->{"name"};
+  my $outfname= File::Spec->catfile($config{"outputdir"}, "sources",
+                                    $file->{"docfilename"});
+  my $header;
+
+  if( !open(VHDL, $srcfname) ) {
+    print STDERR "Cannot open source file $srcfname for generating source HTML file - $!\n";
+    return 0;
+  }
+  if( !open(SRCHTML, ">$outfname") ) {
+    print STDERR "Cannot create output file $outfname - $!\n";
+    close VHDL;
+    return 0;
+  }
+  printhtmlheader(\$header, $file->{"name"});
+  $header =~ s!(?=</head>)!<<EOF!ie;
+    <script type="text/javascript" src="../style/$requisites{synjava1}"></script>
+    <script type="text/javascript" src="../style/$requisites{synjava2}"></script>
+    <link type="text/css" rel="stylesheet" href="../style/$requisites{synstyle1}">
+    <link type="text/css" rel="stylesheet" href="../style/$requisites{synstyle2}">
+    <script type="text/javascript">SyntaxHighlighter.all();</script>
+EOF
+  print SRCHTML $header;
+  print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
+  print SRCHTML "<pre class=\"brush: vhdl;\">\n";
+  while( <VHDL> )
+  {
+    s/&/&amp;/g;
+    s/"/&quot;/g;
+    s/</&lt;/g;
+    s/>/&gt;/g;
+    print SRCHTML $_;
+  }
+  print SRCHTML "</pre>\n";
+  printhtmlfooter(*SRCHTML{IO});
+  close SRCHTML;
+  close VHDL;
 }
 
 
@@ -3437,7 +3559,8 @@ sub entitylisthtml
 {
   my ($ents, $oarchs, $oconfs, $haveconfs)= @_;
   my @list;
-  my $fname= $config{"outputdir"} . "/" . $config{"prefix"} . "entities.html";
+  my $fname= File::Spec->catfile($config{"outputdir"},
+                                $config{"prefix"} . "entities.html");
   my $ind= "<td width=\"$iw\"></td>";
 
   if( !open(LIST, ">$fname") ) {
@@ -3471,6 +3594,7 @@ sub entitylisthtml
     print LIST "\n<p>No entities, architectures or configurations were ",
 		"found.</p>\n";
     printhtmlfooter(*LIST{IO});
+    close LIST;
     return;
   }
   elsif( $haveconfs ) {
@@ -3512,6 +3636,7 @@ sub entitylisthtml
   }
   print LIST "</table>\n\n";
   printhtmlfooter(*LIST{IO});
+  close LIST;
 }
 
 
@@ -3523,7 +3648,8 @@ sub packagelisthtml
 {
   my ($packs, $opbodies)= @_;
   my @list;
-  my $fname= $config{"outputdir"} . "/" . $config{"prefix"} . "packages.html";
+  my $fname= File::Spec->catfile($config{"outputdir"},
+                                $config{"prefix"} . "packages.html");
 
   if( !open(LIST, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
@@ -3534,6 +3660,7 @@ sub packagelisthtml
     print LIST "\n<h1>List of packages</h1>\n\n";
     print LIST "<p>No packages were found.</p>\n";
     printhtmlfooter(*LIST{IO});
+    close LIST;
     return;
   }
   if( @$packs ) {
@@ -3551,6 +3678,7 @@ sub packagelisthtml
     }
   }
   printhtmlfooter(*LIST{IO});
+  close LIST;
 }
 
 
@@ -3645,7 +3773,8 @@ sub printhiernodehtml
 sub instantiationhtml
 {
   my ($hier, $haveconfs)= @_;
-  my $fname= $config{"outputdir"} . "/" . $config{"prefix"} . "instantiations.html";
+  my $fname= File::Spec->catfile($config{"outputdir"},
+                                $config{"prefix"} . "instantiations.html");
   my $maxdepth;
 
   if( !open(INST, ">$fname") ) {
@@ -3668,6 +3797,7 @@ sub instantiationhtml
   }
   print INST "</table>\n\n";
   printhtmlfooter(*INST{IO});
+  close INST;
 }
 
 
@@ -3678,7 +3808,8 @@ sub instantiationhtml
 sub hierarchyhtml
 {
   my ($hier, $haveconfs)= @_;
-  my $fname= $config{"outputdir"} . "/" . $config{"prefix"} . "hierarchy.html";
+  my $fname= File::Spec->catfile($config{"outputdir"},
+                                $config{"prefix"} . "hierarchy.html");
   my $maxdepth;
 
   if( !open(HIER, ">$fname") ) {
@@ -3705,6 +3836,34 @@ sub hierarchyhtml
   }
   print HIER "</table>\n\n";
   printhtmlfooter(*HIER{IO});
+  close HIER;
+}
+
+
+# Generate list of source files with links to their HTML files.
+# -> Reference to array of hashes representing VHDL source files
+sub sourcelisthtml
+{
+  my ($sources)= @_;
+  my $fname= File::Spec->catfile($config{"outputdir"},
+                                $config{"prefix"} . "sources.html");
+
+  if( !open(SOURCE, ">$fname") ) {
+    print STDERR "Cannot create output file $fname - $!\n";
+    return 0;
+  }
+  printhtmlheader(*SOURCE{IO}, "Source file overview", 1);
+  print SOURCE "\n<h1>Source file overview</h1>\n";
+  my @srclist= sort { $a->{"name"} cmp $b->{"name"} } @$sources;
+  for my $file (@srclist) {
+    print SOURCE "<a href=\"sources/", $file->{"docfilename"}, "\">",
+                $file->{"name"}, "</a>";
+    print SOURCE "&nbsp;&nbsp;&nbsp;<a href=\"",
+                sourcelink($file->{"name"}), "\">[source file]</a>";
+    print SOURCE "<br>\n";
+  }
+  printhtmlfooter(*SOURCE{IO});
+  close LIST;
 }
 
 
@@ -3731,7 +3890,7 @@ unless( @vhdlfiles ) {
 prepareoutput();
 
 
-# This is the only data structure realting to declarative items which does not
+# This is the only data structure relating to declarative items which does not
 # conform to our canonical format (see parsefile()).  %libraries is a hash
 # mapping the library name to an array reference containing all (top-level)
 # declarations in that library.
@@ -3740,6 +3899,11 @@ my %libraries;
 for my $file (@vhdlfiles) {
   parsefile($file);
   push @{$libraries{lc($file->{"libname"})}}, @{$file->{"children"}};
+  my $trunkname;
+  (undef, undef, $trunkname)= File::Spec->splitpath($file->{"name"});
+  $trunkname =~ s/\.[^\.]*$//;
+  $file->{"docfilename"}= $config{"prefix"} . $trunkname . "_" .
+                        Digest::MD5::md5_hex($file->{"name"}) . ".html";
 }
 
 
@@ -3856,7 +4020,7 @@ for my $ent (@entities)
   # HTML file name
   $ent->{"docfilename"}= $config{"prefix"} . $ent->{"fullname"} . ".html";
   # Link to source file
-  $ent->{"filelink"}= sourcelink($ent->{"filename"});
+  $ent->{"filelink"}= "../sources/" . $ent->{"file"}->{"docfilename"};
 }
 
 
@@ -3877,7 +4041,7 @@ for my $arch (@architectures) {
     }
   }
   # Link to source file
-  $arch->{"filelink"}= sourcelink($arch->{"filename"});
+  $arch->{"filelink"}= "../sources/" . $arch->{"file"}->{"docfilename"};
 }
 
 
@@ -3890,7 +4054,7 @@ for my $conf (@configurations) {
   $conf->{"docfilename"}= $config{"prefix"} . $conf->{"objname"} . "-" .
 			  $conf->{"name"} . ".html";
   # Link to source file
-  $conf->{"filelink"}= sourcelink($conf->{"filename"});
+  $conf->{"filelink"}= "../sources/" . $conf->{"file"}->{"docfilename"};
   # Now assign objects to the use statements
   resolve_configuration($conf, \%libraries);
 }
@@ -3925,7 +4089,7 @@ for my $pack (@packages)
   map { $_->{"binding"}= resolve_selname($_->{"name"}, "entity",
 			    \%libraries, $libname, $pack->{"name"}); } @comps;
   # Link to source file
-  $pack->{"filelink"}= sourcelink($pack->{"filename"});
+  $pack->{"filelink"}= "../sources/" . $pack->{"file"}->{"docfilename"};
 }
 
 
@@ -3940,7 +4104,7 @@ for my $pbody (@packagebodies)
   # HTML file name
   $pbody->{"docfilename"}= $config{"prefix"} . $pbody->{"fullname"} . ".html";
   # Link to source file
-  $pbody->{"filelink"}= sourcelink($pbody->{"filename"});
+  $pbody->{"filelink"}= "../sources/" . $pbody->{"file"}->{"docfilename"};
 }
 
 for my $opb (@orphanedpbodies)
@@ -4115,17 +4279,17 @@ bindcompinst:
       # Without an explicit binding specification we bind to the binding of the
       # matching component declaration, if any.
       if( $inst->{"component"} ) {
-	$inst->{"binding"}= $inst->{"component"}->{"binding"};
+        $inst->{"binding"}= $inst->{"component"}->{"binding"};
       }
       # Aaargh... the component is not even declared.  Sloppy designer!  So we
       # resolve the instantiation by name.
       else {
-	$inst->{"binding"}= resolve_selname($inst->{"objname"}, "entity",
+        $inst->{"binding"}= resolve_selname($inst->{"objname"}, "entity",
 					    \%libraries, $file->{"libname"});
       }
       if( $inst->{"binding"} && @{$inst->{"binding"}->{"architectures"}} ) {
-	$inst->{"bindarch"}= $inst->{"binding"}->{"architectures"}->[0];
-	$inst->{"archname"}= $inst->{"bindarch"}->{"name"};
+        $inst->{"bindarch"}= $inst->{"binding"}->{"architectures"}->[0];
+        $inst->{"archname"}= $inst->{"bindarch"}->{"name"};
       }
     }
   }
@@ -4220,6 +4384,7 @@ entitylisthtml(\@entities, \@orphanedarchs, \@orphanedconfs, scalar(@configurati
 packagelisthtml(\@packages, \@orphanedpbodies);
 instantiationhtml(\@hierarchy, scalar(@chier));
 hierarchyhtml(\@hierarchy, scalar(@chier));
+sourcelisthtml(\@vhdlfiles);
 
 for my $ent (@entities) {
   entityhtml($ent);
@@ -4237,4 +4402,7 @@ for my $pack (@packages, @orphanedpbodies) {
   packagehtml($pack);
 }
 
+for my $file (@vhdlfiles) {
+  sourcehtml($file);
+}
 
