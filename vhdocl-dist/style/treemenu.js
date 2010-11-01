@@ -1,32 +1,49 @@
+/*  Tree view functionality based on example by Daniel Thoma, see
+    http://aktuell.de.selfhtml.org/artikel/javascript/treemenu/     */
+
   /* 
-   * Fügt den Listeneinträgen Eventhandler und CSS Klassen hinzu,
-   * um die Menüpunkte am Anfang zu schließen.
+   * Set class of tree view nodes to closed (or to saved prior state if
+   * applicable).  Install event handler on bullet image, not list text,
+   * because in VHDocL output, these are all links which should not close/open
+   * the nodes.
    * 
-   * menu: Referenz auf die Liste.
-   * data: String, der die Nummern aufgeklappter Menüpunkte enthält.
+   * menu: Reference to HTML element above all tree nodes
+   * openstr: String containing open node numbers separated by spaces in 
+   *            ascending order (save from last time by treeMenu_store()).
    */
-  function treeMenu_init(menu, data) {
-    var array = new Array(0);
-    if(data != null && data != "") {
-      array = data.match(/\d+/g);
+  function treeMenu_init(menu, openstr) {
+    var open_indices = new Array(0);
+    if(openstr != null && openstr != "") {
+      open_indices = openstr.match(/\d+/g);
     }
     var items = menu.getElementsByTagName("li");
     for(var i = 0; i < items.length; i++) {
-      items[i].onclick = treeMenu_handleClick;
-      if(!treeMenu_contains(treeMenu_getClasses(items[i]), "treeMenu_opened")
-          && items[i].getElementsByTagName("ul").length
-            + items[i].getElementsByTagName("ol").length > 0) {
-        var classes = treeMenu_getClasses(items[i]);
-        if(array.length > 0 && array[0] == i) {
-          classes.push("treeMenu_opened")
-        }
-        else {
-          classes.push("treeMenu_closed")
-        }
-        items[i].className = classes.join(" ");
+      var setstate;
+      if(open_indices.length > 0 && open_indices[0] == i) {
+        setstate= "treeMenu_opened";
+        open_indices.shift();
       }
-      if(array.length > 0 && array[0] == i) {
-        array.shift();
+      else {
+        setstate= "treeMenu_closed";
+      }
+      if( items[i].getElementsByTagName("ul").length
+          + items[i].getElementsByTagName("ol").length == 0 ) {
+        continue;
+      }
+      if( !items[i].className ) {
+        items[i].className = setstate;
+      }
+      else if( items[i].className.search(/\btreeMenu_\w+\b/) < 0 ) {
+        items[i].className = items[i].className.concat(" ").concat(setstate);
+      }
+      else {
+        items[i].className =
+                items[i].className.replace(/\btreeMenu_\w+\b/, setstate);
+      }
+      /* install click handler on bullet image */
+      var images = items[i].getElementsByTagName("img"); 
+      if( images.length > 0 ) {
+        images[0].onclick = treeMenu_handleClick;
       }
     }
   }
@@ -39,100 +56,62 @@
    * event: Das Event Objekt, dass der Browser übergibt.
    */
   function treeMenu_handleClick(event) {
+    var tree_node;
     if(event == null) { //Workaround für die fehlenden DOM Eigenschaften im IE
       event = window.event;
-      event.currentTarget = event.srcElement;
-      while(event.currentTarget.nodeName.toLowerCase() != "li") {
-        event.currentTarget = event.currentTarget.parentNode;
-      }
+      tree_node = event.srcElement;
       event.cancelBubble = true;
     }
     else {
       event.stopPropagation();
+      tree_node = event.currentTarget;
     }
-    var array = treeMenu_getClasses(event.currentTarget);
-    for(var i = 0; i < array.length; i++) {
-      if(array[i] == "treeMenu_closed") {
-        array[i] = "treeMenu_opened";
-      }
-      else if(array[i] == "treeMenu_opened") {
-        array[i] = "treeMenu_closed"
-      }
+    while(tree_node.nodeName.toLowerCase() != "li") {
+      tree_node = tree_node.parentNode;
     }
-    event.currentTarget.className = array.join(" ");
-  }
-
-  /**
-  * Close or open the whole tree
-  */
-  function treeMenu_closeOrOpenAll(closeTree) {
-
-    menu = document.getElementById('listhierarchy');
-
-    var items = menu.getElementsByTagName("li");
-
-
-    for(var i = 0; i < items.length; i++) {
-
-        var array = treeMenu_getClasses(items[i].currentTarget);
-
-        for(var j = 0; j < array.length; j++) {
-            if (closeTree) {
-                array[j] = "treeMenu_closed"
-            } else {
-                array[j] = "treeMenu_opened";
-            }
-        }
-
-        items[i].currentTarget.className = array.join(" ");
-    }
-  }
-  
-  /*
-   * Gibt alle Klassen zurück, die einem HTML-Element zugeordnet sind.
-   * 
-   * element: Das HTML-Element
-   * return: Die zugeordneten Klassen.
-   */
-  function treeMenu_getClasses(element) {
-    if(element.className) {
-      return element.className.match(/[^ \t\n\r]+/g);
+    if( tree_node.className.search(/\btreeMenu_opened\b/) >= 0 ) {
+      tree_node.className =
+        tree_node.className.replace(/\btreeMenu_opened\b/, "treeMenu_closed");
     }
     else {
-      return new Array(0);
+      tree_node.className =
+        tree_node.className.replace(/\btreeMenu_closed\b/, "treeMenu_opened");
     }
   }
-  
+
   /*
-   * Überprüft, ob ein Array ein bestimmtes Element enthält.
+   * Close or open the whole tree
    * 
-   * array: Das Array
-   * element: Das Element
-   * return: true, wenn das Array das Element enthält.
+   * menu: Reference to HTML element above all tree nodes
+   * closeTree: if true, close all
    */
-  function treeMenu_contains(array, element) {
-    for(var i = 0; i < array.length; i++) {
-      if(array[i] == element) {
-        return true;
-      }
+  function treeMenu_closeOrOpenAll(menu, closeTree) {
+
+    var setstate= closeTree ? "treeMenu_closed" : "treeMenu_opened";
+
+    var items = menu.getElementsByTagName("li");
+
+    for(var i = 0; i < items.length; i++) {
+
+        items[i].className=
+                items[i].className.replace(/\btreeMenu_\w+\b/, setstate);
     }
-    return false;
   }
-  
+
   /*
-   * Gibt einen String zurück, indem die Nummern aller geöffneten
-   * Menüpunkte stehen. 
-   *
-   * menu: Referenz auf die Liste
-   * return: Der String
+   * Build space-separated string of indices of open nodes in ascending order.
+   * menu: reference to HTML element above all nodes
+   * return: string
    */
   function treeMenu_store(menu) {
-    var result = new Array();;
+    var result = new Array();
     var items = menu.getElementsByTagName("li");
     for(var i = 0; i < items.length; i++) {
-      if(treeMenu_contains(treeMenu_getClasses(items[i]), "treeMenu_opened")) {
+      if(items[i].className &&
+            items[i].className.search(/\btreeMenu_opened\b/) >= 0) {
         result.push(i);
       }
     }
     return result.join(" ");
   }
+

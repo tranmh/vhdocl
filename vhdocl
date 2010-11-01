@@ -3695,14 +3695,12 @@ sub packagelisthtml
 sub printhiernodehtml
 {
   my ($handle, $node, $trace, $maxdepth, $notdeep)= @_;
-  my $ind1= "<td width=\"$iw\"></td>";
-  my $ind= $ind1 x scalar(@$trace);
-  my $span= $maxdepth - scalar(@$trace) + 2;
   my $real= $node->{"proxy"} || $node;
+  my $nodehtml;
   my $brief;
   my $recursion= 0;
 
-  print $handle "<tr>$ind<td colspan=\"$span\">\n";
+#  $nodehtml .= "<table border=\"0\"><tr><td>";
   if( grep($_ == $real, @$trace) ) {
     $recursion= 1;
   }
@@ -3712,57 +3710,67 @@ sub printhiernodehtml
   	|| ($real->{"entity"} &&
        ($brief= $real->{"entity"}->{"doc"}->{"brief"} ||
     		$real->{"entity"}->{"doc"}->{"short"})) ) {
-    print $handle "<table border=\"0\"><tr><td>";
   }
   if( $real->{"entname"} ) {
-    print $handle "<a href=\"entities/", $real->{"entity"}->{"docfilename"},
+    $nodehtml .= "<a href=\"entities/" . $real->{"entity"}->{"docfilename"} .
     		  "\">"
       if $real->{"entity"};
-    print $handle "<b>", $real->{"entname"}, "</b>";
-    print $handle "</a>"
+    $nodehtml .= "<b>" . $real->{"entname"} . "</b>";
+    $nodehtml .= "</a>"
       if $real->{"entity"};
   }
   if( $real->{"archname"} ) {
-    print $handle "&nbsp;";
-    print $handle "<a href=\"architectures/",
-		  $real->{"architecture"}->{"docfilename"}, "\">"
+    $nodehtml .= "&nbsp;";
+    $nodehtml .= "<a href=\"architectures/" .
+		  $real->{"architecture"}->{"docfilename"} . "\">"
       if $real->{"architecture"};
-    print $handle "(", $real->{"archname"}, ")";
-    print $handle "</a>"
+    $nodehtml .= "(" . $real->{"archname"} . ")";
+    $nodehtml .= "</a>"
       if $real->{"architecture"};
   }
   if( $node->{"confname"} ) {
-    print $handle "&nbsp;";
-    print $handle "<a href=\"configurations/",
-		  $node->{"configuration"}->{"docfilename"}, "\">"
+    $nodehtml .= "&nbsp;";
+    $nodehtml .= "<a href=\"configurations/" .
+		  $node->{"configuration"}->{"docfilename"} . "\">"
       if $node->{"configuration"};
-    print $handle "[<i>", $node->{"confname"}, "</i>]";
-    print $handle "</a>"
+    $nodehtml .= "[<i>" . $node->{"confname"} . "</i>]";
+    $nodehtml .= "</a>"
       if $node->{"configuration"};
   }
   $node->{"done"}= 1;
   $real->{"done"}= 1;
   if( $recursion ) {
-    print $handle " ... (recursion)</td></tr>\n";
+    print $handle <<EOF;
+<li><table border="0"><tr><td><img src="style/leaf.png">&nbsp;</td>
+    <td>$nodehtml ... (recursion)</td></tr></table></li>
+EOF
     return;
   }
-  elsif( $brief ) {
-    print $handle "</td><td width=\"10\"></td><td> $brief</td></tr></table>";
+  if( $brief ) {
+    $nodehtml .= "</td><td width=\"10\"></td><td> $brief";
   }
-  print $handle "</td></tr>\n";
-  if( $notdeep && @$trace ) {
+  if( ! $real->{"children"} || ! @{$real->{"children"}} ||
+      ( $notdeep && @$trace &&
     # Instantiation overview: do not descend past 1st level for architectures;
     # stop at architecture or different configuration for configurations
-    if( $node->{"proxy"} || !$$trace[0]->{"confname"} ||
-      	$$trace[0]->{"confname"} ne ($node->{"confname"} || "") ) {
-      return;
-    }
+        ($node->{"proxy"} || !$$trace[0]->{"confname"} ||
+          $$trace[0]->{"confname"} ne ($node->{"confname"} || "")) ) ) {
+    print $handle <<EOF;
+<li><table border=\"0\"><tr><td><img src="style/leaf.png">&nbsp;</td>
+    <td>$nodehtml</td></tr></table></li>
+EOF
+    return;
   }
+  print $handle <<EOF;
+<li><table border="0"><tr><td><img src="style/node.png">&nbsp;</td>
+    <td>$nodehtml</td></tr></table> <ul>
+EOF
   unshift @$trace, $real;
   for my $child (@{$real->{"children"}}) {
     printhiernodehtml($handle, $child, $trace, $maxdepth, $notdeep);
   }
   shift @$trace;
+  print $handle "</ul></li>\n";
 }
 
 
@@ -3775,17 +3783,34 @@ sub instantiationhtml
   my ($hier, $haveconfs)= @_;
   my $fname= File::Spec->catfile($config{"outputdir"},
                                 $config{"prefix"} . "instantiations.html");
+  my $header;
   my $maxdepth;
 
   if( !open(INST, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
     return 0;
   }
-  printhtmlheader(*INST{IO}, "Instantiation overview", 1);
+  printhtmlheader(\$header, "Instantiation overview", 1);
+  $header =~ s!(?=</head>)!<<EOF!ie;
+    <link type="text/css" rel="stylesheet" href="style/treemenu.css">
+    <script type="text/javascript" src="style/treemenu.js"></script>
+EOF
+  $header =~ s!<body>!<<EOF!ie;
+<body
+  onload="treeMenu_init(document.getElementById('treeview'), unescape(window.name).split(',')[0]);"
+  onunload="window.name = escape(treeMenu_store(document.getElementById('treeview')))" >
+EOF
+  print INST $header;
   print INST "\n<h1>Instantiation overview</h1>\n\n";
   print INST "\n<p>Configurations are given in brackets and in <i>italics</i>.</p>\n\n"
 	if $haveconfs;
-  print INST "\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+  print INST <<EOF;
+
+<p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);">Open all</span> /
+<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);">Close all</span></p>
+
+<ul id="treeview">
+EOF
   $maxdepth= 0;
   for my $node (@$hier) {
     next unless $node->{"confname"};
@@ -3795,7 +3820,7 @@ sub instantiationhtml
   for my $node (@$hier) {
     printhiernodehtml(*INST{IO}, $node, [], $maxdepth, 1);
   }
-  print INST "</table>\n\n";
+  print INST "</ul>\n\n";
   printhtmlfooter(*INST{IO});
   close INST;
 }
@@ -3810,17 +3835,34 @@ sub hierarchyhtml
   my ($hier, $haveconfs)= @_;
   my $fname= File::Spec->catfile($config{"outputdir"},
                                 $config{"prefix"} . "hierarchy.html");
+  my $header;
   my $maxdepth;
 
   if( !open(HIER, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
     return 0;
   }
-  printhtmlheader(*HIER{IO}, "Instantiation hierarchy", 1);
+  printhtmlheader(\$header, "Instantiation hierarchy", 1);
+  $header =~ s!(?=</head>)!<<EOF!ie;
+    <link type="text/css" rel="stylesheet" href="style/treeview.css">
+    <script type="text/javascript" src="style/treemenu.js"></script>
+EOF
+  $header =~ s!<body>!<<EOF!ie;
+<body
+  onload="treeMenu_init(document.getElementById('treeview'), unescape(window.name).split(',')[0]);"
+  onunload="window.name = escape(treeMenu_store(document.getElementById('treeview')))" >
+EOF
+  print HIER $header;
   print HIER "\n<h1>Instantiation hierarchy</h1>\n\n";
   print HIER "\n<p>Configurations are given in brackets and in <i>italics</i>.</p>\n\n"
 	if $haveconfs;
-  print HIER "\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+  print HIER <<EOF;
+
+<p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);">Open all</span> /
+<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);">Close all</span></p>
+
+<ul id="treeview">
+EOF
   my @topmods= grep !$_->{"instantiated"}, @$hier;
   $maxdepth= 0;
   for my $node (@topmods) {
@@ -3834,7 +3876,7 @@ sub hierarchyhtml
   for my $node (@leftovers) {
     printhiernodehtml(*HIER{IO}, $node, [], $maxdepth);
   }
-  print HIER "</table>\n\n";
+  print HIER "</ul>\n\n";
   printhtmlfooter(*HIER{IO});
   close HIER;
 }
@@ -3854,6 +3896,7 @@ sub sourcelisthtml
   }
   printhtmlheader(*SOURCE{IO}, "Source file overview", 1);
   print SOURCE "\n<h1>Source file overview</h1>\n";
+  print SOURCE "\n<p>The file paths link to HTML pages showing the sources; the links in brackets point to the actual source files.</p>\n";
   my @srclist= sort { $a->{"name"} cmp $b->{"name"} } @$sources;
   for my $file (@srclist) {
     print SOURCE "<a href=\"sources/", $file->{"docfilename"}, "\">",
@@ -3903,7 +3946,7 @@ for my $file (@vhdlfiles) {
   (undef, undef, $trunkname)= File::Spec->splitpath($file->{"name"});
   $trunkname =~ s/\.[^\.]*$//;
   $file->{"docfilename"}= $config{"prefix"} . $trunkname . "_" .
-                        Digest::MD5::md5_hex($file->{"name"}) . ".html";
+                substr(Digest::MD5::md5_hex($file->{"name"}), 0, 8) . ".html";
 }
 
 
