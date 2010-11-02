@@ -33,7 +33,7 @@ my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
   "title" => "" );
 
-my %requisites= ( "treestyle" => "treemenu.css", "treejava" => "treemenu.js",
+my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "synstyle1" => "shCore.css", "synstyle2" => "shThemeDefault.css",
     "synimg" => "wrapping.png",
     "synjava1" => "shCore.js", "synjava2" => "shBrushVhdl.js" );
@@ -3741,8 +3741,8 @@ sub printhiernodehtml
   $real->{"done"}= 1;
   if( $recursion ) {
     print $handle <<EOF;
-<li><table border="0"><tr><td><img src="style/leaf.png">&nbsp;</td>
-    <td>$nodehtml ... (recursion)</td></tr></table></li>
+<dd><table border="0"><tr><td><img src="style/leaf.png">&nbsp;</td>
+    <td>$nodehtml ... (recursion)</td></tr></table></dd>
 EOF
     return;
   }
@@ -3756,21 +3756,21 @@ EOF
         ($node->{"proxy"} || !$$trace[0]->{"confname"} ||
           $$trace[0]->{"confname"} ne ($node->{"confname"} || "")) ) ) {
     print $handle <<EOF;
-<li><table border=\"0\"><tr><td><img src="style/leaf.png">&nbsp;</td>
-    <td>$nodehtml</td></tr></table></li>
+<dd><table border=\"0\"><tr><td><img src="style/leaf.png">&nbsp;</td>
+    <td>$nodehtml</td></tr></table></dd>
 EOF
     return;
   }
   print $handle <<EOF;
-<li><table border="0"><tr><td><img src="style/node.png">&nbsp;</td>
-    <td>$nodehtml</td></tr></table> <ul>
+<dd><table border="0"><tr><td><img src="style/node.png">&nbsp;</td>
+    <td>$nodehtml</td></tr></table> <dl>
 EOF
   unshift @$trace, $real;
   for my $child (@{$real->{"children"}}) {
     printhiernodehtml($handle, $child, $trace, $maxdepth, $notdeep);
   }
   shift @$trace;
-  print $handle "</ul></li>\n";
+  print $handle "</dl></dd>\n";
 }
 
 
@@ -3792,8 +3792,8 @@ sub instantiationhtml
   }
   printhtmlheader(\$header, "Instantiation overview", 1);
   $header =~ s!(?=</head>)!<<EOF!ie;
-    <link type="text/css" rel="stylesheet" href="style/treemenu.css">
-    <script type="text/javascript" src="style/treemenu.js"></script>
+    <link type="text/css" rel="stylesheet" href="style/treeview.css">
+    <script type="text/javascript" src="style/treeview.js"></script>
 EOF
   $header =~ s!<body>!<<EOF!ie;
 <body
@@ -3809,7 +3809,7 @@ EOF
 <p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);">Open all</span> /
 <span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);">Close all</span></p>
 
-<ul id="treeview">
+<dl id="treeview">
 EOF
   $maxdepth= 0;
   for my $node (@$hier) {
@@ -3820,7 +3820,7 @@ EOF
   for my $node (@$hier) {
     printhiernodehtml(*INST{IO}, $node, [], $maxdepth, 1);
   }
-  print INST "</ul>\n\n";
+  print INST "</dl>\n\n";
   printhtmlfooter(*INST{IO});
   close INST;
 }
@@ -3845,7 +3845,7 @@ sub hierarchyhtml
   printhtmlheader(\$header, "Instantiation hierarchy", 1);
   $header =~ s!(?=</head>)!<<EOF!ie;
     <link type="text/css" rel="stylesheet" href="style/treeview.css">
-    <script type="text/javascript" src="style/treemenu.js"></script>
+    <script type="text/javascript" src="style/treeview.js"></script>
 EOF
   $header =~ s!<body>!<<EOF!ie;
 <body
@@ -3861,7 +3861,7 @@ EOF
 <p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);">Open all</span> /
 <span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);">Close all</span></p>
 
-<ul id="treeview">
+<dl id="treeview">
 EOF
   my @topmods= grep !$_->{"instantiated"}, @$hier;
   $maxdepth= 0;
@@ -3876,7 +3876,7 @@ EOF
   for my $node (@leftovers) {
     printhiernodehtml(*HIER{IO}, $node, [], $maxdepth);
   }
-  print HIER "</ul>\n\n";
+  print HIER "</dl>\n\n";
   printhtmlfooter(*HIER{IO});
   close HIER;
 }

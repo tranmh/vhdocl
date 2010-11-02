@@ -16,7 +16,7 @@
     if(openstr != null && openstr != "") {
       open_indices = openstr.match(/\d+/g);
     }
-    var items = menu.getElementsByTagName("li");
+    var items = menu.getElementsByTagName("dd");
     for(var i = 0; i < items.length; i++) {
       var setstate;
       if(open_indices.length > 0 && open_indices[0] == i) {
@@ -26,20 +26,10 @@
       else {
         setstate= "treeMenu_closed";
       }
-      if( items[i].getElementsByTagName("ul").length
-          + items[i].getElementsByTagName("ol").length == 0 ) {
+      if( items[i].getElementsByTagName("dl").length == 0 ) {
         continue;
       }
-      if( !items[i].className ) {
-        items[i].className = setstate;
-      }
-      else if( items[i].className.search(/\btreeMenu_\w+\b/) < 0 ) {
-        items[i].className = items[i].className.concat(" ").concat(setstate);
-      }
-      else {
-        items[i].className =
-                items[i].className.replace(/\btreeMenu_\w+\b/, setstate);
-      }
+      items[i].className = setstate;
       /* install click handler on bullet image */
       var images = items[i].getElementsByTagName("img"); 
       if( images.length > 0 ) {
@@ -49,15 +39,13 @@
   }
   
   /*
-   * Ändert die Klasse eines angeclickten Listenelements, sodass
-   * geöffnete Menüpunkte geschlossen und geschlossene geöffnet
-   * werden.
+   * Click handler which opens or closes tree nodes.
    *
-   * event: Das Event Objekt, dass der Browser übergibt.
+   * event: event object from browser
    */
   function treeMenu_handleClick(event) {
     var tree_node;
-    if(event == null) { //Workaround für die fehlenden DOM Eigenschaften im IE
+    if(event == null) {         // Workaround for IE
       event = window.event;
       tree_node = event.srcElement;
       event.cancelBubble = true;
@@ -66,16 +54,14 @@
       event.stopPropagation();
       tree_node = event.currentTarget;
     }
-    while(tree_node.nodeName.toLowerCase() != "li") {
+    while(tree_node.nodeName.toLowerCase() != "dd") {
       tree_node = tree_node.parentNode;
     }
-    if( tree_node.className.search(/\btreeMenu_opened\b/) >= 0 ) {
-      tree_node.className =
-        tree_node.className.replace(/\btreeMenu_opened\b/, "treeMenu_closed");
+    if( tree_node.className == "treeMenu_opened" ) {
+      tree_node.className = "treeMenu_closed";
     }
     else {
-      tree_node.className =
-        tree_node.className.replace(/\btreeMenu_closed\b/, "treeMenu_opened");
+      tree_node.className = "treeMenu_opened";
     }
   }
 
@@ -89,12 +75,11 @@
 
     var setstate= closeTree ? "treeMenu_closed" : "treeMenu_opened";
 
-    var items = menu.getElementsByTagName("li");
+    var items = menu.getElementsByTagName("dd");
 
     for(var i = 0; i < items.length; i++) {
 
-        items[i].className=
-                items[i].className.replace(/\btreeMenu_\w+\b/, setstate);
+        items[i].className= setstate;
     }
   }
 
@@ -105,10 +90,9 @@
    */
   function treeMenu_store(menu) {
     var result = new Array();
-    var items = menu.getElementsByTagName("li");
+    var items = menu.getElementsByTagName("dd");
     for(var i = 0; i < items.length; i++) {
-      if(items[i].className &&
-            items[i].className.search(/\btreeMenu_opened\b/) >= 0) {
+      if(items[i].className && items[i].className == "treeMenu_opened" ) {
         result.push(i);
       }
     }

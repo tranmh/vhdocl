@@ -1,0 +1,10 @@
+/*  Tree view functionality based on example by Daniel Thoma, see
+    http://aktuell.de.selfhtml.org/artikel/javascript/treemenu/     */
+
+dd.treeMenu_opened dl {
+  display: block;
+}
+dd.treeMenu_closed dl {
+  display: none;
+}
+
