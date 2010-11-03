@@ -1216,6 +1216,27 @@ sub parsemap
 }
 
 
+# Skip until first semicolon outside string literals and comments.
+# -> Remainder of current code line
+#    Reference to input file handle
+# <- Remainder of code line on which semicolon was found; undef if EOF was hit
+sub skipstatement
+{
+  my ($line, $handle)= @_;
+
+  while( defined($line) ) {
+    if( $line =~ /;/ ) {
+      $line =~ s/^($MANY)--.*$/$1/;
+      if( $line =~ s/^$STUFF;// ) {
+        return $line;
+      }
+    }
+    $line= <$handle>;
+  }
+  return undef;
+}
+
+
 # Parse VHDL file (to some extent).
 # -> Reference to hash representing file.  It has to have a "type" entry and a 
 #    "name" entry giving the file name.
@@ -1532,15 +1553,16 @@ vhdlline:
       }
       elsif( $vline =~ s/^($ID)\s*:\s*(?:(component|configuration|entity)\s+)?
 	($SID)(?:\s*\(\s*($ID)\s*\))?(?:\s*generic\s+map\s*\(\s*($STUFF)\s*\))?
-	  \s*port\s+map\s*\(\s*($STUFF)\s*\)\s*;//iox ) {
+	  \s*port\s+map\s*\(//iox ) {
 	push @newentries, { "type", "instance", "name", $1, "objname", $3,
 			    "subtype", lc($2) || "component", "archname", $4,
 			    "genericmap", parsemap($5) };
+        $vline= skipstatement($vline, *VHDL{IO});
       }
       elsif( $vline =~ s/^elsif\b\s*$MSTUFF\s*\bthen\b//i || 
       	     $vline =~ s/^(?:else|begin|is)\b//i || 
 	     $vline =~ s/^when\b\s*$MSTUFF\s*=>//i ) {}
-      elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {
+      elsif( $vline =~ /;/ && $vline =~ s/^(?:|$MSTUFF)\s*;// ) {
 	# Ignore ordinary statements and their documentation
       }
       else {	# get new source line if nothing matches
