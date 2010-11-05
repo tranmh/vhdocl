@@ -91,6 +91,8 @@ sub fixpath
 my $pathsep;
 
 # Return a hyperlink to a source file from a top-level HTML file.
+# -> File name (absolute or relative to current directory)
+# <- Hyperlink to file relative to output directory
 sub sourcelink
 {
   my ($filename)= @_;
@@ -136,6 +138,26 @@ sub copyfile
 
   eval { File::Copy::copy($from, $to); };
   return $@? 0 : 1;
+}
+
+
+# Print file error messages at most three times, and print a note when
+# suppressing further error messages.
+# -> Error message
+#    Reference to scalar for counting errors (incremented up to 4)
+sub limitfileerr
+{
+  my ($msg, $errcount)= @_;
+  my $limit= $config{"quiet"}? 1 : 3;
+
+  return if $$errcount > $limit;
+  if( $$errcount < $limit ) {
+    print STDERR "$msg - $!\n";
+  }
+  else {
+    print STDERR "(additional errors suppressed)\n";
+  }
+  ++$$errcount;
 }
 
 
@@ -2757,9 +2779,10 @@ sub printobjhtml
   	if $obj->{"doc"}->{"short"};
   if( $obj->{"filename"} ) {
     print $handle "<p>Defined in ";
-    if( $obj->{"filelink"} ) {
-      print $handle "<a href=\"", $obj->{"filelink"}, "\">",
-		    $obj->{"filename"}, "</a></p>\n";
+    if( $obj->{"file"} ) {
+      print $handle "<a href=\"../sources/", $obj->{"file"}->{"docfilename"},
+            "\">", $obj->{"filename"}, "</a>&nbsp;&nbsp;&nbsp;<a href=\"../",
+            $obj->{"file"}->{"link"}, "\">[source file]</a></p>\n";
     }
     else {
       print $handle $obj->{"filename"}, "</p>\n"
@@ -2848,6 +2871,8 @@ sub printgenporthtml
 }
 
 
+my $enthtmlerr= 0;
+
 # Write the HTML documentation for an entity
 # -> Reference to hash representing entity
 sub entityhtml
@@ -2857,8 +2882,8 @@ sub entityhtml
                                  $ent->{"docfilename"});
 
   if( !open(ENT, ">$fname") ) {
-    print STDERR "Cannot create output file $fname - $!\n";
-    return 0;
+    limitfileerr("Cannot create output file $fname", \$enthtmlerr);
+    return;
   }
   printhtmlheader(*ENT{IO}, $ent->{"fullname"});
   print ENT "\n<h1>Entity ", $ent->{"fullname"}, "</h1>\n";
@@ -3178,6 +3203,8 @@ sub printinsthtml
 }
 
 
+my $archhtmlerr= 0;
+
 # Write the HTML documentation for an architecture
 # -> Reference to hash representing architecture
 sub architecturehtml
@@ -3189,8 +3216,8 @@ sub architecturehtml
   my $headname= $arch->{"name"} . " of " . $arch->{"objname"};
 
   if( !open(ARCH, ">$fname") ) {
-    print STDERR "Cannot create output file $fname - $!\n";
-    return 0;
+    limitfileerr("Cannot create output file $fname", \$archhtmlerr);
+    return;
   }
   printhtmlheader(*ARCH{IO}, $headname);
   if( $ent ) {
@@ -3352,6 +3379,8 @@ sub printconfightml
 }
 
 
+my $confhtmlerr= 0;
+
 # Write the HTML documentation for a configuration
 # -> Reference to hash representing configuration
 sub configurationhtml
@@ -3365,8 +3394,8 @@ sub configurationhtml
   my @topfors;
 
   if( !open(CONF, ">$fname") ) {
-    print STDERR "Cannot create output file $fname - $!\n";
-    return 0;
+    limitfileerr("Cannot create output file $fname", \$confhtmlerr);
+    return;
   }
   printhtmlheader(*CONF{IO}, $headname);
   if( $ent ) {
@@ -3400,6 +3429,8 @@ sub configurationhtml
 }
 
 
+my $packhtmlerr= 0;
+
 # Write the HTML documentation for a package or orphaned package body
 # -> Reference to hash representing package or package body
 sub packagehtml
@@ -3410,8 +3441,8 @@ sub packagehtml
   my $pbody;
 
   if( !open(PACK, ">$fname") ) {
-    print STDERR "Cannot create output file $fname - $!\n";
-    return 0;
+    limitfileerr("Cannot create output file $fname", \$packhtmlerr);
+    return;
   }
   printhtmlheader(*PACK{IO}, $pack->{"fullname"});
   if( $pack->{"type"} eq "package" ) {
@@ -3503,6 +3534,8 @@ sub packagehtml
 }
 
 
+my $sourcehtmlerr= 0;
+
 # Generate the HTML page for a source file.
 # -> Reference to hash representing the VHDL file
 sub sourcehtml
@@ -3514,13 +3547,13 @@ sub sourcehtml
   my $header;
 
   if( !open(VHDL, $srcfname) ) {
-    print STDERR "Cannot open source file $srcfname for generating source HTML file - $!\n";
-    return 0;
+    limitfileerr("Cannot open source file $srcfname for generating source HTML file", \$sourcehtmlerr);
+    return;
   }
   if( !open(SRCHTML, ">$outfname") ) {
-    print STDERR "Cannot create output file $outfname - $!\n";
+    limitfileerr("Cannot create output file $outfname", \$sourcehtmlerr);
     close VHDL;
-    return 0;
+    return;
   }
   printhtmlheader(\$header, $file->{"name"});
   $header =~ s!(?=</head>)!<<EOF!ie;
@@ -3532,6 +3565,7 @@ sub sourcehtml
 EOF
   print SRCHTML $header;
   print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
+  print SRCHTML "\n<p><a href=\"../", $file->{"link"}, "\">Link to file</a></p>\n";
   print SRCHTML "<pre class=\"brush: vhdl;\">\n";
   while( <VHDL> )
   {
@@ -3565,7 +3599,7 @@ sub entitylisthtml
 
   if( !open(LIST, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
-    return 0;
+    return;
   }
   for my $oa (@$oarchs) {
     if( my ($elem)= grep(lc($_->{"name"}) eq lc($oa->{"objname"}), @list) ) {
@@ -3653,7 +3687,7 @@ sub packagelisthtml
 
   if( !open(LIST, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
-    return 0;
+    return;
   }
   printhtmlheader(*LIST{IO}, "Packages", 1);
   if( !@$packs && (!$opbodies || !@$opbodies) ) {
@@ -3788,7 +3822,7 @@ sub instantiationhtml
 
   if( !open(INST, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
-    return 0;
+    return;
   }
   printhtmlheader(\$header, "Instantiation overview", 1);
   $header =~ s!(?=</head>)!<<EOF!ie;
@@ -3840,7 +3874,7 @@ sub hierarchyhtml
 
   if( !open(HIER, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
-    return 0;
+    return;
   }
   printhtmlheader(\$header, "Instantiation hierarchy", 1);
   $header =~ s!(?=</head>)!<<EOF!ie;
@@ -3892,19 +3926,19 @@ sub sourcelisthtml
 
   if( !open(SOURCE, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
-    return 0;
+    return;
   }
   printhtmlheader(*SOURCE{IO}, "Source file overview", 1);
   print SOURCE "\n<h1>Source file overview</h1>\n";
   print SOURCE "\n<p>The file paths link to HTML pages showing the sources; the links in brackets point to the actual source files.</p>\n";
   my @srclist= sort { $a->{"name"} cmp $b->{"name"} } @$sources;
+  print SOURCE "\n<table border=\"0\">\n";
   for my $file (@srclist) {
-    print SOURCE "<a href=\"sources/", $file->{"docfilename"}, "\">",
-                $file->{"name"}, "</a>";
-    print SOURCE "&nbsp;&nbsp;&nbsp;<a href=\"",
-                sourcelink($file->{"name"}), "\">[source file]</a>";
-    print SOURCE "<br>\n";
+    print SOURCE "<tr><td><a href=\"sources/", $file->{"docfilename"}, "\">",
+                $file->{"name"}, "</a>&nbsp;&nbsp;&nbsp;</td><td><a href=\"",
+                $file->{"link"}, "\">[source file]</a></td></tr>\n";
   }
+  print SOURCE "</table>\n";
   printhtmlfooter(*SOURCE{IO});
   close LIST;
 }
@@ -3945,6 +3979,7 @@ for my $file (@vhdlfiles) {
   my $trunkname;
   (undef, undef, $trunkname)= File::Spec->splitpath($file->{"name"});
   $trunkname =~ s/\.[^\.]*$//;
+  $file->{"link"}= sourcelink($file->{"name"});
   $file->{"docfilename"}= $config{"prefix"} . $trunkname . "_" .
                 substr(Digest::MD5::md5_hex($file->{"name"}), 0, 8) . ".html";
 }
@@ -4062,8 +4097,6 @@ for my $ent (@entities)
   match_attributes($ent);
   # HTML file name
   $ent->{"docfilename"}= $config{"prefix"} . $ent->{"fullname"} . ".html";
-  # Link to source file
-  $ent->{"filelink"}= "../sources/" . $ent->{"file"}->{"docfilename"};
 }
 
 
@@ -4083,8 +4116,6 @@ for my $arch (@architectures) {
 			    . $labels{$child->{"type"}} . $child->{"name"};
     }
   }
-  # Link to source file
-  $arch->{"filelink"}= "../sources/" . $arch->{"file"}->{"docfilename"};
 }
 
 
@@ -4096,8 +4127,6 @@ for my $conf (@configurations) {
   # HTML file name
   $conf->{"docfilename"}= $config{"prefix"} . $conf->{"objname"} . "-" .
 			  $conf->{"name"} . ".html";
-  # Link to source file
-  $conf->{"filelink"}= "../sources/" . $conf->{"file"}->{"docfilename"};
   # Now assign objects to the use statements
   resolve_configuration($conf, \%libraries);
 }
@@ -4131,8 +4160,6 @@ for my $pack (@packages)
   $libname =~ s/\..*$//;
   map { $_->{"binding"}= resolve_selname($_->{"name"}, "entity",
 			    \%libraries, $libname, $pack->{"name"}); } @comps;
-  # Link to source file
-  $pack->{"filelink"}= "../sources/" . $pack->{"file"}->{"docfilename"};
 }
 
 
@@ -4146,8 +4173,6 @@ for my $pbody (@packagebodies)
   match_attributes($pbody);
   # HTML file name
   $pbody->{"docfilename"}= $config{"prefix"} . $pbody->{"fullname"} . ".html";
-  # Link to source file
-  $pbody->{"filelink"}= "../sources/" . $pbody->{"file"}->{"docfilename"};
 }
 
 for my $opb (@orphanedpbodies)
