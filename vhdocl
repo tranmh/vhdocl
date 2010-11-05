@@ -35,7 +35,8 @@ my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "synstyle1" => "shCore.css", "synstyle2" => "shThemeDefault.css",
-    "synimg" => "wrapping.png",
+    "synimg1" => "wrapping.png", "synimg2" => "help.png",
+    "synimg3" => "printer.png", "synimg4" => "page_white_code.png",
     "synjava1" => "shCore.js", "synjava2" => "shBrushVhdl.js" );
 
 my $cp;
@@ -135,9 +136,10 @@ sub fileext
 sub copyfile
 {
   my ($from, $to)= @_;
+  my $status;
 
-  eval { File::Copy::copy($from, $to); };
-  return $@? 0 : 1;
+  $status= eval { File::Copy::copy($from, $to); };
+  return !$status || $@? 0 : 1;
 }
 
 
