@@ -1551,13 +1551,13 @@ thisline:
 	  next vhdlline;
 	}
       }
-      elsif( $vline =~ s/^(?:($ID)\s*:\s*)?\bif\b\s*$MSTUFF\s*\bthen\b//io ) {
+      elsif( $vline =~ s/^(?:($ID)\s*:\s*)?\bif\b$MSTUFF\bthen\b//io ) {
 	$newchild= { "type", "if", "name", $1 };
       }
-      elsif( $vline =~ s/^(?:($ID)\s*:\s*)?\bcase\b\s*$MSTUFF\s*\bis\b//io ) {
+      elsif( $vline =~ s/^(?:($ID)\s*:\s*)?\bcase\b$MSTUFF\bis\b//io ) {
 	$newchild= { "type", "case", "name", $1 };
       }
-      elsif( $vline =~ s/^(?:($ID)\s*:\s*)?(?:(while|for)\b\s*$MSTUFF\s*)?
+      elsif( $vline =~ s/^(?:($ID)\s*:\s*)?(?:(while|for)\b$MSTUFF)?
       			\bloop\b//iox ) {
 	$newchild= { "type", "loop", "name", $1, "subtype", lc($2) || "loop" };
       }
@@ -1605,8 +1605,10 @@ thisline:
       # We can read ahead "port map" here since neither generic map nor port
       # map take doc comments.
       elsif( $vline =~
-	    /^generic\s+map\s*\(\s*($STUFF\s*\))\s*(?:port\s+map\b|;)/io ) {
-	my $map= paren_list($1);
+	    /^generic\s+map\s*\(($STUFF\))\s*(?:port\s+map\b|;)/io ) {
+        my $map= $1;
+        $map =~ s/^\s+//;
+        $map= paren_list($map);
 	next vhdlline unless defined($map);
 	$vline =~ s/^generic\s+map\s*\(\s*//io;
 	$vline= substr($vline, length($map));
@@ -1628,10 +1630,21 @@ thisline:
 	}
       }
       # We could add variable and signal declarations, but we do not need them
-      elsif( $vline =~ s/^(constant|attribute)\s+
-      		($IDLIST)\s*:\s*($MSTUFF)(?:\s*:=\s*($STUFF))?\s*;//iox ) {
-	push @newentries, ( map +{ "type", lc($1), "name", $_, 
-		      "subtype", $3, "value", $4 }, split(/\s*,\s*/, $2) );
+      elsif( $vline =~ s/^\b(constant|attribute)\b//i ) {
+        my $type= lc($1);
+        my ($ids, $subtype, $val);
+        while( 13 ) {
+          if( $vline =~ /;/ && $vline =~
+                s/^\s*($IDLIST)\s*:($MSTUFF)(?::=($STUFF))?;//io ) {
+            ($ids, $subtype, $val)= ($1, $2, $3 || "");
+            last;
+          }
+          getnextline(0) or goto done;
+        }
+        $subtype =~ s/^\s+//;   $subtype =~ s/\s+$//;
+        $val =~ s/^\s+//;   $val =~ s/\s+$//;
+	push @newentries, ( map +{ "type", $type, "name", $_, 
+                "subtype", $subtype, "value", $val }, split(/\s*,\s*/, $ids) );
       }
       elsif( $vline =~ s/^port\s*\(\s*//io ) {
 	$portsnow= 2;
@@ -1661,10 +1674,10 @@ thisline:
 			    "genericmap", parsemap($5) };
         skipstatement();
       }
-      elsif( $vline =~ s/^elsif\b\s*$MSTUFF\s*\bthen\b//i || 
+      elsif( $vline =~ s/^elsif\b$MSTUFF\bthen\b//i || 
       	     $vline =~ s/^(?:else|begin|is)\b//i || 
-	     $vline =~ s/^when\b\s*$MSTUFF\s*=>//i ) {}
-      elsif( $vline =~ /;/ && $vline =~ s/^(?:|$MSTUFF)\s*;// ) {
+	     $vline =~ s/^when\b$MSTUFF=>//i ) {}
+      elsif( $vline =~ /;/ && $vline =~ s/^(?:|$MSTUFF);// ) {
 	# Ignore ordinary statements and their documentation
       }
       else {	# get new source line if nothing matches
