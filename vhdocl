@@ -1280,7 +1280,8 @@ sub skipstatement
 }
 
 
-# Read function or procedure declaration argument list.
+# Read function or procedure declaration argument list.  Nested parentheses are
+# tracked.
 # -> optional: Reference to array for hashes representing arguments
 # <- String containing complete argument list
 sub readarglist
@@ -1328,6 +1329,57 @@ sub readarglist
   $allargs =~ s/\)$//;
   $vline .= $comment if $vline !~ /^\s*$/ && defined($comment);
   return $allargs;
+}
+
+
+# Read a comma-separated list such as a process sensitivity list or a generic
+# map.  Nested parentheses are tracked.
+# -> optional: Reference to array for two-element arrays representing generic
+#    associations.  The first element is the generic name, the second the value.
+# <- Complete comma-separated list
+sub readcommalist
+{
+  my ($map)= @_;
+  my ($new, $parentest, $comment, $entry, $allentries);
+
+  $allentries= "";
+  while( 13 ) {
+    while( 13 ) {
+      if( $vline =~ /,|\)/ ) {
+        $parentest= $vline;
+        $parentest =~ s/$STR//g;
+        while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
+        last if $parentest =~ s/^[^(),]*[,)]//;
+      }
+      $new= <$vhandle>;
+      return undef unless defined($new);
+      if( $new =~ /^($MANY)(--.*)$/ ) {
+        $vline .= " " . $1;
+        $comment= $2;
+      }
+      else {
+        $vline .= " " . $new;
+        $comment= undef;
+      }
+      chomp $vline;
+    }
+    $entry= substr($vline, 0, length($vline)-length($parentest));
+    $vline= substr($vline, length($vline)-length($parentest));
+    last if $entry =~ /^\s*\)/;
+    $allentries .= $entry;
+    $entry =~ s/([,)])$//;
+    my $delimiter= $1;
+    if( $map && $entry =~ /^\s*($ID)\s*=>(.*)$/io ) {
+      my ($key, $val)= ($1, $2);
+      $val =~ s/^\s+//;
+      $val =~ s/\s+$//;
+      push @$map, [ $key, $val ];
+    }
+    last if $delimiter eq ")";
+  }
+  $allentries =~ s/\)$//;
+  $vline .= $comment if $vline !~ /^\s*$/ && defined($comment);
+  return $allentries;
 }
 
 
@@ -1497,59 +1549,46 @@ thisline:
 	$newchild= { "type", "generate", "subtype", lc($2), "name", $1,
 			"parameters", $3 };
       }
-      elsif( $vline =~ /^(?:$ID\s*:\s*)?\b(?:process|postponedprocess)\b/io ) {
-	if( $vline =~ /^(?:($ID)\s*:\s*)?\b(process|postponedprocess)\b
-			    (?:\s*\(\s*($STUFF\s*\)))?\s*[^\s(]/iox ) {
-	  my ($name, $post, $sens)=($1 || "", lc($2) eq "postponedprocess", $3);
-	  if( $sens ) {
-	    $sens= paren_list($sens);
-	    # keep reading until all parentheses are closed:
-	    next vhdlline unless defined($sens);
-	    $vline =~ s/^(?:$ID\s*:\s*)?\b(?:process|postponedprocess)\s*\(\s*//io;
-	    $vline= substr($vline, length($sens));
-	    $vline =~ s/^\)//;
-	    $doccomment .= $aheaddoccom;
-            $keepdoccom ||= $keepaheaddoc;
-	    $aheaddoccom= "";
-	  }
-	  else { # no sensitivity list
-	    $vline =~ s/^(?:$ID\s*:\s*)?\b(?:process|postponedprocess)\b
-			    \s*([^\s(])/$1/iox;
-	  }
-	  $newchild= { "type", "process", "name", $name,
-			"postponed", $post, "sensitivity", $sens };
-	}
-	elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {}
-	else {
-	  $readahead= 1;
-	  next vhdlline;
-	}
+      elsif( $vline =~ s/^(?:($ID)\s*:\s*)?((?:postponed)?process)\b//io ) {
+        my ($name, $post, $sens)= ($1 || "", lc($2) eq "postponedprocess", "");
+        while( 13 ) {
+          if( $vline =~ s/^\s*(\S)// ) {
+            if( $1 eq "(" ) {
+              $doccomment .= $aheaddoccom;
+              $keepdoccom ||= $keepaheaddoc;
+              $aheaddoccom= "";
+              $keepaheaddoc= 0;
+              $sens= readcommalist();
+            }
+            else {
+              $vline= $1 . $vline;
+            }
+            last;
+          }
+          getnextline(1) or goto done;
+        }
+        $newchild= { "type", "process", "name", $name,
+                      "postponed", $post, "sensitivity", $sens };
       }
-      elsif( $vline =~ /^$ID\s*:\s*block\b/io ) {
-	if( $vline =~ /^($ID)\s*:\s*block\b(?:\s*\(\s*($STUFF\s*\)))?
-      			\s*[^\s(]/iox ) {
-	  my ($name, $guard)= ($1, $2 || "");
-	  if( $guard ) {
-	    $guard= paren_list($guard);
-	    # keep reading until all parentheses are closed:
-	    next vhdlline unless defined($guard);
-	    $vline =~ s/^$ID\s*:\s*block\s*\(\s*//io;
-	    $vline= substr($vline, length($guard));
-	    $vline =~ s/^\)//i;
-	    $doccomment .= $aheaddoccom;
-            $keepdoccom ||= $keepaheaddoc;
-	    $aheaddoccom= "";
-	  }
-	  else {
-	    $vline =~ s/^$ID\s*:\s*block\s*//io;
-	  }
-	  $newchild= { "type", "block", "name", $name, "guard", $guard };
-	}
-	elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {}
-	else {
-	  $readahead= 1;
-	  next vhdlline;
-	}
+      elsif( $vline =~ s/^($ID)\s*:\s*block\b//io ) {
+        my ($name, $guard)= ($1, "");
+        while( 13 ) {
+          if( $vline =~ s/^\s*(\S)// ) {
+            if( $1 eq "(" ) {
+              $doccomment .= $aheaddoccom;
+              $keepdoccom ||= $keepaheaddoc;
+              $aheaddoccom= "";
+              $keepaheaddoc= 0;
+              $guard= readcommalist();
+            }
+            else {
+              $vline= $1 . $vline;
+            }
+            last;
+          }
+          getnextline(1) or goto done;
+        }
+        $newchild= { "type", "block", "name", $name, "guard", $guard };
       }
       elsif( $vline =~ s/^(?:($ID)\s*:\s*)?\bif\b$MSTUFF\bthen\b//io ) {
 	$newchild= { "type", "if", "name", $1 };
@@ -1602,18 +1641,11 @@ thisline:
 	push @newentries, { "type", "use", "subtype", lc($1) || lc($4) || lc($6), 
 			    "name", $2 || $5, "archname", $3 };
       }
-      # We can read ahead "port map" here since neither generic map nor port
-      # map take doc comments.
-      elsif( $vline =~
-	    /^generic\s+map\s*\(($STUFF\))\s*(?:port\s+map\b|;)/io ) {
-        my $map= $1;
-        $map =~ s/^\s+//;
-        $map= paren_list($map);
-	next vhdlline unless defined($map);
-	$vline =~ s/^generic\s+map\s*\(\s*//io;
-	$vline= substr($vline, length($map));
-	$vline =~ s/^\)//i;
-	push @newentries, { "type", "genericmap", "map", parsemap($map) };
+      elsif( $vline =~ /^generic\s+map\s*\(/io ) {
+        my $genmap= [];
+	readcommalist($genmap);
+	push @newentries, { "type", "genericmap", "map", $genmap };
+        skipstatement();
       }
       elsif( $vline =~ s/^use\s+($SIDLIST)\s*;//io ) {
 	push @newentries, ( map +{ "type", "use", "subtype", "package",
@@ -1666,13 +1698,15 @@ thisline:
 		      "subtype", $2, "value", $3 }, split(/\s*,\s*/, $1) );
 	$genericsnow= 2;
       }
-      elsif( $vline =~ s/^($ID)\s*:\s*(?:(component|configuration|entity)\s+)?
-	($SID)(?:\s*\(\s*($ID)\s*\))?(?:\s*generic\s+map\s*\(\s*($STUFF)\s*\))?
-	  \s*port\s+map\s*\(//iox ) {
+      elsif( $vline =~ /:/ &&
+        $vline =~ s/^($ID)\s*:\s*(?:(component|configuration|entity)\s+)?
+	($SID)(?:\s*\(\s*($ID)\s*\))?\s*(generic|port)\s+map\s*\(//iox ) {
+        my $genmap= [];
 	push @newentries, { "type", "instance", "name", $1, "objname", $3,
-			    "subtype", lc($2) || "component", "archname", $4,
-			    "genericmap", parsemap($5) };
-        skipstatement();
+			    "subtype", lc($2 || "component"), "archname", $4,
+			    "genericmap", $genmap };
+        readcommalist($genmap) if $5 eq "generic";
+        skipstatement();        # skip to end of port map
       }
       elsif( $vline =~ s/^elsif\b$MSTUFF\bthen\b//i || 
       	     $vline =~ s/^(?:else|begin|is)\b//i || 
@@ -1681,7 +1715,7 @@ thisline:
 	# Ignore ordinary statements and their documentation
       }
       else {	# get new source line if nothing matches
-	last;
+	next vhdlline;
       }
       if( $newchild ) {
 	$keepdoccom= 0;
