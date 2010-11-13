@@ -1244,8 +1244,8 @@ sub preprocessline
   my ($new, $ahead)= @_;
 
   $new =~ s/^\s*//;
-  $new =~ s/^($MANY)--(?:|[^+*].*|\+\+.*|\*\*.*)$/$1/;
-  if( $new =~ /^($MANY)--([+*])(.*)$/ ) {
+  $new =~ s/^($MANY)--(?:|[^+*].*|\+\+.*|\*\*.*)$/$1/o;
+  if( $new =~ /^($MANY)--([+*])(.*)$/o ) {
     $new= $1;
     ($ahead ? $keepaheaddoc : $keepdoccom) = $2 eq "+" unless $config{"compat"};
     ($ahead ? $aheaddoccom : $doccomment) .= $3 . "\n";
@@ -1280,6 +1280,68 @@ sub skipstatement
 }
 
 
+# Read generic or port declaration list.  Nested parentheses are tracked.
+# Documentation comments are assigned to individual ports or generics.  Before
+# returning, the doc comment variables are cleared to avoid reuse at the end of
+# the main loop in parsefile().
+# -> String to write to the "type" entry of the resulting hashes, "port" or
+#    "generic"
+# <- List of hashes representing ports or generics
+sub readportlist
+{
+  my ($type)= @_;
+  my $defdir= $type eq "port" ? "in" : "";
+  my ($parentest, @ports);
+
+  $parentest= $vline;
+  while( 13 ) {
+    while( 13 ) {
+      if( $vline =~ /;|\)/ ) {
+        $parentest =~ s/$STR//g;
+        while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
+        last if $parentest =~ s/^[^();]*[;)]//;
+      }
+      my $new= <$vhandle>;
+      return unless defined($new);
+      $new =~ s/^\s*//;
+      $new =~ s/^($MANY)--(?:|[^+*].*|\+\+.*|\*\*.*)$/$1/o;
+      if( $new =~ /^($MANY)--([+*])(.*)$/o ) {
+        $new= $1;
+        $keepdoccom= $2 eq "+" unless $config{"compat"};
+        $doccomment .= $3 . "\n";
+      }
+      chomp $new;
+      $vline .= " " . $new;
+      $parentest .= " " . $new;
+      chomp $vline;
+    }
+    my $port= substr($vline, 0, length($vline)-length($parentest));
+    $vline= substr($vline, length($vline)-length($parentest));
+    last if $port =~ /^\s*\)/;
+    $port =~ s/([;)])$//;
+    my $delimiter= $1;
+    if( $port =~ /^\s*($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
+				  ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
+      my $doc= $doccomment? parsedoccom($doccomment) : undef;
+      my @newports= map +{ "type", $type, "name", $_, "doc", $doc,
+			      "direction", lc($2 || $defdir), "subtype", $3,
+			      "value", $4 }, split(/\s*,\s*/, $1);
+      push @ports, @newports;
+      if( $config{"parsedebug"} ) {
+        print "$.: found $type";
+        print "s" if $#newports;
+        print " ", join(", ", map($_->{"name"}, @newports)), "\n";
+      }
+    }
+    last if $delimiter eq ")";
+    $doccomment= "" unless $keepdoccom;
+  }
+  $doccomment= "";
+  $keepdoccom= 0;
+  return @ports;
+}
+
+
 # Read function or procedure declaration argument list.  Nested parentheses are
 # tracked.
 # -> optional: Reference to array for hashes representing arguments
@@ -1287,30 +1349,33 @@ sub skipstatement
 sub readarglist
 {
   my ($list)= @_;
-  my ($new, $parentest, $comment, $arg, $allargs);
+  my ($parentest, $comment, $allargs);
 
   $allargs= "";
+  $parentest= $vline;
   while( 13 ) {
     while( 13 ) {
       if( $vline =~ /;|\)/ ) {
-        $parentest= $vline;
         $parentest =~ s/$STR//g;
         while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
         last if $parentest =~ s/^[^();]*[;)]//;
       }
-      $new= <$vhandle>;
+      my $new= <$vhandle>;
       return undef unless defined($new);
+      chomp $new;
       if( $new =~ /^($MANY)(--.*)$/ ) {
         $vline .= " " . $1;
+        $parentest .= " " . $1;
         $comment= $2;
       }
       else {
         $vline .= " " . $new;
+        $parentest .= " " . $new;
         $comment= undef;
       }
       chomp $vline;
     }
-    $arg= substr($vline, 0, length($vline)-length($parentest));
+    my $arg= substr($vline, 0, length($vline)-length($parentest));
     $vline= substr($vline, length($vline)-length($parentest));
     last if $arg =~ /^\s*\)/;
     $allargs .= $arg;
@@ -1340,30 +1405,33 @@ sub readarglist
 sub readcommalist
 {
   my ($map)= @_;
-  my ($new, $parentest, $comment, $entry, $allentries);
+  my ($parentest, $comment, $allentries);
 
   $allentries= "";
+  $parentest= $vline;
   while( 13 ) {
     while( 13 ) {
       if( $vline =~ /,|\)/ ) {
-        $parentest= $vline;
         $parentest =~ s/$STR//g;
         while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
         last if $parentest =~ s/^[^(),]*[,)]//;
       }
-      $new= <$vhandle>;
+      my $new= <$vhandle>;
       return undef unless defined($new);
+      chomp $new;
       if( $new =~ /^($MANY)(--.*)$/ ) {
         $vline .= " " . $1;
+        $parentest .= " " . $1;
         $comment= $2;
       }
       else {
         $vline .= " " . $new;
+        $parentest .= " " . $new;
         $comment= undef;
       }
       chomp $vline;
     }
-    $entry= substr($vline, 0, length($vline)-length($parentest));
+    my $entry= substr($vline, 0, length($vline)-length($parentest));
     $vline= substr($vline, length($vline)-length($parentest));
     last if $entry =~ /^\s*\)/;
     $allentries .= $entry;
@@ -1414,8 +1482,6 @@ sub parsefile
   my $parsdbg= $config{"parsedebug"};
   my @parsestack;
   my $parent= $file;
-  my $genericsnow= 0;
-  my $portsnow= 0;
   my $inconfiguration= 0;
   my ($lastdoccom, $keepdoctype, $readahead);
 
@@ -1678,25 +1744,8 @@ thisline:
 	push @newentries, ( map +{ "type", $type, "name", $_, 
                 "subtype", $subtype, "value", $val }, split(/\s*,\s*/, $ids) );
       }
-      elsif( $vline =~ s/^port\s*\(\s*//io ) {
-	$portsnow= 2;
-	$genericsnow= 0;
-      }
-      elsif( $portsnow && $vline =~ s/^($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
-				  ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*;//iox ) {
-	push @newentries, ( map +{ "type", "port", "name", $_,
-			      "direction", lc($2) || "in", "subtype", $3,
-			      "value", $4 }, split(/\s*,\s*/, $1) );
-	$portsnow= 2;
-      }
-      elsif( $vline =~ s/^generic\s*\(\s*//io ) {
-	$genericsnow= 2;
-      }
-      elsif( $genericsnow && $vline =~ s/^($IDLIST)\s*:\s*($MSTUFF)
-      				(?:\s*:=\s*($STUFF))?\s*;//iox ) {
-	push @newentries, ( map +{ "type", "generic", "name", $_, 
-		      "subtype", $2, "value", $3 }, split(/\s*,\s*/, $1) );
-	$genericsnow= 2;
+      elsif( $vline =~ s/^(generic|port)\s*\(//io ) {
+	@newentries= readportlist($1);
       }
       elsif( $vline =~ /:/ &&
         $vline =~ s/^($ID)\s*:\s*(?:(component|configuration|entity)\s+)?
@@ -1762,8 +1811,6 @@ thisline:
 	$doccomment= "" unless $config{"compat"} && !@parsestack;
       }
       $readahead= 0;
-      $genericsnow >>= 1;
-      $portsnow >>= 1;
     }
   }
 done:
