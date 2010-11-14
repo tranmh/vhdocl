@@ -34,6 +34,7 @@ my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "title" => "" );
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
+    "nodeimg" => "node.png", "leafimg" => "leaf.png",
     "synstyle1" => "shCore.css", "synstyle2" => "shThemeDefault.css",
     "synimg1" => "wrapping.png", "synimg2" => "help.png",
     "synimg3" => "printer.png", "synimg4" => "page_white_code.png",
@@ -3913,7 +3914,7 @@ sub printhiernodehtml
   $real->{"done"}= 1;
   if( $recursion ) {
     print $handle <<EOF;
-<dd><table border="0"><tr><td><img src="style/leaf.png">&nbsp;</td>
+<dd><table border="0"><tr><td><img src="style/$requisites{leafimg}">&nbsp;</td>
     <td>$nodehtml ... (recursion)</td></tr></table></dd>
 EOF
     return;
@@ -3928,13 +3929,13 @@ EOF
         ($node->{"proxy"} || !$$trace[0]->{"confname"} ||
           $$trace[0]->{"confname"} ne ($node->{"confname"} || "")) ) ) {
     print $handle <<EOF;
-<dd><table border=\"0\"><tr><td><img src="style/leaf.png">&nbsp;</td>
+<dd><table border=\"0\"><tr><td><img src="style/$requisites{leafimg}">&nbsp;</td>
     <td>$nodehtml</td></tr></table></dd>
 EOF
     return;
   }
   print $handle <<EOF;
-<dd><table border="0"><tr><td><img src="style/node.png">&nbsp;</td>
+<dd><table border="0"><tr><td><img src="style/$requisites{nodeimg}">&nbsp;</td>
     <td>$nodehtml</td></tr></table> <dl>
 EOF
   unshift @$trace, $real;
