@@ -1123,6 +1123,8 @@ sub parsedoccom
 }
 
 
+{   # Start of scope of parsing variables
+
 # VHDL identifier:
 my $ID= qr/\b[a-zA-Z](?:\w*[a-zA-Z0-9])?\b/;
 # List of identifiers for variable, signal and other declarations:
@@ -1152,71 +1154,6 @@ my $ANY= qr/(?:$STR|[^"])*/o;
 # Same, but not greedy:
 my $MANY= qr/(?:$STR|[^"])*?/o;
 
-
-# This function extracts a procedure argument list or process sensitivity list
-# from a string and determines whether it is complete by keeping track of pairs
-# of parentheses.
-# -> String containing argument/sensitivity list without top-level opening
-#    parenthesis, possibly followed by other stuff.
-# <- Argument/sensitivity list without top-level parentheses, or undef if given
-#    string does not contain a complete list.  No white space removal or other
-#    cleaning up is done to the list, so its length can be used to remove it
-#    from the input string.
-sub paren_list
-{
-  my ($str)= @_;
-  my $orig= $str;
-
-  while( $str =~ s/^([^)]*)\([^()]*\)/$1/g ) {}
-  return undef unless $str =~ s/^[^()]*\)/\)/;
-  return substr($orig, 0, length($orig)-length($str));
-}
-
-
-# Parse procedure or function argument list
-# -> String containing argument list (without parentheses)
-# <- Reference to array containing a hash reference for each argument.  This
-#    hash does not conform to our general declarative item hash form.  Rather,
-#    the "type" entry is the actual data type.
-sub parsearglist
-{
-  my ($arglist)= @_;
-  my @argitems= split /\s*;\s*/, $arglist;
-  my @args;
-  for my $item (@argitems) {
-    $item =~ /^\s*(?:(constant|signal|variable|file)\s+)?($IDLIST)\s*:\s*
-    		(?:(in|out|inout|buffer|linkage)\s+)?($MSTUFF)
-    		(?:\s*:=\s*(\S.*?\S))?\s*$/iox or next;
-    push @args, (map +{ "name", $_, "type", $4, "subtype", lc($1), 
-		    "direction", lc($3), "value", $5 }, split(/\s*,\s*/, $2));
-  }
-  return \@args;
-}
-
-
-# Parse generic (or port) map
-# -> String containing generic map
-# <- Reference to array containing references to arrays containing generic
-# identifier and their value
-sub parsemap
-{
-  my ($mapstr)= @_;
-  my @mapary;
-
-  return \@mapary unless $mapstr;
-  if( $mapstr =~ s/^($ID)\s*=>\s*//o ) {
-    push @mapary, [ $1 ];
-    while( $mapstr =~ s/^($MSTUFF)\s*,\s*($ID)\s*=>\s*//o ) {
-      $mapary[$#mapary]->[1]= $1;
-      push @mapary, [ $2 ];
-    }
-    $mapary[$#mapary]->[1]= $mapstr;
-  }
-  return \@mapary;
-}
-
-
-{   # Start of scope of parsing variables
 
 my $vhandle;
 my $vline;
@@ -1379,8 +1316,8 @@ sub readarglist
                   (?:(in|out|inout|buffer|linkage)\s+)?($MSTUFF)
                   (?:\s*:=\s*(\S.*?\S))?\s*$/iox
       and
-      push @$list, (map +{ "name", $_, "type", $4, "subtype", lc($1), 
-                    "direction", lc($3), "value", $5 }, split(/\s*,\s*/, $2));
+      push @$list, (map +{ "name", $_, "type", $4, "subtype", lc($1 || ""), 
+            "direction", lc($3 || ""), "value", $5 }, split(/\s*,\s*/, $2));
     }
     last if $delimiter eq ")";
   }
@@ -1495,9 +1432,9 @@ sub parsefile
         my $lastlevel= pop(@parsestack);
         if( $vline =~ /^end(?:\s+($ID))?\s+($ID|$OP)\s*;/io &&
             ( ($1 && (lc($1) ne $lastlevel->{"type"} || 
-                                lc($2) ne lc($lastlevel->{"name"}) )) || 
-              (!$1 && lc($2) ne $lastlevel->{"type"} &&
-                        lc($2) ne lc($lastlevel->{"name"})) ) ) {
+                        lc($2 || "") ne lc($lastlevel->{"name"}) )) || 
+              (!$1 && lc($2 || "") ne $lastlevel->{"type"} &&
+                        lc($2 || "") ne lc($lastlevel->{"name"})) ) ) {
           $errflag= 1;
           unless( $config{"quiet"} ) {
             print STDERR "\"end ";
@@ -1548,7 +1485,7 @@ sub parsefile
       $newchild= { "type", "procedure", "name", $name, "parlist", $parlist,
                     "parameters", $params };
       if( !$is ) {
-        push @newentries, $newchild;
+        @newentries= ( $newchild );
         $newchild= undef;
       }
     }
@@ -1584,7 +1521,7 @@ sub parsefile
                    "pure", lc($pure), "parlist", $parlist,
                    "parameters", $params };
       if( !$is ) {
-        push @newentries, $newchild;
+        @newentries= ( $newchild );
         $newchild= undef;
       }
     }
@@ -1642,7 +1579,7 @@ sub parsefile
     }
     elsif( $vline =~ s/^(?:($ID)\s*:\s*)?(?:(while|for)\b$MSTUFF)?
                       \bloop\b//iox ) {
-      $newchild= { "type", "loop", "name", $1, "subtype", lc($2) || "loop" };
+      $newchild= { "type", "loop", "name", $1, "subtype", lc($2 || "loop") };
     }
     elsif( $vline =~ s/^(type|subtype)\s+($ID)\s+is\b\s*($MSTUFF)??\s*
                 (?:\b(record|units|protected|protectedbody)\b|;)//iox ) {
@@ -1651,19 +1588,19 @@ sub parsefile
                       "sub", lc($1) eq "subtype" };
       }
       else {
-        push @newentries, { "type", "type", "sub", lc($1) eq "subtype",
-                              "name", $2, "subtype", $3 };
+        @newentries= ( { "type", "type", "sub", lc($1) eq "subtype",
+                              "name", $2, "subtype", $3 } );
       }
     }
     elsif( $vline =~ s/^library\s+($IDLIST)\s*;//io ) {
-      push @newentries, ( map +{ "type", "library", "name", $_ }, split(/\s*,\s*/, $1) );
+      @newentries= map +{ "type", "library", "name", $_ }, split(/\s*,\s*/, $1);
     }
     elsif( $vline =~ /^for\s+$ID/io ) {
       if( $vline =~ s/^for\s+($IDLIST)\s*:\s*($ID)\s*([^\s])/$3/io ) {
         $newchild= { "type", "for", "subtype", "instance", "objtype", $2,
                                        "objnames", [split(/\s*,\s*/, $1)] };
         unless( $inconfiguration ) {
-          push @newentries, $newchild;
+          @newentries= ( $newchild );
           undef $newchild;
         }
         $doccomment .= $aheaddoccom;
@@ -1682,18 +1619,18 @@ sub parsefile
     elsif( $vline =~ s/^use\s+(?:(entity)\s+($SID)(?:\s*\(\s*($ID)\s*\))?|
                       (configuration)\s+($SID)|(open)\b)
                       \s*(generic\s+map\b|port\s+map\b|;)/$7/iox ) {
-      push @newentries, { "type", "use", "subtype", lc($1) || lc($4) || lc($6), 
-                          "name", $2 || $5, "archname", $3 };
+      @newentries= ( { "type", "use", "subtype", lc($1 || $4 || $6), 
+                          "name", $2 || $5, "archname", $3 } );
     }
     elsif( $vline =~ /^generic\s+map\s*\(/io ) {
       my $genmap= [];
       readcommalist($genmap);
-      push @newentries, { "type", "genericmap", "map", $genmap };
+      @newentries= ( { "type", "genericmap", "map", $genmap } );
       skipstatement();
     }
     elsif( $vline =~ s/^use\s+($SIDLIST)\s*;//io ) {
-      push @newentries, ( map +{ "type", "use", "subtype", "package",
-                                      "name", $_ }, split(/\s*,\s*/, $1) );
+      @newentries= map +{ "type", "use", "subtype", "package", "name", $_ },
+                                                split(/\s*,\s*/, $1);
     }
     elsif( $vline =~ s/^attribute\s+($ID)\s+of\s+($AILIST)\s*:\s*($ID)\s+
                       is\s+($STUFF)\s*;//iox ) {
@@ -1702,7 +1639,7 @@ sub parsefile
       my $ailist= $2;
       while( $ailist =~ s/^($AI)(?:\s*,\s*)?//o ) {
         $template->{"objname"}= $1;
-        push @newentries, $template;
+        push @newentries, { %$template };
       }
     }
     # We could add variable and signal declarations, but we do not need them
@@ -1719,8 +1656,8 @@ sub parsefile
       }
       $subtype =~ s/^\s+//;   $subtype =~ s/\s+$//;
       $val =~ s/^\s+//;   $val =~ s/\s+$//;
-      push @newentries, ( map +{ "type", $type, "name", $_, 
-              "subtype", $subtype, "value", $val }, split(/\s*,\s*/, $ids) );
+      @newentries= map +{ "type", $type, "name", $_, 
+              "subtype", $subtype, "value", $val }, split(/\s*,\s*/, $ids);
     }
     elsif( $vline =~ s/^(generic|port)\s*\(//io ) {
       @newentries= readportlist($1);
@@ -1729,9 +1666,9 @@ sub parsefile
       $vline =~ s/^($ID)\s*:\s*(?:(component|configuration|entity)\s+)?
       ($SID)(?:\s*\(\s*($ID)\s*\))?\s*(generic|port)\s+map\s*\(//iox ) {
       my $genmap= [];
-      push @newentries, { "type", "instance", "name", $1, "objname", $3,
+      @newentries= ( { "type", "instance", "name", $1, "objname", $3,
                           "subtype", lc($2 || "component"), "archname", $4,
-                          "genericmap", $genmap };
+                          "genericmap", $genmap } );
       readcommalist($genmap) if $5 eq "generic";
       skipstatement();        # skip to end of port map
     }
