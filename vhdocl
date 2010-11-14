@@ -1349,7 +1349,7 @@ sub readportlist
 sub readarglist
 {
   my ($list)= @_;
-  my ($parentest, $comment, $allargs);
+  my ($parentest, $allargs);
 
   $allargs= "";
   $parentest= $vline;
@@ -1363,16 +1363,9 @@ sub readarglist
       my $new= <$vhandle>;
       return undef unless defined($new);
       chomp $new;
-      if( $new =~ /^($MANY)(--.*)$/ ) {
-        $vline .= " " . $1;
-        $parentest .= " " . $1;
-        $comment= $2;
-      }
-      else {
-        $vline .= " " . $new;
-        $parentest .= " " . $new;
-        $comment= undef;
-      }
+      $new =~ s/^($MANY)--.*$/$1/;
+      $vline .= " " . $new;
+      $parentest .= " " . $new;
       chomp $vline;
     }
     my $arg= substr($vline, 0, length($vline)-length($parentest));
@@ -1392,7 +1385,6 @@ sub readarglist
     last if $delimiter eq ")";
   }
   $allargs =~ s/\)$//;
-  $vline .= $comment if $vline !~ /^\s*$/ && defined($comment);
   return $allargs;
 }
 
@@ -1405,7 +1397,7 @@ sub readarglist
 sub readcommalist
 {
   my ($map)= @_;
-  my ($parentest, $comment, $allentries);
+  my ($parentest, $allentries);
 
   $allentries= "";
   $parentest= $vline;
@@ -1419,16 +1411,9 @@ sub readcommalist
       my $new= <$vhandle>;
       return undef unless defined($new);
       chomp $new;
-      if( $new =~ /^($MANY)(--.*)$/ ) {
-        $vline .= " " . $1;
-        $parentest .= " " . $1;
-        $comment= $2;
-      }
-      else {
-        $vline .= " " . $new;
-        $parentest .= " " . $new;
-        $comment= undef;
-      }
+      $new =~ s/^($MANY)--.*$/$1/;
+      $vline .= " " . $new;
+      $parentest .= " " . $new;
       chomp $vline;
     }
     my $entry= substr($vline, 0, length($vline)-length($parentest));
@@ -1446,7 +1431,6 @@ sub readcommalist
     last if $delimiter eq ")";
   }
   $allentries =~ s/\)$//;
-  $vline .= $comment if $vline !~ /^\s*$/ && defined($comment);
   return $allentries;
 }
 
@@ -1549,7 +1533,6 @@ sub parsefile
         if( $vline =~ s/^\s*(\bis\b|;|\(|\S)//i ) {
           if( $1 eq "(" && !$parlist ) {
             $parlist= readarglist($params);
-            preprocessline("", 0);
             redo;
           }
           elsif( $1 eq "is" || $1 eq ";" ) {
@@ -1576,7 +1559,6 @@ sub parsefile
         if( $vline =~ s/^\s*(\breturn\b|\(|\S)//i ) {
           if( $1 eq "(" && !$parlist ) {
             $parlist= readarglist($params);
-            preprocessline("", 0);
             redo;
           }
           elsif( $1 eq "return" ) {
