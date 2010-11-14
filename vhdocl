@@ -1182,6 +1182,8 @@ sub parsedoccom
 }
 
 
+{   # Start of scope of parsing variables
+
 # VHDL identifier:
 my $ID= qr/\b[a-zA-Z](?:\w*[a-zA-Z0-9])?\b/;
 # List of identifiers for variable, signal and other declarations:
@@ -1200,7 +1202,7 @@ my $AI= qr/(?:$ID|$OP|'.')(?:\s*\[[^]]*\])?/o;
 my $AILIST= qr/$AI(?:\s*,\s*$AI)*/o;
 
 # VHDL strings have to be treated specially:
-my $STR= qr/"[^"]*"|'"'|';'/;
+my $STR= qr/"[^"]*"|'[^']'/;
 # A non-empty expression without a semicolon:
 my $STUFF= qr/(?:$STR|[^;"])+/o;
 # Same, but not greedy:
@@ -1212,66 +1214,220 @@ my $ANY= qr/(?:$STR|[^"])*/o;
 my $MANY= qr/(?:$STR|[^"])*?/o;
 
 
-# This function extracts a procedure argument list or process sensitivity list
-# from a string and determines whether it is complete by keeping track of pairs
-# of parentheses.
-# -> String containing argument/sensitivity list without top-level opening
-#    parenthesis, possibly followed by other stuff.
-# <- Argument/sensitivity list without top-level parentheses, or undef if given
-#    string does not contain a complete list.  No white space removal or other
-#    cleaning up is done to the list, so its length can be used to remove it
-#    from the input string.
-sub paren_list
-{
-  my ($str)= @_;
-  my $orig= $str;
+my $vhandle;
+my $vline;
+my ($doccomment, $aheaddoccom, $keepdoccom, $keepaheaddoc);
 
-  while( $str =~ s/^([^)]*)\([^()]*\)/$1/g ) {}
-  return undef unless $str =~ s/^[^()]*\)/\)/;
-  return substr($orig, 0, length($orig)-length($str));
+
+# Read and preprocess next line from VHDL file.
+# -> Flag indicating readahead
+# <- 0 on end of file, otherwise 1
+sub getnextline
+{
+  my ($ahead)= @_;
+
+  my $new= <$vhandle>;
+  return 0 unless defined($new);
+  preprocessline($new, $ahead);
+  return 1;
 }
 
 
-# Parse procedure or function argument list
-# -> String containing argument list (without parentheses)
-# <- Reference to array containing a hash reference for each argument.  This
-#    hash does not conform to our general declarative item hash form.  Rather,
-#    the "type" entry is the actual data type.
-sub parsearglist
+# Preprocess next line from VHDL file.
+# -> Flag indicating readahead
+sub preprocessline
 {
-  my ($arglist)= @_;
-  my @argitems= split /\s*;\s*/, $arglist;
-  my @args;
-  for my $item (@argitems) {
-    $item =~ /^\s*(?:(constant|signal|variable|file)\s+)?($IDLIST)\s*:\s*
-    		(?:(in|out|inout|buffer|linkage)\s+)?($MSTUFF)
-    		(?:\s*:=\s*(\S.*?\S))?\s*$/iox or next;
-    push @args, (map +{ "name", $_, "type", $4, "subtype", lc($1 || ""), 
-              "direction", lc($3 || ""), "value", $5 }, split(/\s*,\s*/, $2));
+  my ($new, $ahead)= @_;
+
+  $new =~ s/^\s*//;
+  $new =~ s/^($MANY)--(?:|[^+*].*|\+\+.*|\*\*.*)$/$1/o;
+  if( $new =~ /^($MANY)--([+*])(.*)$/o ) {
+    $new= $1;
+    ($ahead ? $keepaheaddoc : $keepdoccom) = $2 eq "+" unless $config{"compat"};
+    ($ahead ? $aheaddoccom : $doccomment) .= $3 . "\n";
   }
-  return \@args;
+  chomp $new;
+  $vline .= " " . $new;
+  # Simplifications to facilitate parsing
+  $vline =~ s/\bpackage\s+body\b/packagebody/ig;
+  $vline =~ s/\bprotected\s+body\b/protectedbody/ig;
+  $vline =~ s/\bpostponed\s+process\b/postponedprocess/ig;
 }
 
 
-# Parse generic (or port) map
-# -> String containing generic map
-# <- Reference to array containing references to arrays containing generic
-# identifier and their value
-sub parsemap
+# Skip until first semicolon outside string literals and comments.
+# (<->) $vline: Remainder of current code line
+sub skipstatement
 {
-  my ($mapstr)= @_;
-  my @mapary;
+  my $comment;
 
-  return \@mapary unless $mapstr;
-  if( $mapstr =~ s/^($ID)\s*=>\s*//o ) {
-    push @mapary, [ $1 ];
-    while( $mapstr =~ s/^($MSTUFF)\s*,\s*($ID)\s*=>\s*//o ) {
-      $mapary[$#mapary]->[1]= $1;
-      push @mapary, [ $2 ];
+  while( defined($vline) ) {
+    if( $vline =~ /;/ ) {
+      chomp $vline;
+      $vline =~ s/^($MANY)(--.*)$/$1/;
+      $comment= $2;
+      if( $vline =~ s/^$STUFF;// ) {
+        $vline .= $comment if $vline !~ /^\s*$/ && defined($comment);
+        return;
+      }
     }
-    $mapary[$#mapary]->[1]= $mapstr;
+    $vline= <$vhandle>;
   }
-  return \@mapary;
+}
+
+
+# Read generic or port declaration list.  Nested parentheses are tracked.
+# Documentation comments are assigned to individual ports or generics.  Before
+# returning, the doc comment variables are cleared to avoid reuse at the end of
+# the main loop in parsefile().
+# -> String to write to the "type" entry of the resulting hashes, "port" or
+#    "generic"
+# <- List of hashes representing ports or generics
+sub readportlist
+{
+  my ($type)= @_;
+  my $defdir= $type eq "port" ? "in" : "";
+  my ($parentest, @ports);
+
+  $parentest= $vline;
+  while( 13 ) {
+    while( 13 ) {
+      if( $vline =~ /;|\)/ ) {
+        $parentest =~ s/$STR//g;
+        while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
+        last if $parentest =~ s/^[^();]*[;)]//;
+      }
+      my $new= <$vhandle>;
+      return unless defined($new);
+      $new =~ s/^\s*//;
+      $new =~ s/^($MANY)--(?:|[^+*].*|\+\+.*|\*\*.*)$/$1/o;
+      if( $new =~ /^($MANY)--([+*])(.*)$/o ) {
+        $new= $1;
+        $keepdoccom= $2 eq "+" unless $config{"compat"};
+        $doccomment .= $3 . "\n";
+      }
+      chomp $new;
+      $vline .= " " . $new;
+      $parentest .= " " . $new;
+      chomp $vline;
+    }
+    my $port= substr($vline, 0, length($vline)-length($parentest));
+    $vline= substr($vline, length($vline)-length($parentest));
+    last if $port =~ /^\s*\)/;
+    $port =~ s/([;)])$//;
+    my $delimiter= $1;
+    if( $port =~ /^\s*($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
+				  ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
+      my $doc= $doccomment? parsedoccom($doccomment) : undef;
+      my @newports= map +{ "type", $type, "name", $_, "doc", $doc,
+			      "direction", lc($2 || $defdir), "subtype", $3,
+			      "value", $4 }, split(/\s*,\s*/, $1);
+      push @ports, @newports;
+      if( $config{"parsedebug"} ) {
+        print "$.: found $type";
+        print "s" if $#newports;
+        print " ", join(", ", map($_->{"name"}, @newports)), "\n";
+      }
+    }
+    last if $delimiter eq ")";
+    $doccomment= "" unless $keepdoccom;
+  }
+  $doccomment= "";
+  $keepdoccom= 0;
+  return @ports;
+}
+
+
+# Read function or procedure declaration argument list.  Nested parentheses are
+# tracked.
+# -> optional: Reference to array for hashes representing arguments
+# <- String containing complete argument list
+sub readarglist
+{
+  my ($list)= @_;
+  my ($parentest, $allargs);
+
+  $allargs= "";
+  $parentest= $vline;
+  while( 13 ) {
+    while( 13 ) {
+      if( $vline =~ /;|\)/ ) {
+        $parentest =~ s/$STR//g;
+        while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
+        last if $parentest =~ s/^[^();]*[;)]//;
+      }
+      my $new= <$vhandle>;
+      return undef unless defined($new);
+      chomp $new;
+      $new =~ s/^($MANY)--.*$/$1/;
+      $vline .= " " . $new;
+      $parentest .= " " . $new;
+      chomp $vline;
+    }
+    my $arg= substr($vline, 0, length($vline)-length($parentest));
+    $vline= substr($vline, length($vline)-length($parentest));
+    last if $arg =~ /^\s*\)/;
+    $allargs .= $arg;
+    $arg =~ s/([;)])$//;
+    my $delimiter= $1;
+    if( $list ) {
+      $arg =~ /^\s*(?:(constant|signal|variable|file)\s+)?($IDLIST)\s*:\s*
+                  (?:(in|out|inout|buffer|linkage)\s+)?($MSTUFF)
+                  (?:\s*:=\s*(\S.*?\S))?\s*$/iox
+      and
+      push @$list, (map +{ "name", $_, "type", $4, "subtype", lc($1 || ""), 
+            "direction", lc($3 || ""), "value", $5 }, split(/\s*,\s*/, $2));
+    }
+    last if $delimiter eq ")";
+  }
+  $allargs =~ s/\)$//;
+  return $allargs;
+}
+
+
+# Read a comma-separated list such as a process sensitivity list or a generic
+# map.  Nested parentheses are tracked.
+# -> optional: Reference to array for two-element arrays representing generic
+#    associations.  The first element is the generic name, the second the value.
+# <- Complete comma-separated list
+sub readcommalist
+{
+  my ($map)= @_;
+  my ($parentest, $allentries);
+
+  $allentries= "";
+  $parentest= $vline;
+  while( 13 ) {
+    while( 13 ) {
+      if( $vline =~ /,|\)/ ) {
+        $parentest =~ s/$STR//g;
+        while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
+        last if $parentest =~ s/^[^(),]*[,)]//;
+      }
+      my $new= <$vhandle>;
+      return undef unless defined($new);
+      chomp $new;
+      $new =~ s/^($MANY)--.*$/$1/;
+      $vline .= " " . $new;
+      $parentest .= " " . $new;
+      chomp $vline;
+    }
+    my $entry= substr($vline, 0, length($vline)-length($parentest));
+    $vline= substr($vline, length($vline)-length($parentest));
+    last if $entry =~ /^\s*\)/;
+    $allentries .= $entry;
+    $entry =~ s/([,)])$//;
+    my $delimiter= $1;
+    if( $map && $entry =~ /^\s*($ID)\s*=>(.*)$/io ) {
+      my ($key, $val)= ($1, $2);
+      $val =~ s/^\s+//;
+      $val =~ s/\s+$//;
+      push @$map, [ $key, $val ];
+    }
+    last if $delimiter eq ")";
+  }
+  $allentries =~ s/\)$//;
+  return $allentries;
 }
 
 
@@ -1297,7 +1453,6 @@ sub parsemap
 # "architecture" (of an instance).  If documentation comments (--*) relating to
 # a declarative item are found, they are parsed with parsedoccom(), an the
 # resulting array reference becomes the value of the item's "doc" entry.
-#
 sub parsefile
 {
   my ($file)= @_;
@@ -1307,353 +1462,333 @@ sub parsefile
   my $parsdbg= $config{"parsedebug"};
   my @parsestack;
   my $parent= $file;
-  my $vline;
-  my $genericsnow= 0;
-  my $portsnow= 0;
   my $inconfiguration= 0;
-  my ($doccomment, $aheaddoccom, $lastdoccom);
-  my ($keepdoccom, $keepdoctype, $readahead);
+  my ($lastdoccom, $keepdoctype, $readahead);
 
-  open(VHDL, $fname) or croak "Could not open $fname!  Aborting.";
+  ($vline, $doccomment, $aheaddoccom, $keepdoccom, $keepaheaddoc)= ("") x 5;
+  open($vhandle, $fname) or croak "Could not open $fname!  Aborting.";
   print "Parsing $fname...\n" unless $config{"quiet"};
-  $aheaddoccom= "";
-vhdlline:
-  while( <VHDL> )
+  $readahead= 0;
+  while( getnextline($readahead) )
   {
-    s/^\s*//;
-    s/^($MANY)--(?:|[^+*].*|\+\+.*|\*\*.*)$/$1/;
-    if( /^$MANY--([+*])(.*)$/ ) {
-      $keepdoccom= $1 eq "+" unless $config{"compat"};
-      if( $readahead ) {
-	$aheaddoccom .= $2 . "\n";
-      }
-      else {
-	$doccomment .= $2 . "\n";
-      }
-      s/^($MANY)--.*$/$1/;
-    }
-    chomp;
-    $vline .= " " . $_;
+    my $newchild;
+    my @newentries;
 
-    # Simplify to facilitate parsing
-    $vline =~ s/\bpackage\s+body\b/packagebody/ig;
-    $vline =~ s/\bprotected\s+body\b/protectedbody/ig;
-    $vline =~ s/\bpostponed\s+process\b/postponedprocess/ig;
-
-    while( $vline )
-    {
-      my $newchild;
-      my @newentries;
-
-      $vline =~ s/^\s+//;
+    $vline =~ s/^\s+//;
+    next unless $vline;
 #      print "investigating $vline\n";
-      if( $vline =~ /^end(?:\s+($ID))?(?:\s+($ID|$OP))?\s*;/io ) {
-	if( !@parsestack ) {
-	  $errflag= 1;
-	  unless( $config{"quiet"} ) {
-	    print STDERR "Spurious \"end";
-	    print STDERR " $1" if $1;
-	    print STDERR " $2" if $2;
-	    print STDERR "\" on or before line $..\n";
-	  }
-	}
-	else {
-	  my $lastlevel= pop(@parsestack);
-	  if( $vline =~ /^end(?:\s+($ID))?\s+($ID|$OP)\s*;/io &&
-	      ( ($1 && (lc($1) ne $lastlevel->{"type"} || 
-				  lc($2) ne lc($lastlevel->{"name"}) )) || 
-		(!$1 && lc($2) ne $lastlevel->{"type"} &&
-			  lc($2) ne lc($lastlevel->{"name"})) ) ) {
-	    $errflag= 1;
-	    unless( $config{"quiet"} ) {
-	      print STDERR "\"end ";
-	      print STDERR "$1 " if $1;
-	      print STDERR "$2\" does not match beginning of block \"",
-			    $lastlevel->{"type"};
-	      print STDERR " ", $lastlevel->{"name"} if $lastlevel->{"name"}; 
-	      print STDERR "\" on or before line $. in $fname.\n";
-	    }
-	  }
-	  $inconfiguration= 0 if $parent->{"type"} eq "configuration";
-	  $parent= $lastlevel->{"backtrack"};
-	  if( $parsdbg ) {
-	    print "$.: backtracking to ", $parent->{"type"};
-	    print " ", $parent->{"name"} if $parent->{"name"};
-	    print "\n";
-	  }
-	}
-	$vline =~ s/^$MSTUFF;//;
-      }
-      elsif( $vline =~ s/^(entity|component|package|packagebody)\s+($ID)
-      				(?:\s+is\b)?//iox  ) {
-	$newchild= { "type", lc($1), "name", $2 };
-      }
-      elsif( $vline =~ s/^(architecture|configuration)\s+($ID)\s+
-      				of\s+($SID)\s+is\b//iox  ) {
-	$newchild= { "type", lc($1), "name", $2, "objname", $3 };
-      }
-      elsif( $vline =~ /^procedure\s+($ID)/io ) {
-        $vline =~ /^procedure\s+($ID)\s*(?:\(\s*($ANY\s*\))\s*)?
-						(?:\b(is)\b|;)/iox
-		or next vhdlline;
-	my ($name, $parlist, $is)= ($1, $2 || "", $3);
-	if( $parlist ) { 
-	  $parlist= paren_list($parlist);
-	  # keep reading until all parentheses are closed:
-	  next vhdlline unless defined($parlist);
-	  $vline =~ s/^procedure\s+$ID\s*\(\s*//io;
-	  $vline= substr($vline, length($parlist));
-	  $vline =~ s/^\)\s*(?:\b(is)\b|;)//i;
-	  $is= $1;
-	}
-	else {	# no parameter list
-	  $vline =~ s/^procedure\s+$ID\s*(?:\bis\b|;)//io;
-	}
-	$newchild= { "type", "procedure", "name", $name, "parlist", $parlist,
-		      "parameters", parsearglist($parlist) };
-	if( !$is ) {
-	  push @newentries, $newchild;
-	  $newchild= undef;
-	}
-      }
-      elsif( $vline =~ /^\b(?:(?:pure|impure)\s+)?function\s+(?:$ID|$OP)/io ) {
-        $vline =~ /^\b(?:(pure|impure)\s+)?function\s+($ID|$OP)\s*
-	   (?:\(\s*($MANY)\s*\)\s*)??\breturn\s+($MSTUFF)\s*(?:\b(is)\b|;)/iox
-		or next vhdlline;
-	my ($pure, $name, $parlist, $return, $is)= ($1, $2, $3 || "", $4, $5);
-	$newchild= { "type", "function", "name", $name, "subtype", $return, 
-		     "pure", lc($pure || ""), "parlist", $parlist,
-		     "parameters", parsearglist($parlist) };
-	if( !$is ) {
-	  push @newentries, $newchild;
-	  $newchild= undef;
-	}
-        $vline =~ s/^\b(?:(?:pure|impure)\s+)?function\s+(?:$ID|$OP)\s*
-	     (?:\(\s*$MANY\s*\)\s*)??\s*\breturn\s+$MSTUFF\s*(?:\bis\b|;)//iox;
-      }
-      elsif( $vline =~ s/^\s*($ID)\s*:\s*(if|for)\b\s*($MSTUFF)\s*
-      			\bgenerate\b//iox ) {
-	$newchild= { "type", "generate", "subtype", lc($2), "name", $1,
-			"parameters", $3 };
-      }
-      elsif( $vline =~ /^(?:$ID\s*:\s*)?\b(?:process|postponedprocess)\b/io ) {
-	if( $vline =~ /^(?:($ID)\s*:\s*)?\b(process|postponedprocess)\b
-			    (?:\s*\(\s*($STUFF\s*\)))?\s*[^\s(]/iox ) {
-	  my ($name, $post, $sens)=($1 || "", lc($2) eq "postponedprocess", $3);
-	  if( $sens ) {
-	    $sens= paren_list($sens);
-	    # keep reading until all parentheses are closed:
-	    next vhdlline unless defined($sens);
-	    $vline =~ s/^(?:$ID\s*:\s*)?\b(?:process|postponedprocess)\s*\(\s*//io;
-	    $vline= substr($vline, length($sens));
-	    $vline =~ s/^\)//;
-	    $doccomment .= $aheaddoccom;
-	    $aheaddoccom= "";
-	  }
-	  else { # no sensitivity list
-	    $vline =~ s/^(?:$ID\s*:\s*)?\b(?:process|postponedprocess)\b
-			    \s*([^\s(])/$1/iox;
-	  }
-	  $newchild= { "type", "process", "name", $name,
-			"postponed", $post, "sensitivity", $sens };
-	}
-	elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {}
-	else {
-	  $readahead= 1;
-	  next vhdlline;
-	}
-      }
-      elsif( $vline =~ /^$ID\s*:\s*block\b/io ) {
-	if( $vline =~ /^($ID)\s*:\s*block\b(?:\s*\(\s*($STUFF\s*\)))?
-      			\s*[^\s(]/iox ) {
-	  my ($name, $guard)= ($1, $2 || "");
-	  if( $guard ) {
-	    $guard= paren_list($guard);
-	    # keep reading until all parentheses are closed:
-	    next vhdlline unless defined($guard);
-	    $vline =~ s/^$ID\s*:\s*block\s*\(\s*//io;
-	    $vline= substr($vline, length($guard));
-	    $vline =~ s/^\)//i;
-	    $doccomment .= $aheaddoccom;
-	    $aheaddoccom= "";
-	  }
-	  else {
-	    $vline =~ s/^$ID\s*:\s*block\s*//io;
-	  }
-	  $newchild= { "type", "block", "name", $name, "guard", $guard };
-	}
-	elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {}
-	else {
-	  $readahead= 1;
-	  next vhdlline;
-	}
-      }
-      elsif( $vline =~ s/^(?:($ID)\s*:\s*)?\bif\b\s*$MSTUFF\s*\bthen\b//io ) {
-	$newchild= { "type", "if", "name", $1 };
-      }
-      elsif( $vline =~ s/^(?:($ID)\s*:\s*)?\bcase\b\s*$MSTUFF\s*\bis\b//io ) {
-	$newchild= { "type", "case", "name", $1 };
-      }
-      elsif( $vline =~ s/^(?:($ID)\s*:\s*)?(?:(while|for)\b\s*$MSTUFF\s*)?
-      			\bloop\b//iox ) {
-	$newchild= { "type", "loop", "name", $1, "subtype", lc($2 || "loop") };
-      }
-      elsif( $vline =~ s/^(type|subtype)\s+($ID)\s+is\b\s*($MSTUFF)??\s*
-		  (?:\b(record|units|protected|protectedbody)\b|;)//iox ) {
-	if( $4 ) {
-	  $newchild= { "type", lc($4), "name", $2, "subtype", $3,
-			"sub", lc($1) eq "subtype" };
-	}
-	else {
-	  push @newentries, { "type", "type", "sub", lc($1) eq "subtype",
-				"name", $2, "subtype", $3 };
-	}
-      }
-      elsif( $vline =~ s/^library\s+($IDLIST)\s*;//io ) {
-	push @newentries, ( map +{ "type", "library", "name", $_ }, split(/\s*,\s*/, $1) );
-      }
-      elsif( $vline =~ /^for\s+$ID/io ) {
-	if( $vline =~ s/^for\s+($IDLIST)\s*:\s*($ID)\s*([^\s])/$3/io ) {
-	  $newchild= { "type", "for", "subtype", "instance", "objtype", $2,
-					 "objnames", [split(/\s*,\s*/, $1)] };
-	  unless( $inconfiguration ) {
-	    push @newentries, $newchild;
-	    undef $newchild;
-	  }
-	  $doccomment .= $aheaddoccom;
-	  $aheaddoccom= "";
-	}
-	elsif( $vline =~ s/^for\s+($ID)\s*([^\s:])/$2/io ) {
-	  $newchild= { "type", "for", "subtype", "architecture", "objname", $1 };
-	}
-	elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {}
-	else {
-	  $readahead= 1;
-	  next vhdlline;
-	}
-      }
-      elsif( $vline =~ s/^use\s+(?:(entity)\s+($SID)(?:\s*\(\s*($ID)\s*\))?|
-		  	(configuration)\s+($SID)|(open)\b)
-      			\s*(generic\s+map\b|port\s+map\b|;)/$7/iox ) {
-	push @newentries, { "type", "use", "subtype", lc($1 || $4 || $6), 
-			    "name", $2 || $5, "archname", $3 };
-      }
-      # We can read ahead "port map" here since neither generic map nor port
-      # map take doc comments.
-      elsif( $vline =~
-	    /^generic\s+map\s*\(\s*($STUFF\s*\))\s*(?:port\s+map\b|;)/io ) {
-	my $map= paren_list($1);
-	next vhdlline unless defined($map);
-	$vline =~ s/^generic\s+map\s*\(\s*//io;
-	$vline= substr($vline, length($map));
-	$vline =~ s/^\)//i;
-	push @newentries, { "type", "genericmap", "map", parsemap($map) };
-      }
-      elsif( $vline =~ s/^use\s+($SIDLIST)\s*;//io ) {
-	push @newentries, ( map +{ "type", "use", "subtype", "package",
-					"name", $_ }, split(/\s*,\s*/, $1) );
-      }
-      elsif( $vline =~ s/^attribute\s+($ID)\s+of\s+($AILIST)\s*:\s*($ID)\s+
-      			is\s+($STUFF)\s*;//iox ) {
-	my $template= { "type", "attrspec", "name", $1, 
-			"value", $4, "objtype", lc($3), "objname", "" };
-	my $ailist= $2;
-	while( $ailist =~ s/^($AI)(?:\s*,\s*)?//o ) {
-	  $template->{"objname"}= $1;
-	  push @newentries, $template;
-	}
-      }
-      # We could add variable and signal declarations, but we do not need them
-      elsif( $vline =~ s/^(constant|attribute)\s+
-      		($IDLIST)\s*:\s*($MSTUFF)(?:\s*:=\s*($STUFF))?\s*;//iox ) {
-	push @newentries, ( map +{ "type", lc($1), "name", $_, 
-		      "subtype", $3, "value", $4 }, split(/\s*,\s*/, $2) );
-      }
-      elsif( $vline =~ s/^port\s*\(\s*//io ) {
-	$portsnow= 2;
-	$genericsnow= 0;
-      }
-      elsif( $portsnow && $vline =~ s/^($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
-				  ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*;//iox ) {
-	push @newentries, ( map +{ "type", "port", "name", $_,
-			      "direction", lc($2 || "in"), "subtype", $3,
-			      "value", $4 }, split(/\s*,\s*/, $1) );
-	$portsnow= 2;
-      }
-      elsif( $vline =~ s/^generic\s*\(\s*//io ) {
-	$genericsnow= 2;
-      }
-      elsif( $genericsnow && $vline =~ s/^($IDLIST)\s*:\s*($MSTUFF)
-      				(?:\s*:=\s*($STUFF))?\s*;//iox ) {
-	push @newentries, ( map +{ "type", "generic", "name", $_, 
-		      "subtype", $2, "value", $3 }, split(/\s*,\s*/, $1) );
-	$genericsnow= 2;
-      }
-      elsif( $vline =~ s/^($ID)\s*:\s*(?:(component|configuration|entity)\s+)?
-	($SID)(?:\s*\(\s*($ID)\s*\))?(?:\s*generic\s+map\s*\(\s*($STUFF)\s*\))?
-	  \s*port\s+map\s*\(\s*($STUFF)\s*\)\s*;//iox ) {
-	push @newentries, { "type", "instance", "name", $1, "objname", $3,
-			    "subtype", lc($2 || "component"), "archname", $4,
-			    "genericmap", parsemap($5) };
-      }
-      elsif( $vline =~ s/^elsif\b\s*$MSTUFF\s*\bthen\b//i || 
-      	     $vline =~ s/^(?:else|begin|is)\b//i || 
-	     $vline =~ s/^when\b\s*$MSTUFF\s*=>//i ) {}
-      elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {
-	# Ignore ordinary statements and their documentation
-      }
-      else {	# get new source line if nothing matches
-	last;
-      }
-      if( $newchild ) {
-	$keepdoccom= 0;
-        $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
-	$doccomment= $aheaddoccom;
-	$aheaddoccom= "";
-	push @{$parent->{"children"}}, $newchild;
-	push @parsestack, { "backtrack", $parent, 
-		"type", $newchild->{"type"}, "name", $newchild->{"name"} };
-	$inconfiguration= 1 if $newchild->{"type"} eq "configuration";
-	$parent= $newchild;
-	if( $parsdbg ) {
-	  print "$.: descending into ", $newchild->{"type"};
-	  print " ", $newchild->{"name"} if $newchild->{"name"};
-	  print "\n";
-	}
-      }
-      elsif( @newentries ) {
-	if( !$doccomment && $keepdoccom ) {
-	  $keepdoccom= 0 unless $newentries[0]->{"type"} eq $keepdoctype;
-	  $doccomment ||= $lastdoccom if $keepdoccom;
-	}
-	if( $doccomment && !($config{"compat"} && !@parsestack) ) {
-	  if( $keepdoccom ) {
-	    $lastdoccom= $doccomment;
-	    $keepdoctype= $newentries[0]->{"type"};
-	  }
-	  $doccomment= parsedoccom($doccomment);
-	  foreach (@newentries) { $_->{"doc"}= $doccomment; }
-	  # non-empty $aheaddoccom occurs only for $newchild blocks
-	  $doccomment= "";
-	}
-	push @{$parent->{"children"}}, @newentries;
-	if( $parsdbg ) {
-	  print "$.: found ", $newentries[0]->{"type"};
-	  print "s" if $#newentries;
-	  print " ", join(", ", map($_->{"name"}, @newentries))
-	  	if $newentries[0]->{"name"};
-	  print "\n";
-	}
+    if( $vline =~ /^end(?:\s+($ID))?(?:\s+($ID|$OP))?\s*;/io ) {
+      if( !@parsestack ) {
+        $errflag= 1;
+        unless( $config{"quiet"} ) {
+          print STDERR "Spurious \"end";
+          print STDERR " $1" if $1;
+          print STDERR " $2" if $2;
+          print STDERR "\" on or before line $..\n";
+        }
       }
       else {
-	$doccomment= "" unless $config{"compat"} && !@parsestack;
+        my $lastlevel= pop(@parsestack);
+        if( $vline =~ /^end(?:\s+($ID))?\s+($ID|$OP)\s*;/io &&
+            ( ($1 && (lc($1) ne $lastlevel->{"type"} || 
+                        lc($2 || "") ne lc($lastlevel->{"name"}) )) || 
+              (!$1 && lc($2 || "") ne $lastlevel->{"type"} &&
+                        lc($2 || "") ne lc($lastlevel->{"name"})) ) ) {
+          $errflag= 1;
+          unless( $config{"quiet"} ) {
+            print STDERR "\"end ";
+            print STDERR "$1 " if $1;
+            print STDERR "$2\" does not match beginning of block \"",
+                          $lastlevel->{"type"};
+            print STDERR " ", $lastlevel->{"name"} if $lastlevel->{"name"}; 
+            print STDERR "\" on or before line $. in $fname.\n";
+          }
+        }
+        $inconfiguration= 0 if $parent->{"type"} eq "configuration";
+        $parent= $lastlevel->{"backtrack"};
+        if( $parsdbg ) {
+          print "$.: backtracking to ", $parent->{"type"};
+          print " ", $parent->{"name"} if $parent->{"name"};
+          print "\n";
+        }
       }
-      $readahead= 0;
-      $genericsnow >>= 1;
-      $portsnow >>= 1;
+      $vline =~ s/^$MSTUFF;//;
     }
+    elsif( $vline =~ s/^(entity|component|package|packagebody)\s+($ID)
+                              (?:\s+is\b)?//iox  ) {
+      $newchild= { "type", lc($1), "name", $2 };
+    }
+    elsif( $vline =~ s/^(architecture|configuration)\s+($ID)\s+
+                              of\s+($SID)\s+is\b//iox  ) {
+      $newchild= { "type", lc($1), "name", $2, "objname", $3 };
+    }
+    elsif( $vline =~ s/^procedure\s+($ID)//io ) {
+      my $name= $1;
+      my ($is, $parlist, $params)= ("", "", []);
+      while( 13 ) {
+        if( $vline =~ s/^\s*(\bis\b|;|\(|\S)//i ) {
+          if( $1 eq "(" && !$parlist ) {
+            $parlist= readarglist($params);
+            redo;
+          }
+          elsif( $1 eq "is" || $1 eq ";" ) {
+            $is= $1 eq "is";
+            last;
+          }
+          else {          # ignore illegal VHDL
+            redo;
+          }
+        }
+        getnextline(0) or goto done;
+      }
+      $newchild= { "type", "procedure", "name", $name, "parlist", $parlist,
+                    "parameters", $params };
+      if( !$is ) {
+        @newentries= ( $newchild );
+        $newchild= undef;
+      }
+    }
+    elsif( $vline =~ s/^(?:(pure|impure)\s+)?function\s+($ID|$OP)//io ) {
+      my ($pure, $name)= ($1 || "pure", $2);
+      my ($parlist, $params)= ("", []);
+      while( 13 ) {           # parse optional argument list up to "return"
+        if( $vline =~ s/^\s*(\breturn\b|\(|\S)//i ) {
+          if( $1 eq "(" && !$parlist ) {
+            $parlist= readarglist($params);
+            redo;
+          }
+          elsif( $1 eq "return" ) {
+            last;
+          }
+          else {          # ignore illegal VHDL
+            redo;
+          }
+        }
+        getnextline(0) or goto done;
+      }
+      my ($return, $is);
+      while( 13 ) {           # parse return type and possible "is"
+        if( $vline =~ s/^($MSTUFF)(?:\b(is)\b|;)//i ) {
+          ($return, $is)= ($1, $2);
+          $return =~ s/^\s+//;
+          $return =~ s/\s+$//;
+          last;
+        }
+        getnextline(0) or goto done;
+      }
+      $newchild= { "type", "function", "name", $name, "subtype", $return, 
+                   "pure", lc($pure), "parlist", $parlist,
+                   "parameters", $params };
+      if( !$is ) {
+        @newentries= ( $newchild );
+        $newchild= undef;
+      }
+    }
+    elsif( $vline =~ s/^($ID)\s*:\s*(if|for)\b\s*($MSTUFF)\s*
+                      \bgenerate\b//iox ) {
+      $newchild= { "type", "generate", "subtype", lc($2), "name", $1,
+                      "parameters", $3 };
+    }
+    elsif( $vline =~ s/^(?:($ID)\s*:\s*)?((?:postponed)?process)\b//io ) {
+      my ($name, $post, $sens)= ($1 || "", lc($2) eq "postponedprocess", "");
+      while( 13 ) {
+        if( $vline =~ s/^\s*(\S)// ) {
+          if( $1 eq "(" ) {
+            $doccomment .= $aheaddoccom;
+            $keepdoccom ||= $keepaheaddoc;
+            $aheaddoccom= "";
+            $keepaheaddoc= 0;
+            $sens= readcommalist();
+          }
+          else {
+            $vline= $1 . $vline;
+          }
+          last;
+        }
+        getnextline(1) or goto done;
+      }
+      $newchild= { "type", "process", "name", $name,
+                    "postponed", $post, "sensitivity", $sens };
+    }
+    elsif( $vline =~ s/^($ID)\s*:\s*block\b//io ) {
+      my ($name, $guard)= ($1, "");
+      while( 13 ) {
+        if( $vline =~ s/^\s*(\S)// ) {
+          if( $1 eq "(" ) {
+            $doccomment .= $aheaddoccom;
+            $keepdoccom ||= $keepaheaddoc;
+            $aheaddoccom= "";
+            $keepaheaddoc= 0;
+            $guard= readcommalist();
+          }
+          else {
+            $vline= $1 . $vline;
+          }
+          last;
+        }
+        getnextline(1) or goto done;
+      }
+      $newchild= { "type", "block", "name", $name, "guard", $guard };
+    }
+    elsif( $vline =~ s/^(?:($ID)\s*:\s*)?\bif\b$MSTUFF\bthen\b//io ) {
+      $newchild= { "type", "if", "name", $1 };
+    }
+    elsif( $vline =~ s/^(?:($ID)\s*:\s*)?\bcase\b$MSTUFF\bis\b//io ) {
+      $newchild= { "type", "case", "name", $1 };
+    }
+    elsif( $vline =~ s/^(?:($ID)\s*:\s*)?(?:(while|for)\b$MSTUFF)?
+                      \bloop\b//iox ) {
+      $newchild= { "type", "loop", "name", $1, "subtype", lc($2 || "loop") };
+    }
+    elsif( $vline =~ s/^(type|subtype)\s+($ID)\s+is\b\s*($MSTUFF)??\s*
+                (?:\b(record|units|protected|protectedbody)\b|;)//iox ) {
+      if( $4 ) {
+        $newchild= { "type", lc($4), "name", $2, "subtype", $3,
+                      "sub", lc($1) eq "subtype" };
+      }
+      else {
+        @newentries= ( { "type", "type", "sub", lc($1) eq "subtype",
+                              "name", $2, "subtype", $3 } );
+      }
+    }
+    elsif( $vline =~ s/^library\s+($IDLIST)\s*;//io ) {
+      @newentries= map +{ "type", "library", "name", $_ }, split(/\s*,\s*/, $1);
+    }
+    elsif( $vline =~ /^for\s+$ID/io ) {
+      if( $vline =~ s/^for\s+($IDLIST)\s*:\s*($ID)\s*([^\s])/$3/io ) {
+        $newchild= { "type", "for", "subtype", "instance", "objtype", $2,
+                                       "objnames", [split(/\s*,\s*/, $1)] };
+        unless( $inconfiguration ) {
+          @newentries= ( $newchild );
+          undef $newchild;
+        }
+        $doccomment .= $aheaddoccom;
+        $keepdoccom ||= $keepaheaddoc;
+        $aheaddoccom= "";
+      }
+      elsif( $vline =~ s/^for\s+($ID)\s*([^\s:])/$2/io ) {
+        $newchild= { "type", "for", "subtype", "architecture", "objname", $1 };
+      }
+      elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {}
+      else {
+        $readahead= 1;
+        next;
+      }
+    }
+    elsif( $vline =~ s/^use\s+(?:(entity)\s+($SID)(?:\s*\(\s*($ID)\s*\))?|
+                      (configuration)\s+($SID)|(open)\b)
+                      \s*(generic\s+map\b|port\s+map\b|;)/$7/iox ) {
+      @newentries= ( { "type", "use", "subtype", lc($1 || $4 || $6), 
+                          "name", $2 || $5, "archname", $3 } );
+    }
+    elsif( $vline =~ /^generic\s+map\s*\(/io ) {
+      my $genmap= [];
+      readcommalist($genmap);
+      @newentries= ( { "type", "genericmap", "map", $genmap } );
+      skipstatement();
+    }
+    elsif( $vline =~ s/^use\s+($SIDLIST)\s*;//io ) {
+      @newentries= map +{ "type", "use", "subtype", "package", "name", $_ },
+                                                split(/\s*,\s*/, $1);
+    }
+    elsif( $vline =~ s/^attribute\s+($ID)\s+of\s+($AILIST)\s*:\s*($ID)\s+
+                      is\s+($STUFF)\s*;//iox ) {
+      my $template= { "type", "attrspec", "name", $1, 
+                      "value", $4, "objtype", lc($3), "objname", "" };
+      my $ailist= $2;
+      while( $ailist =~ s/^($AI)(?:\s*,\s*)?//o ) {
+        $template->{"objname"}= $1;
+        push @newentries, { %$template };
+      }
+    }
+    # We could add variable and signal declarations, but we do not need them
+    elsif( $vline =~ s/^\b(constant|attribute)\b//i ) {
+      my $type= lc($1);
+      my ($ids, $subtype, $val);
+      while( 13 ) {
+        if( $vline =~ /;/ && $vline =~
+              s/^\s*($IDLIST)\s*:($MSTUFF)(?::=($STUFF))?;//io ) {
+          ($ids, $subtype, $val)= ($1, $2, $3 || "");
+          last;
+        }
+        getnextline(0) or goto done;
+      }
+      $subtype =~ s/^\s+//;   $subtype =~ s/\s+$//;
+      $val =~ s/^\s+//;   $val =~ s/\s+$//;
+      @newentries= map +{ "type", $type, "name", $_, 
+              "subtype", $subtype, "value", $val }, split(/\s*,\s*/, $ids);
+    }
+    elsif( $vline =~ s/^(generic|port)\s*\(//io ) {
+      @newentries= readportlist($1);
+    }
+    elsif( $vline =~ /:/ &&
+      $vline =~ s/^($ID)\s*:\s*(?:(component|configuration|entity)\s+)?
+      ($SID)(?:\s*\(\s*($ID)\s*\))?\s*(generic|port)\s+map\s*\(//iox ) {
+      my $genmap= [];
+      @newentries= ( { "type", "instance", "name", $1, "objname", $3,
+                          "subtype", lc($2 || "component"), "archname", $4,
+                          "genericmap", $genmap } );
+      readcommalist($genmap) if $5 eq "generic";
+      skipstatement();        # skip to end of port map
+    }
+    elsif( $vline =~ s/^elsif\b$MSTUFF\bthen\b//i || 
+           $vline =~ s/^(?:else|begin|is)\b//i || 
+           $vline =~ s/^when\b$MSTUFF=>//i ) {}
+    elsif( $vline =~ /;/ && $vline =~ s/^(?:|$MSTUFF);// ) {
+      # Ignore ordinary statements and their documentation
+    }
+    else {	# get new source line if nothing matches
+      next;
+    }
+    if( $newchild ) {
+      $keepdoccom= 0;
+      $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
+      $doccomment= $aheaddoccom;
+      $keepdoccom ||= $keepaheaddoc;
+      $aheaddoccom= "";
+      push @{$parent->{"children"}}, $newchild;
+      push @parsestack, { "backtrack", $parent, 
+              "type", $newchild->{"type"}, "name", $newchild->{"name"} };
+      $inconfiguration= 1 if $newchild->{"type"} eq "configuration";
+      $parent= $newchild;
+      if( $parsdbg ) {
+        print "$.: descending into ", $newchild->{"type"};
+        print " ", $newchild->{"name"} if $newchild->{"name"};
+        print "\n";
+      }
+    }
+    elsif( @newentries ) {
+      if( !$doccomment && $keepdoccom ) {
+        $keepdoccom= 0 unless $newentries[0]->{"type"} eq $keepdoctype;
+        $doccomment ||= $lastdoccom if $keepdoccom;
+      }
+      if( $doccomment && !($config{"compat"} && !@parsestack) ) {
+        if( $keepdoccom ) {
+          $lastdoccom= $doccomment;
+          $keepdoctype= $newentries[0]->{"type"};
+        }
+        $doccomment= parsedoccom($doccomment);
+        foreach (@newentries) { $_->{"doc"}= $doccomment; }
+        # non-empty $aheaddoccom occurs only for $newchild blocks
+        $doccomment= "";
+      }
+      push @{$parent->{"children"}}, @newentries;
+      if( $parsdbg ) {
+        print "$.: found ", $newentries[0]->{"type"};
+        print "s" if $#newentries;
+        print " ", join(", ", map($_->{"name"}, @newentries))
+              if $newentries[0]->{"name"};
+        print "\n";
+      }
+    }
+    else {
+      $doccomment= "" unless $config{"compat"} && !@parsestack;
+    }
+    $readahead= 0;
+    redo if $vline;
   }
-  close VHDL;
+done:
+  close $vhandle;
   if( @parsestack ) {
     print STDERR "Not all blocks were closed - missing one or more \"end\"s.\n";
     $errflag= 1;
@@ -1668,6 +1803,7 @@ vhdlline:
   	if $errflag;
 }
 
+}
 
 
 ##############################################################################
