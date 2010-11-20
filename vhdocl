@@ -24,6 +24,7 @@ use File::Path;
 use File::Copy;
 use Digest::MD5;
 use Cwd 'abs_path';
+use Time::HiRes;
 
 my $version= "0.1beta6";
 
@@ -1720,7 +1721,7 @@ sub parsefile
               "subtype", $subtype, "value", $val }, split(/\s*,\s*/, $ids);
     }
     elsif( $vline =~ s/^(generic|port)\s*\(//io ) {
-      @newentries= readportlist($1);
+      @newentries= readportlist(lc($1));
     }
     elsif( $vline =~ /:/ &&
       $vline =~ s/^($ID)\s*:\s*(?:(component|configuration|entity)\s+)?
@@ -1748,10 +1749,18 @@ sub parsefile
       $keepdoccom ||= $keepaheaddoc;
       $aheaddoccom= "";
       push @{$parent->{"children"}}, $newchild;
+      if( @parsestack == 1 ) {
+        # List children by type for top-level constructs
+        push @{$parent->{"childtype"}->{$newchild->{"type"}}}, $newchild;
+      }
       push @parsestack, { "backtrack", $parent, 
               "type", $newchild->{"type"}, "name", $newchild->{"name"} };
       $inconfiguration= 1 if $newchild->{"type"} eq "configuration";
       $parent= $newchild;
+      if( @parsestack > 1 && $newchild->{"type"} eq "process" ) {
+        # List all processes to avoid recursive searches later
+        push @{$parsestack[1]->{"backtrack"}->{"allprocesses"}}, $newchild;
+      }
       if( $parsdbg ) {
         print "$.: descending into ", $newchild->{"type"};
         print " ", $newchild->{"name"} if $newchild->{"name"};
@@ -1774,6 +1783,16 @@ sub parsefile
         $doccomment= "";
       }
       push @{$parent->{"children"}}, @newentries;
+      if( @parsestack == 1 ) {
+        # List children by type for top-level constructs.  This relies on all
+        # new entries having the same type.
+        push @{$parent->{"childtype"}->{$newentries[0]->{"type"}}}, @newentries;
+      }
+      if( @parsestack && $newentries[0]->{"type"} eq "instance" ) {
+        # List all instances to avoid recursive searches later
+        my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
+        push @{$top->{"allinstances"}}, @newentries;
+      }
       if( $parsdbg ) {
         print "$.: found ", $newentries[0]->{"type"};
         print "s" if $#newentries;
@@ -2004,8 +2023,8 @@ sub uniq_objs
 sub match_attributes
 {
   my ($top)= @_;
-  my @aspecs= find_children($top, "type", "attrspec");
-  my @adecls= find_children($top, "type", "attribute");
+  my @aspecs= @{$top->{"childtype"}->{"attrspec"} || []};
+  my @adecls= @{$top->{"childtype"}->{"attribute"} || []};
 
   for my $aspec (@aspecs) {
     for my $adecl (@adecls) {
@@ -2023,8 +2042,7 @@ sub match_attributes
     }
     my @targets;
     if( $aspec->{"objtype"} eq "label" ) {
-      @targets= find_all($top, "type", "instance");
-      push @targets, (find_all($top, "type", "process"));
+      @targets= ( @{$top->{"allinstances"}}, @{$top->{"allprocesses"}} );
       # Many other labels can have attributes but only those of instances and
       # processes are of interest to us
     }
@@ -2034,7 +2052,7 @@ sub match_attributes
         if $aspec->{"objtype"} eq $top->{"type"};
     }
     else {
-      @targets= grep $_->{"type"} eq $aspec->{"objtype"}, @{$top->{"children"}};
+      @targets= @{$top->{"childtype"}->{$aspec->{"objtype"}} || []};
     }
     next unless @targets;
     if( lc($aspec->{"objname"}) eq "all" ) {
@@ -2461,7 +2479,7 @@ sub configure_hierarchy
 
   $node->{"entity"}= $conf->{"entity"}, 
   $node->{"entname"}= $conf->{"objname"};
-  my ($topfor)= find_children($conf, "type", "for");
+  my ($topfor)= @{$conf->{"childtype"}->{"for"} || []};
   unless( $topfor && $topfor->{"subtype"} eq "architecture" ) {
     # Pathological case #1: empty configuration body - bind entity to its
     # first architecture.
@@ -2514,11 +2532,10 @@ sub configure_hierarchy_arch
     }
     return;
   }
-  my @insts= find_all($arch, "type", "instance");
   $node->{"children"}= [];
   my @archildren;
 confarchinst:
-  for my $inst (@insts) {
+  for my $inst (@{$arch->{"allinstances"}}) {
     my $new;
     for my $ind (0..$#nextfors) {
       my $nfor= $nextfors[$ind];
@@ -3037,12 +3054,12 @@ sub entityhtml
     map { printlibusehtml(*ENT{IO}, $_) } @uses;
     print ENT "</table>\n\n";
   }
-  if( my @gens= find_children($ent, "type", "generic") ) {
+  if( my @gens= @{$ent->{"childtype"}->{"generic"} || []} ) {
     print ENT "\n<h2>Generics</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
     map { printgenporthtml(*ENT{IO}, $_) } @gens;
     print ENT "</table>\n\n";
   }
-  if( my @ports= find_children($ent, "type", "port") ) {
+  if( my @ports= @{$ent->{"childtype"}->{"port"} || []} ) {
     print ENT "\n<h2>Ports</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
     map { printgenporthtml(*ENT{IO}, $_) } @ports;
     print ENT "</table>\n\n";
@@ -3385,22 +3402,22 @@ sub architecturehtml
     map { printtypehtml(*ARCH{IO}, $_) } @types;
     print ARCH "</table>\n\n";
   }
-  if( my @consts= find_children($arch, "type", "constant") ) {
+  if( my @consts= @{$arch->{"childtype"}->{"constant"} || []} ) {
     print ARCH "\n<h2>Constants</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
     map { printgenporthtml(*ARCH{IO}, $_) } @consts;
     print ARCH "</table>\n\n";
   }
-  if( my @funcs= find_children($arch, "type", "function") ) {
+  if( my @funcs= @{$arch->{"childtype"}->{"function"} || []} ) {
     print ARCH "\n<h2>Functions</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
     map { printfunchtml(*ARCH{IO}, $_) } @funcs;
     print ARCH "</table>\n\n";
   }
-  if( my @procs= find_children($arch, "type", "procedure") ) {
+  if( my @procs= @{$arch->{"childtype"}->{"procedure"} || []} ) {
     print ARCH "\n<h2>Procedures</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
     map { printfunchtml(*ARCH{IO}, $_) } @procs;
     print ARCH "</table>\n\n";
   }
-  if( my @comps= find_children($arch, "type", "component") ) {
+  if( my @comps= @{$arch->{"childtype"}->{"component"} || []} ) {
     print ARCH "\n<h2>Component declarations</h2>\n\n<table border=\"0\" " .
                 "cellpadding=\"$cp\">\n";
     map { printcomphtml(*ARCH{IO}, $_) } @comps;
@@ -3560,7 +3577,7 @@ sub configurationhtml
   print CONF "\n<h2>Configuration</h2>\n\n<table border=\"0\" ",
                 "cellpadding=\"$cp\">\n";
   $maxdepth= max_depth($conf);
-  @topfors= find_children($conf, "type", "for");
+  @topfors= @{$conf->{"childtype"}->{"for"} || []};
   printconfightml(*CONF{IO}, \@topfors, 0, $maxdepth);
   print CONF "</table>\n";
   printhtmlfooter(*CONF{IO});
@@ -3603,22 +3620,22 @@ sub packagehtml
       map { printtypehtml(*PACK{IO}, $_) } @types;
       print PACK "</table>\n\n";
     }
-    if( my @consts= find_children($pack, "type", "constant") ) {
+    if( my @consts= @{$pack->{"childtype"}->{"constant"} || []} ) {
       print PACK "\n<h2>Constants</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
       map { printgenporthtml(*PACK{IO}, $_) } @consts;
       print PACK "</table>\n\n";
     }
-    if( my @funcs= find_children($pack, "type", "function") ) {
+    if( my @funcs= @{$pack->{"childtype"}->{"function"} || []} ) {
       print PACK "\n<h2>Functions</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
       map { printfunchtml(*PACK{IO}, $_) } @funcs;
       print PACK "</table>\n\n";
     }
-    if( my @procs= find_children($pack, "type", "procedure") ) {
+    if( my @procs= @{$pack->{"childtype"}->{"procedure"} || []} ) {
       print PACK "\n<h2>Procedures</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
       map { printfunchtml(*PACK{IO}, $_) } @procs;
       print PACK "</table>\n\n";
     }
-    if( my @comps= find_children($pack, "type", "component") ) {
+    if( my @comps= @{$pack->{"childtype"}->{"component"} || []} ) {
       print PACK "\n<h2>Component declarations</h2>\n\n<table border=\"0\" " .
                   "cellpadding=\"$cp\">\n";
       map { printcomphtml(*PACK{IO}, $_) } @comps;
@@ -3653,17 +3670,17 @@ sub packagehtml
     map { printtypehtml(*PACK{IO}, $_) } @types;
     print PACK "</table>\n\n";
   }
-  if( my @consts= find_children($pbody, "type", "constant") ) {
+  if( my @consts= @{$pbody->{"childtype"}->{"constant"} || []} ) {
     print PACK "\n<h2>Constants</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
     map { printgenporthtml(*PACK{IO}, $_) } @consts;
     print PACK "</table>\n\n";
   }
-  if( my @funcs= find_children($pbody, "type", "function") ) {
+  if( my @funcs= @{$pbody->{"childtype"}->{"function"} || []} ) {
     print PACK "\n<h2>Functions</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
     map { printfunchtml(*PACK{IO}, $_) } @funcs;
     print PACK "</table>\n\n";
   }
-  if( my @procs= find_children($pbody, "type", "procedure") ) {
+  if( my @procs= @{$pbody->{"childtype"}->{"procedure"} || []} ) {
     print PACK "\n<h2>Procedures</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
     map { printfunchtml(*PACK{IO}, $_) } @procs;
     print PACK "</table>\n\n";
@@ -4126,6 +4143,15 @@ for my $file (@vhdlfiles) {
 
 print "Scrunching and twisting everything together...\n" unless $config{"quiet"};
 
+my $t1;
+$t1= [ Time::HiRes::gettimeofday() ];
+sub nextinter
+{
+    my $dt= Time::HiRes::tv_interval($t1);
+    print $_[0] || "Elapsed", ": $dt\n";
+    $t1= [ Time::HiRes::gettimeofday() ];
+}
+
 my @entities;
 my @architectures;
 my @configurations;
@@ -4163,6 +4189,7 @@ for my $lib (keys(%libraries)) {
 
 print STDERR "Warning: Duplicate declarations were discarded.\n" if $duplicate;
 
+nextinter("before entities");
 
 for my $ent (@entities)
 {
@@ -4178,7 +4205,7 @@ for my $ent (@entities)
           grep lc($_->{"objname"}) eq lc($ent->{"fullname"}), @configurations;
   map $_->{"entity"}= $ent, @{$ent->{"configurations"}};
 
-  my @gens= find_children($ent, "type", "generic");
+  my @gens= @{$ent->{"childtype"}->{"generic"} || []};
   if( @gens ) {
     # Clean up closing parenthesis of generic list which is left by our parsing
     if( $gens[$#gens]->{"value"} ) {
@@ -4188,7 +4215,7 @@ for my $ent (@entities)
       $gens[$#gens]->{"subtype"} =~ s/\)\s*$//;
     }
   }
-  my @ports= find_children($ent, "type", "port");
+  my @ports= @{$ent->{"childtype"}->{"port"} || []};
   if( @ports ) {
     # Clean up closing parenthesis of port list which is left by our parsing
     if( $ports[$#ports]->{"value"} ) {
@@ -4238,6 +4265,8 @@ for my $ent (@entities)
   $ent->{"docfilename"}= $config{"prefix"} . $ent->{"fullname"} . ".html";
 }
 
+nextinter("after entities");
+
 
 my @orphanedarchs;
 
@@ -4249,13 +4278,15 @@ for my $arch (@architectures) {
   # HTML file name
   $arch->{"docfilename"}= $config{"prefix"} . $arch->{"objname"} . "-" .
                           $arch->{"name"} . ".html";
-  for my $child (@{$arch->{"children"}}, find_all($arch, "type", "instance")) {
+  for my $child (@{$arch->{"children"}}, @{$arch->{"allinstances"}}) {
     if( $labels{$child->{"type"}} ) {
       $child->{"doclink"}= "../architectures/" . $arch->{"docfilename"} . "#"
                             . $labels{$child->{"type"}} . $child->{"name"};
     }
   }
 }
+
+nextinter("after architectures");
 
 
 my @orphanedconfs;
@@ -4333,6 +4364,8 @@ for my $opb (@orphanedpbodies)
   }
 }
 
+nextinter("before instance resolution");
+
 
 # Now take care of locally specified bindings and generic maps of instances.
 # Nested configurations will be tackled below.
@@ -4354,7 +4387,7 @@ for my $file (@vhdlfiles)
   {
     my @auses= grep $_->{"type"} eq "use" && $_->{"subtype"} eq "package",
                         @{$arch->{"children"}};
-    my @comps= find_children($arch, "type", "component");
+    my @comps= @{$arch->{"childtype"}->{"component"} || []};
     map { $_->{"binding"}= resolve_selname($_->{"name"}, "entity", \%libraries, 
                                         $file->{"libname"}); } @comps;
     my @insts= trace_all($arch, "type", "instance");
@@ -4502,6 +4535,8 @@ bindcompinst:
   }
 }
 
+nextinter("after instance resolution");
+
 
 # The following data structures represent the instantiation hierarchy.  They
 # also form a tree structure like our hashes representing declarative items,
@@ -4521,8 +4556,7 @@ for my $arch (@architectures) {
   push @hierarchy, $node;
   push @ahier, $node;
   $node->{"children"}= [];
-  my @insts= find_all($arch, "type", "instance");
-  for my $inst (@insts) {
+  for my $inst (@{$arch->{"allinstances"}}) {
     if( $inst->{"subtype"} eq "configuration" || ($inst->{"binding"} &&
         $inst->{"binding"}->{"type"} eq "configuration") ) {
       my $new;
@@ -4573,6 +4607,8 @@ for my $anode (@ahier) {
 }
 
 @hierarchy= sort hier_sort_cmp @hierarchy;
+
+nextinter("done scrunching");
 
 
 # Now generate documentation
