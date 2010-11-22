@@ -51,6 +51,21 @@ my $iw;
 ##############################################################################
 ##############################################################################
 
+# Return the first element of a list which matches a criterion.
+# -> Anonymous test subroutine operating on $_ and returning a true value for
+#    matches
+#    List to search
+# <- The first matching element, or undef
+sub elem(&@)
+{
+  my $test= shift @_;
+  for (@_) {
+    return $_ if &$test;
+  }
+  return undef;
+}
+
+
 # An auxiliary function for obtaining the canonical form of a file name.
 # Required to work around Cwd::abs_path()'s intolerance towards non-existing
 # files and directories.
@@ -1463,6 +1478,7 @@ sub parsefile
   my $errflag= 0;
   my $parsdbg= $config{"parsedebug"};
   my @parsestack;
+  my @topuses;
   my $parent= $file;
   my $inconfiguration= 0;
   my ($lastdoccom, $keepdoctype, $readahead);
@@ -1523,6 +1539,7 @@ sub parsefile
     elsif( $vline =~ s/^(architecture|configuration)\s+($ID)\s+
                               of\s+($SID)\s+is\b//iox  ) {
       $newchild= { "type", lc($1), "name", $2, "objname", $3 };
+      $newchild->{"objname"} =~ s/\s+//g;
     }
     elsif( $vline =~ s/^procedure\s+($ID)//io ) {
       my $name= $1;
@@ -1678,20 +1695,25 @@ sub parsefile
       }
     }
     elsif( $vline =~ s/^use\s+(?:(entity)\s+($SID)(?:\s*\(\s*($ID)\s*\))?|
-                      (configuration)\s+($SID)|(open)\b)
-                      \s*(generic\s+map\b|port\s+map\b|;)/$7/iox ) {
+                      (configuration)\s+($SID)|(open)\b)\s*//iox ) {
       @newentries= ( { "type", "use", "subtype", lc($1 || $4 || $6), 
                           "name", $2 || $5, "archname", $3 } );
-    }
-    elsif( $vline =~ /^generic\s+map\s*\(/io ) {
-      my $genmap= [];
-      readcommalist($genmap);
-      @newentries= ( { "type", "genericmap", "map", $genmap } );
+      $newentries[0]->{"name"} =~ s/\s+//g;
+      $newentries[0]->{"for"}= $parent->{"children"}->[-1]
+            if @{$parent->{"children"}}
+              && $parent->{"children"}->[-1]->{"type"} eq "for"
+              && $parent->{"children"}->[-1]->{"subtype"} eq "instance";
+      if( $vline =~ /^generic\s+map\s*\(/i ) {
+        $newentries[0]->{"genericmap"}= [];
+        readcommalist($newentries[0]->{"genericmap"});
+      }
       skipstatement();
+# TODO: what about for .. generic map without use ?
     }
     elsif( $vline =~ s/^use\s+($SIDLIST)\s*;//io ) {
       @newentries= map +{ "type", "use", "subtype", "package", "name", $_ },
                                                 split(/\s*,\s*/, $1);
+      map { $_->{"name"} =~ s/\s+//g; } @newentries;
     }
     elsif( $vline =~ s/^attribute\s+($ID)\s+of\s+($AILIST)\s*:\s*($ID)\s+
                       is\s+($STUFF)\s*;//iox ) {
@@ -1729,7 +1751,9 @@ sub parsefile
       my $genmap= [];
       @newentries= ( { "type", "instance", "name", $1, "objname", $3,
                           "subtype", lc($2 || "component"), "archname", $4,
-                          "genericmap", $genmap } );
+                          "genericmap", $genmap, "uses",
+                      [ @parsestack ? @{$parsestack[-1]->{"uses"}} : () ] } );
+      $newentries[0]->{"objname"} =~ s/\s+//g;
       readcommalist($genmap) if $5 eq "generic";
       skipstatement();        # skip to end of port map
     }
@@ -1749,12 +1773,16 @@ sub parsefile
       $keepdoccom ||= $keepaheaddoc;
       $aheaddoccom= "";
       push @{$parent->{"children"}}, $newchild;
-      if( @parsestack == 1 ) {
+      if( @parsestack == 0 ) {
+        $newchild->{"uses"}= [ @topuses ];
+      }
+      elsif( @parsestack == 1 ) {
         # List children by type for top-level constructs
         push @{$parent->{"childtype"}->{$newchild->{"type"}}}, $newchild;
       }
       push @parsestack, { "backtrack", $parent, 
-              "type", $newchild->{"type"}, "name", $newchild->{"name"} };
+              "type", $newchild->{"type"}, "name", $newchild->{"name"},
+              "uses" => [ @parsestack ? @{$parsestack[-1]->{"uses"}} : () ] };
       $inconfiguration= 1 if $newchild->{"type"} eq "configuration";
       $parent= $newchild;
       if( @parsestack > 1 && $newchild->{"type"} eq "process" ) {
@@ -1793,6 +1821,17 @@ sub parsefile
         my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
         push @{$top->{"allinstances"}}, @newentries;
       }
+      elsif( $newentries[0]->{"type"} eq "use" ) {
+        # List all use clauses to avoid recursive searches later
+        if( @parsestack ) {
+          my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
+          push @{$top->{"alluses"}}, @newentries;
+          push @{$parsestack[-1]->{"uses"}}, @newentries;
+        }
+        else {
+          push @topuses, @newentries;
+        }
+      }
       if( $parsdbg ) {
         print "$.: found ", $newentries[0]->{"type"};
         print "s" if $#newentries;
@@ -1813,6 +1852,7 @@ done:
     print STDERR "Not all blocks were closed - missing one or more \"end\"s.\n";
     $errflag= 1;
   }
+  $file->{"uses"}= \@topuses;
   # Remove the declarative blocks we are not interested in, which we parsed
   # only to keep track of nesting:
   prune_all($file, "type", "loop");
@@ -2103,7 +2143,7 @@ tryfunctarget:
 # describing an entity, component, configuration or similar.  The rightmost
 # part of the use clause name has to be the same as the leftmost part of the
 # entity selected name, or the rightmost part of the use clause name has to be
-# "all" for this to succeed.  The total number of components (seprated by ".")
+# "all" for this to succeed.  The total number of components (separated by ".")
 # of the result must be at most 3.
 # -> Selected name from use clause
 #    Selected name of object
@@ -2111,92 +2151,72 @@ tryfunctarget:
 sub merge_selname
 {
   my ($suse, $sobj)= @_;
+  my $selname;
 
-  $suse =~ s/\.\s*([^.\s]+)\s*$// or return undef;
-  my $suright= lc($1);
-  $sobj =~ /^\s*([^.\s]+)\s*/ or return undef;
-  my $soleft= lc($1);
-  return undef unless $suright eq $soleft || $suright eq "all";
-  return $suse . "." . $sobj;
+  $suse =~ s/\.all$//i;
+  $selname= $suse . "." . $sobj;
+  $selname =~ s/\.([^.]+)\.\1\./.$1./;
+  return ($selname =~ tr/././) <= 2 ? $selname : undef;
 }
 
 
-# Find declarative item corresponding to a given selected name describing an
-# entity, component, configuration or similar.
-# -> Selected name
-#    Type of the object to search for (undef or "" if you don't care)
-#    Reference to hash mapping library names to references of arrays of their
-#    declarative items
-#    optional: Name of the library in which the selected name appeared.  Used
-#    only if selcted name does not contain two dots.
-#    optional: Name of the package in which the selected name appeared.  Used
-#    only if selected name does not contain two dots.
-# <- Reference to hash representing the declarative item in question, or
-#    undef if it could not be found
-sub resolve_selname
 {
-  my ($sid, $type, $libs, $curlib, $curpack)= @_;
-  my $lib;
-  my $pack;
-  my $id;
-  my @matchingpacks;
-  my @matches;
 
-  $curlib= lc($curlib) if $curlib;
-  $curpack= lc($curpack) if $curpack;
-  if( $sid =~ /^\s*([^.\s]+)\s*\.\s*([^.\s]+)\s*\.\s*([^.\s]+)\s*$/ ) {
-    $lib= lc($1);
-    $pack= lc($2);
-    $id= lc($3);
-    return undef unless $libs->{$lib};
-    @matchingpacks= grep $_->{"type"} eq "package" &&
-                        lc($_->{"name"}) eq $pack, @{$libs->{$lib}};
-    @matchingpacks= grep $_->{"type"} eq "packagebody" &&
-                        lc($_->{"name"}) eq $pack, @{$libs->{$lib}}
-                unless @matchingpacks;
-    @matches= grep lc($_->{"name"}) eq $id, @{$matchingpacks[0]->{"children"}};
-    @matches= grep($_->{"type"} eq $type, @matches) if $type;
-    return $matches[0];
-  }
-  elsif( $sid =~ /^\s*([^.\s]+)\s*\.\s*([^.\s]+)\s*$/ ) {
-    my $liborpack= lc($1);
-    $id= lc($2);
-    if( $curlib ) {
-      @matchingpacks= grep $_->{"type"} eq "package" &&
-                          lc($_->{"name"}) eq $liborpack, @{$libs->{$curlib}};
-      @matchingpacks= grep $_->{"type"} eq "packagebody" &&
-                          lc($_->{"name"}) eq $liborpack, @{$libs->{$curlib}}
-                unless @matchingpacks;
-      @matches= grep lc($_->{"name"}) eq $id, @{$matchingpacks[0]->{"children"}};
-      @matches= grep($_->{"type"} eq $type, @matches) if $type;
-      return $matches[0] if @matches;
+# Table of selected names.  Those tables which will be searched are initialised
+# up-front to avoid "can't use undef as hash ref" errors.
+my %selnames= map { $_ => {}; }
+          qw(entity architecture configuration package packagebody component);
+# Dummy scalar the reference to which indicates that multiple objects with that
+# name and type exist.
+my $multiple;
+
+# Add objects to the table of selected names applicabel for their type.
+# -> Prefix (for to-level constructs, this is the library name, for
+#    declarations in packages, this is "library.package")
+#    List of objects
+sub add_selnames
+{
+  my $prefix= shift;
+
+  for (@_) {
+    my $table= $selnames{$_->{"type"}};
+    if( $table->{lc($_->{"name"})} ) {
+      $table->{lc($_->{"name"})}= \$multiple;
     }
-    return undef unless $libs->{$liborpack};
-    @matches= grep lc($_->{"name"}) eq $id, @{$libs->{$liborpack}};
-    @matches= grep($_->{"type"} eq $type, @matches) if $type;
-    return $matches[0];
-  }
-  elsif( $sid =~ /^\s*([^.\s]+)\s*$/ ) {
-    $id= lc($1);
-    return undef unless $curlib;
-    if( $curpack ) {
-      @matchingpacks= grep $_->{"type"} eq "package" &&
-                          lc($_->{"name"}) eq $curpack, @{$libs->{$curlib}};
-      @matchingpacks= grep $_->{"type"} eq "packagebody" &&
-                          lc($_->{"name"}) eq $curpack, @{$libs->{$curlib}}
-                unless @matchingpacks;
-      @matches= grep lc($_->{"name"}) eq $id, @{$matchingpacks[0]->{"children"}};
-      @matches= grep($_->{"type"} eq $type, @matches) if $type;
-      return $matches[0] if @matches;
+    else {
+      $table->{lc($_->{"name"})}= $_;
     }
-    @matches= grep lc($_->{"name"}) eq $id, @{$libs->{$curlib}};
-    @matches= grep($_->{"type"} eq $type, @matches) if $type;
-    return $matches[0];
-  }
-  else {
-    return undef;
+    $table->{lc($prefix . "." . $_->{"name"})}= $_;
   }
 }
+
+# Find the object denoted by a selected name.
+# -> Name of the object
+#    Type of the object (if empty or undef, all tables will be searched)
+#    optional: Prefix (such as library of a top-level object or
+#    "library.package" for declarations in a package)
+# <- Reference to object hash if found; undef if not found; defined but false
+#    (0) if ambiguous and no prefix given
+sub find_selname
+{
+  my ($name, $type, $prefix)= @_;
+
+  if( $type ) {
+    my $obj= $selnames{$type}->{lc($name)};
+    return $obj if $obj && $obj != \$multiple;
+    return ($obj ? 0 : undef) if !$prefix;
+    return $selnames{$type}->{lc($prefix . "." . $name)};
+  }
+  # Try all types if type is not given:
+  for my $t (keys %selnames) {
+    my $obj= find_selname($name, $t, $prefix);
+    return $obj if $obj;
+  }
+  return undef;
+}
+
+}
+
 
 
 # Try to resolve @see cross references.  This function should only be called
@@ -2215,7 +2235,8 @@ sub resolve_seealso
   my ($seeary, $libhash, $libname)= @_;
 
   for my $see (@$seeary) {
-    my $candidate= resolve_selname($see->[0], "", $libhash, $libname);
+#TODO: search for types in intelligent order rather than using type ""
+    my $candidate= find_selname($see->[0], "", $libname);
     next unless $candidate;
     $see->[1]= $candidate;
     if( $candidate->{"type"} eq "entity" ) {
@@ -2302,8 +2323,8 @@ sub resolve_configuration
       $for->{"use"}= $use;
       if( $use && $use->{"subtype"} ne "open" ) {
         $for->{"bindname"}= $use->{"name"};
-        $use->{"object"}= resolve_selname($use->{"name"}, $use->{"subtype"},
-                                          $libhash, $libname);
+        $use->{"object"}= find_selname($use->{"name"}, $use->{"subtype"},
+                                          $libname);
         $for->{"binding"}= $use->{"object"};
         if( $use->{"subtype"} eq "entity" && $for->{"binding"} ) {
           if( $use->{"archname"} ) {
@@ -2320,9 +2341,9 @@ sub resolve_configuration
             my @newfors= find_children($for, "type", "for");
             push @todo, map( [ $_, $for->{"bindarch"}, $for ], @newfors);
           }
+          $for->{"bindgen"}= $use->{"genericmap"};
         }
       }
-      ($for->{"bindgen"})= find_children($for, "type", "genericmap");
     }
   }
   for my $triplet (@forothers) {
@@ -4151,6 +4172,22 @@ sub nextinter
     print $_[0] || "Elapsed", ": $dt\n";
     $t1= [ Time::HiRes::gettimeofday() ];
 }
+my %timers;
+sub addtime
+{
+    my ($name, $op)= @_;
+    if( $op == 0 ) {
+        $timers{$name}->{"start"}= [ Time::HiRes::gettimeofday() ];
+    }
+    elsif( $op == 1 ) {
+        $timers{$name}->{"duration"} += Time::HiRes::tv_interval($timers{$name}->{"start"});
+        ++$timers{$name}->{"intervals"};
+    }
+    elsif( $op == 2 ) {
+        print "Duration for $name: ", $timers{$name}->{"duration"} || 0, "  (",
+                         $timers{$name}->{"intervals"} || 0, " intervals)\n";
+    }
+}
 
 my @entities;
 my @architectures;
@@ -4174,12 +4211,16 @@ for my $lib (keys(%libraries)) {
   $duplicate += uniq_objs(\@pbods);
   map { $_->{"fullname"}= $lib . "." . $_->{"name"}; } @ents;
   for my $ac (@archs, @confs) {
+    $ac->{"libname"} = $lib;
     next if $ac->{"objname"} =~ /\..*\./ || 
   ($ac->{"objname"} =~ /^([^.\s]+)\s*\./ && grep($_ eq $1, keys(%libraries)));
     $ac->{"objname"}= $lib . "." . $ac->{"objname"};
   }
-  map { $_->{"fullname"}= $lib . "." . $_->{"name"}; } @packs;
-  map { $_->{"fullname"}= $lib . "." . $_->{"name"}; } @pbods;
+  for my $pack (@packs, @pbods) {
+    $pack->{"libname"} = $lib;
+    $pack->{"fullname"}= $lib . "." . $pack->{"name"};
+  }
+  add_selnames($lib, @ents, @archs, @confs, @packs, @pbods);
   push @entities, @ents;
   push @architectures, @archs;
   push @configurations, @confs;
@@ -4309,6 +4350,7 @@ for my $pack (@packages)
     if( lc($pack->{"fullname"}) eq lc($pbod->{"fullname"}) ) {
       $pack->{"packagebody"}= $pbod;
       $pbod->{"package"}= $pack;
+      last;
     }
   }
   # HTML file name
@@ -4324,12 +4366,12 @@ for my $pack (@packages)
   }
   # Match attribute specifications to declarations and to targets
   match_attributes($pack);
-  # Find bindings for components declared in the package
-  my @comps= grep $_->{"type"} eq "component", @{$pack->{"children"}};
-  my $libname= $pack->{"fullname"};
-  $libname =~ s/\..*$//;
-  map { $_->{"binding"}= resolve_selname($_->{"name"}, "entity",
-                            \%libraries, $libname, $pack->{"name"}); } @comps;
+  # Add component declarations to selected name table
+  add_selnames($pack->{"fullname"}, @{$pack->{"childtype"}->{"component"}});
+  # Find default bindings for components declared in the package
+  map { $_->{"binding"}= find_selname($_->{"name"}, "entity",
+                            $pack->{"fullname"}); }
+            @{$pack->{"childtype"}->{"component"}};
 }
 
 
@@ -4347,12 +4389,10 @@ for my $pbody (@packagebodies)
 
 for my $opb (@orphanedpbodies)
 {
-  # Find bindings for components declared in the package
-  my @comps= grep $_->{"type"} eq "component", @{$opb->{"children"}};
-  my $libname= $opb->{"fullname"};
-  $libname =~ s/\..*$//;
-  map { $_->{"binding"}= resolve_selname($_->{"name"}, "entity",
-                            \%libraries, $libname, $opb->{"name"}); } @comps;
+  # Find default bindings for components declared in the package
+  map { $_->{"binding"}= find_selname($_->{"name"}, "entity",
+                            $opb->{"fullname"}); }
+              @{$opb->{"childtype"}->{"component"}};
   # Create full name and HTML link (where applicable) for declarative items in
   # package body, since we do not have a package to match
   for my $child (@{$opb->{"children"}}) {
@@ -4362,6 +4402,8 @@ for my $opb (@orphanedpbodies)
                                 $labels{$child->{"type"}} . $child->{"name"};
     }
   }
+  # Add component declarations to selected name table
+  add_selnames($opb->{"fullname"}, @{$opb->{"childtype"}->{"component"}});
 }
 
 nextinter("before instance resolution");
@@ -4371,171 +4413,171 @@ nextinter("before instance resolution");
 # Nested configurations will be tackled below.
 for my $file (@vhdlfiles)
 {
-  my @fuses= grep $_->{"type"} eq "use" && $_->{"subtype"} eq "package",
-                        @{$file->{"children"}};
+  my @fuses= grep $_->{"subtype"} eq "package", @{$file->{"uses"}};
   for my $useclause (@fuses) {
     next unless $useclause->{"name"} =~ /^([^.\s]+\s*\.\s*[^.\s]+)/;
     my $pack= $1;
-    next unless
-      $useclause->{"package"}= resolve_selname($pack, "package", \%libraries);
+addtime("find_selname", 0);
+    $useclause->{"package"}= find_selname($pack, "package", $file->{"libname"});
+addtime("find_selname", 1);
+    next unless $useclause->{"package"};
     next if $useclause->{"name"} =~ /\ball$/i;
     $useclause->{"name"} =~ /^$pack\s*\.\s*([^.\s]+)/;
     ($useclause->{"object"})= find_children($useclause->{"package"}, "name", $1);
   }
-  my @archs= find_children($file, "type", "architecture");
-  for my $arch (@archs)
-  {
-    my @auses= grep $_->{"type"} eq "use" && $_->{"subtype"} eq "package",
-                        @{$arch->{"children"}};
-    my @comps= @{$arch->{"childtype"}->{"component"} || []};
-    map { $_->{"binding"}= resolve_selname($_->{"name"}, "entity", \%libraries, 
-                                        $file->{"libname"}); } @comps;
-    my @insts= trace_all($arch, "type", "instance");
-    my @cinsts;
-    for my $trace (@insts) {
-      my $inst= $$trace[$#$trace];
-      if( $inst->{"subtype"} eq "component" ) {
-        push @cinsts, $trace;
-        next;
+}
+
+for my $arch (@architectures, @orphanedarchs)
+{
+  my @topuses= reverse grep $_->{"subtype"} eq "package", @{$arch->{"uses"}};
+  my @comps= @{$arch->{"childtype"}->{"component"} || []};
+addtime("find_selname", 0);
+  # Assign default binding to component declarations
+  map { $_->{"binding"}= find_selname($_->{"name"}, "entity",
+                                      $arch->{"libname"}); } @comps;
+addtime("find_selname", 1);
+  my @noncompinsts;
+addtime("component instance binding", 0);
+bindcompinst:
+  for my $inst (@{$arch->{"allinstances"}}) {
+    if( $inst->{"subtype"} ne "component" ) {
+      push @noncompinsts, $inst;
+      next;
+    }
+    # Match component instances to component declarations.
+    # First try local component declarations:
+    $inst->{"component"}=
+              elem { lc($_->{"name"}) eq lc($inst->{"objname"}) } @comps;
+    # If there is no matching local component declaration, we have to find
+    # one in one of the packages.  If the bare name is unique, we choose that
+    # component.
+addtime("find_selname", 0);
+    $inst->{"component"}= find_selname($inst->{"objname"}, "component")
+        unless $inst->{"component"};
+addtime("find_selname", 1);
+    # If not, try selected names according to use clauses.
+    if( defined($inst->{"component"}) && $inst->{"component"} == 0 ) {
+      for my $useclause (@topuses) {
+        my $name= merge_selname($useclause->{"name"}, $inst->{"objname"});
+        next unless $name;
+addtime("find_selname", 0);
+        $inst->{"component"}= find_selname($name, "component");
+addtime("find_selname", 1);
+        last if $inst->{"component"};
       }
-      $inst->{"binding"}= resolve_selname($inst->{"objname"},
-                        $inst->{"subtype"}, \%libraries, $file->{"libname"});
-      unless( $inst->{"binding"} ) {
-        my @huses;
-        for my $useclause (@auses, @fuses) {
-          my $name= merge_selname($useclause->{"name"}, $inst->{"name"});
-          next unless $name;
-          last if $inst->{"binding"}=
-                       resolve_selname($name, $inst->{"subtype"}, \%libraries);
-        }
-        unless( $inst->{"binding"} ) {
-          # As a last resort, search for package use clauses below architecture
-          # level (say, in a generate statement's declarative part)
-          for my $bt (@$trace[0..$#$trace-1]) {
-            unshift @huses, (grep( $_->{"type"} eq "use" &&
-                         $_->{"subtype"} eq "package", @{$bt->{"children"}}));
-          }
-          for my $useclause (@huses) {
-            my $name= merge_selname($useclause->{"name"}, $inst->{"name"});
-            next unless $name;
-            last if $inst->{"binding"}=
-                       resolve_selname($name, $inst->{"subtype"}, \%libraries);
-          }
-        }
-      }
-      next unless $inst->{"subtype"} eq "entity";
+    }
+    # This procedure has the illogical side effect that an ambiguous component
+    # instantiation will be shown as unresolved if no matching use clause is
+    # found.
+addtime("uses in hierarchy", 0);
+    # Now we tackle binding indications in the blocks enclosing the
+    # instantiation.
+    for my $use (reverse @{$inst->{"uses"}}) {
+      next if $use->{"subtype"} eq "package";
+      my $for= $use->{"for"};
+      next unless $for && lc($for->{"objtype"}) eq lc($inst->{"objname"}) &&
+            ( lc($for->{"objnames"}->[0]) eq "all" ||
+            elem { lc($_) eq lc($inst->{"name"}) } @{$for->{"objnames"}} );
+# TODO: handle open bindings, also in docs
+#            last if $use->{"subtype"} eq "open";
+      @{$inst->{"binddoc"}}= @{$for->{"doc"}->{"description"}}
+          if $for->{"doc"}->{"description"};
+      push @{$inst->{"binddoc"}}, @{$use->{"doc"}->{"description"}}
+                  if $use->{"doc"}->{"description"};
+      $inst->{"bindname"}= $use->{"name"};
+addtime("find_selname", 0);
+      $inst->{"binding"}= find_selname($use->{"name"},
+                              $use->{"subtype"}, $arch->{"libname"});
+addtime("find_selname", 1);
       if( $inst->{"binding"} ) {
-        if( $inst->{"archname"} ) {
-          ($inst->{"bindarch"})= grep $_->{"name"} eq $inst->{"archname"},
-                                  @{$inst->{"binding"}->{"architectures"}};
+        if( $use->{"archname"} ) {
+          $inst->{"archname"}= $use->{"archname"};
+          $inst->{"bindarch"}= elem { $_->{"name"} eq $use->{"archname"} }
+                                @{$inst->{"binding"}->{"architectures"}};
         }
         elsif( @{$inst->{"binding"}->{"architectures"}} ) {
-          ($inst->{"bindarch"})= @{$inst->{"binding"}->{"architectures"}};
+          $inst->{"bindarch"}= $inst->{"binding"}->{"architectures"}->[0];
           $inst->{"archname"}= $inst->{"bindarch"}->{"name"};
         }
       }
-      elsif( $inst->{"archname"} ) {
+      elsif( $use->{"archname"} ) {
+        $inst->{"archname"}= $use->{"archname"};
         my @candidates= grep $_->{"name"} eq $inst->{"archname"} &&
-                        $_->{"objname"} eq $inst->{"objname"}, @orphanedarchs;
-        unshift @candidates, grep($_->{"file"}->{"libname"} eq
-                                $file->{"libname"}, @candidates);
-        $inst->{"bindarch"}= $candidates[0];
+                  $_->{"objname"} eq $inst->{"objname"}, @orphanedarchs;
+        $inst->{"bindarch"}= elem( sub { $_->{"libname"} eq
+                        $arch->{"libname"} }, @candidates) || $candidates[0];
+      }
+      $inst->{"bindgen"}= $use->{"genericmap"};
+      next bindcompinst;
+    }
+addtime("uses in hierarchy", 1);
+    # Without an explicit binding specification we bind to the binding of the
+    # matching component declaration, if any.
+    if( $inst->{"component"} ) {
+      $inst->{"binding"}= $inst->{"component"}->{"binding"};
+    }
+    # Aaargh... the component is not even declared.  Sloppy designer!  So we
+    # resolve the instantiation by name.
+    else {
+addtime("find_selname", 0);
+      $inst->{"binding"}= find_selname($inst->{"objname"}, "entity",
+                                          $arch->{"libname"});
+addtime("find_selname", 1);
+    }
+    if( $inst->{"binding"} && @{$inst->{"binding"}->{"architectures"}} ) {
+      $inst->{"bindarch"}= $inst->{"binding"}->{"architectures"}->[0];
+      $inst->{"archname"}= $inst->{"bindarch"}->{"name"};
+    }
+  }
+addtime("component instance binding", 1);
+
+  for my $inst (@noncompinsts) {
+addtime("find_selname", 0);
+    $inst->{"binding"}= find_selname($inst->{"objname"}, $inst->{"subtype"});
+addtime("find_selname", 1);
+    # If the name is abiguous, go looking in current library and use clauses.
+    if( defined($inst->{"binding"}) && $inst->{"binding"} == 0 ) {
+addtime("find_selname", 0);
+      $inst->{"binding"}= find_selname($inst->{"objname"}, $inst->{"subtype"},
+                                        $arch->{"libname"});
+addtime("find_selname", 1);
+      unless( $inst->{"binding"} ) {
+# TODO: do entity and configuration declarations even exist in packages?
+        for my $useclause (@topuses) {
+          my $name= merge_selname($useclause->{"name"}, $inst->{"name"});
+          next unless $name;
+addtime("find_selname", 0);
+          $inst->{"binding"}= find_selname($name, $inst->{"subtype"});
+addtime("find_selname", 1);
+          last if $inst->{"binding"};
+        }
       }
     }
-bindcompinst:
-    for my $trace (@cinsts)
-    {
-      my $inst= $$trace[$#$trace];
-      # Match component instances to component declarations
-      ($inst->{"component"})=
-                grep lc($_->{"name"}) eq lc($inst->{"objname"}), @comps;
-      unless( $inst->{"component"} ) {
-        # If there is no matching local component declaration, we have to find
-        # one in one of the visible packages.
-        my @huses;
-        for my $bt (@$trace[0..$#$trace-1]) {
-          unshift @huses, (grep( $_->{"type"} eq "use" &&
-                         $_->{"subtype"} eq "package", @{$bt->{"children"}}));
-        }
-        for my $useclause (@huses, @auses, @fuses) {
-          my $name= merge_selname($useclause->{"name"}, $inst->{"objname"});
-          next unless $name;
-          last if $inst->{"component"}=
-                       resolve_selname($name, "component", \%libraries);
-        }
+    next unless $inst->{"subtype"} eq "entity";
+    if( $inst->{"binding"} ) {
+      if( $inst->{"archname"} ) {
+        $inst->{"bindarch"}= elem { $_->{"name"} eq $inst->{"archname"} }
+                                @{$inst->{"binding"}->{"architectures"}};
       }
-      # Now we search for binding indications in the block immediately
-      # enclosing the instantiation and in the architecture.
-      my @uselocations= ( $arch->{"children"} );
-      unshift @uselocations, $trace->[$#$trace-1]->{"children"}
-                if $trace->[$#$trace-1];
-      for my $inlaws (@uselocations) {
-        # Because of the differences between the syntax of for statements
-        # inside and outside configurations, we have parsed for statements and
-        # use statements as different entries following each other.  Therefore
-        # we loop over an index here instead of the array elements.
-        for my $declind (0..$#$inlaws) {
-          my $decl= $inlaws->[$declind];
-          next unless $decl->{"type"} eq "for" && 
-                lc($decl->{"objtype"}) eq lc($inst->{"objname"}) &&
-                ( lc($decl->{"objnames"}->[0]) eq "all" ||
-                  grep(lc($_) eq lc($inst->{"name"}), @{$decl->{"objnames"}}));
-          @{$inst->{"binddoc"}}= @{$decl->{"doc"}->{"description"}}
-                        if $decl->{"doc"}->{"description"};
-          my $nextd= $inlaws->[$declind+1];
-          if( $nextd->{"type"} eq "use" && $nextd->{"subtype"} ne "open" ) {
-            push @{$inst->{"binddoc"}}, @{$nextd->{"doc"}->{"description"}}
-                        if $nextd->{"doc"}->{"description"};
-            $inst->{"bindname"}= $nextd->{"name"};
-            $inst->{"binding"}= resolve_selname($nextd->{"name"},
-                      $nextd->{"subtype"}, \%libraries, $file->{"libname"});
-            if( $inst->{"binding"} ) {
-              if( $nextd->{"archname"} ) {
-                $inst->{"archname"}= $nextd->{"archname"};
-                ($inst->{"bindarch"})=grep $_->{"name"} eq $nextd->{"archname"},
-                                      @{$inst->{"binding"}->{"architectures"}};
-              }
-              elsif( @{$inst->{"binding"}->{"architectures"}} ) {
-                ($inst->{"bindarch"})=@{$inst->{"binding"}->{"architectures"}};
-                $inst->{"archname"}= $inst->{"bindarch"}->{"name"};
-              }
-            }
-            elsif( $nextd->{"archname"} ) {
-              $inst->{"archname"}= $nextd->{"archname"};
-              my @candidates= grep $_->{"name"} eq $inst->{"archname"} &&
-                        $_->{"objname"} eq $inst->{"objname"}, @orphanedarchs;
-              unshift @candidates, grep($_->{"file"}->{"libname"} eq
-                                        $file->{"libname"}, @candidates);
-              $inst->{"bindarch"}= $candidates[0];
-            }
-            $nextd= $inlaws->[$declind+2];
-          }
-          if( $nextd->{"type"} eq "genericmap" ) {
-            $inst->{"bindgen"}= $nextd;
-          }
-          next bindcompinst;
-        }
-      }
-      # Without an explicit binding specification we bind to the binding of the
-      # matching component declaration, if any.
-      if( $inst->{"component"} ) {
-        $inst->{"binding"}= $inst->{"component"}->{"binding"};
-      }
-      # Aaargh... the component is not even declared.  Sloppy designer!  So we
-      # resolve the instantiation by name.
-      else {
-        $inst->{"binding"}= resolve_selname($inst->{"objname"}, "entity",
-                                            \%libraries, $file->{"libname"});
-      }
-      if( $inst->{"binding"} && @{$inst->{"binding"}->{"architectures"}} ) {
+      elsif( @{$inst->{"binding"}->{"architectures"}} ) {
         $inst->{"bindarch"}= $inst->{"binding"}->{"architectures"}->[0];
         $inst->{"archname"}= $inst->{"bindarch"}->{"name"};
       }
+    }
+    elsif( $inst->{"archname"} ) {
+      my @candidates= grep $_->{"name"} eq $inst->{"archname"} &&
+                      $_->{"objname"} eq $inst->{"objname"}, @orphanedarchs;
+      $inst->{"bindarch"}= elem(sub { $_->{"libname"} eq $arch->{"libname"} },
+                                    @candidates) || $candidates[0];
     }
   }
 }
 
 nextinter("after instance resolution");
+
+addtime("find_selname", 2);
+addtime("component instance binding", 2);
+addtime("uses in hierarchy", 2);
 
 
 # The following data structures represent the instantiation hierarchy.  They
