@@ -1508,10 +1508,10 @@ sub parsefile
       else {
         my $lastlevel= pop(@parsestack);
         if( $vline =~ /^end(?:\s+($ID))?\s+($ID|$OP)\s*;/io &&
-            ( ($1 && (lc($1) ne $lastlevel->{"type"} || 
-                        lc($2 || "") ne lc($lastlevel->{"name"}) )) || 
-              (!$1 && lc($2 || "") ne $lastlevel->{"type"} &&
-                        lc($2 || "") ne lc($lastlevel->{"name"})) ) ) {
+            ( ($1 && (lc($1 || "") ne $lastlevel->{"type"} || 
+                        lc($2) ne lc($lastlevel->{"name"} || "") )) || 
+              (!$1 && lc($2) ne $lastlevel->{"type"} &&
+                        lc($2) ne lc($lastlevel->{"name"} || "")) ) ) {
           $errflag= 1;
           unless( $config{"quiet"} ) {
             print STDERR "\"end ";
@@ -1700,7 +1700,7 @@ sub parsefile
                           "name", $2 || $5, "archname", $3 } );
       $newentries[0]->{"name"} =~ s/\s+//g;
       $newentries[0]->{"for"}= $parent->{"children"}->[-1]
-            if @{$parent->{"children"}}
+            if $parent->{"children"} && @{$parent->{"children"}}
               && $parent->{"children"}->[-1]->{"type"} eq "for"
               && $parent->{"children"}->[-1]->{"subtype"} eq "instance";
       if( $vline =~ /^generic\s+map\s*\(/i ) {
@@ -2448,15 +2448,15 @@ sub hier_sort_cmp
   my $last= "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz";
   my $result;
 
-  if( $result= ((lc($a->{"entname"}) || $last) cmp
-                (lc($b->{"entname"}) || $last)) ) {
+  if( $result= (lc($a->{"entname"} || $last) cmp
+                lc($b->{"entname"} || $last)) ) {
     return $result;
   }
-  if( $result= ((lc($a->{"archname"}) || $last) cmp
-                (lc($b->{"archname"}) || $last)) ) {
+  if( $result= (lc($a->{"archname"} || $last) cmp
+                lc($b->{"archname"} || $last)) ) {
     return $result;
   }
-  return (lc($a->{"confname"}) || $last) cmp (lc($b->{"confname"}) || $last);
+  return lc($a->{"confname"} || $last) cmp lc($b->{"confname"} || $last);
 }
 
 
@@ -4199,6 +4199,10 @@ my $duplicate= 0;
 # Build entity, architecture, configuration and package lists
 for my $lib (keys(%libraries)) {
   my $decls= $libraries{$lib};
+  for (@$decls) {       # create these entries to avoid "undefined" warnings
+    $_->{"allinstances"} ||= [];
+    $_->{"allprocesses"} ||= [];
+  }
   my @ents= grep $_->{"type"} eq "entity", @$decls;
   $duplicate += uniq_objs(\@ents);
   my @archs= grep $_->{"type"} eq "architecture", @$decls;
