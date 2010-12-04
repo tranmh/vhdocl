@@ -1685,7 +1685,7 @@ sub parsefile
         $keepdoccom ||= $keepaheaddoc;
         $aheaddoccom= "";
       }
-      elsif( $vline =~ s/^for\s+($ID)\s*([^\s:])/$2/io ) {
+      elsif( $vline =~ s/^for\s+($ID)\s*([^\s,:])/$2/io ) {
         $newchild= { "type", "for", "subtype", "architecture", "objname", $1 };
       }
       elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {}
@@ -1703,44 +1703,58 @@ sub parsefile
             if $parent->{"children"} && @{$parent->{"children"}}
               && $parent->{"children"}->[-1]->{"type"} eq "for"
               && $parent->{"children"}->[-1]->{"subtype"} eq "instance";
-      if( $vline =~ /^generic\s+map\s*\(/i ) {
-        $newentries[0]->{"genericmap"}= [];
-        readcommalist($newentries[0]->{"genericmap"});
-      }
+    }
+    elsif( $vline =~ s/^generic\s+map\s*\(//i ) {
+      my $genmap= [];
+      readcommalist($genmap);
+      @newentries= ( { "type", "genericmap", "map", $genmap } );
       skipstatement();
-# TODO: what about for .. generic map without use ?
+      if( $parent->{"children"} && @{$parent->{"children"}} ) {
+        $parent->{"children"}->[-1]->{"genericmap"}= $newentries[0];
+      }
+      else {
+        $parent->{"genericmap"}= $newentries[0];
+      }
     }
     elsif( $vline =~ s/^use\s+($SIDLIST)\s*;//io ) {
       @newentries= map +{ "type", "use", "subtype", "package", "name", $_ },
                                                 split(/\s*,\s*/, $1);
       map { $_->{"name"} =~ s/\s+//g; } @newentries;
     }
-    elsif( $vline =~ s/^attribute\s+($ID)\s+of\s+($AILIST)\s*:\s*($ID)\s+
-                      is\s+($STUFF)\s*;//iox ) {
-      my $template= { "type", "attrspec", "name", $1, 
-                      "value", $4, "objtype", lc($3), "objname", "" };
-      my $ailist= $2;
-      while( $ailist =~ s/^($AI)(?:\s*,\s*)?//o ) {
-        $template->{"objname"}= $1;
-        push @newentries, { %$template };
+    elsif( $vline =~ s/^attribute\s+($ID)\s+of\b//io ) {
+      my $template= { "type", "attrspec", "name", $1 };
+      while( $vline !~ /;/ ) {
+        getnextline(0) or goto done;
+      }
+      if( $vline =~ s/^\s*($AILIST)\s*:\s*($ID)\s+is\s+($STUFF)\s*;//io ) {
+        @$template{"objtype", "value"}= (lc($3), $2);
+        my $ailist= $1;
+        while( $ailist =~ s/^($AI)(?:\s*,\s*)?//o ) {
+          $template->{"objname"}= $1;
+          push @newentries, { %$template };
+        }
+      }
+      else {
+        skipstatement();
       }
     }
     # We could add variable and signal declarations, but we do not need them
-    elsif( $vline =~ s/^\b(constant|attribute)\b//i ) {
-      my $type= lc($1);
-      my ($ids, $subtype, $val);
-      while( 13 ) {
-        if( $vline =~ /;/ && $vline =~
-              s/^\s*($IDLIST)\s*:($MSTUFF)(?::=($STUFF))?;//io ) {
-          ($ids, $subtype, $val)= ($1, $2, $3 || "");
-          last;
-        }
+    elsif( $vline =~ s/^(constant|attribute)\s+($IDLIST)\s*://io ) {
+      my ($type, $ids)= (lc($1), $2);
+      my ($subtype, $val);
+      while( $vline !~ /;/ ) {
         getnextline(0) or goto done;
       }
-      $subtype =~ s/^\s+//;   $subtype =~ s/\s+$//;
-      $val =~ s/^\s+//;   $val =~ s/\s+$//;
-      @newentries= map +{ "type", $type, "name", $_, 
-              "subtype", $subtype, "value", $val }, split(/\s*,\s*/, $ids);
+      if( $vline =~ s/^($MSTUFF)(?::=($STUFF))?;//io ) {
+        ($subtype, $val)= ($1, $2 || "");
+        $subtype =~ s/^\s+//;   $subtype =~ s/\s+$//;
+        $val =~ s/^\s+//;   $val =~ s/\s+$//;
+        @newentries= map +{ "type", $type, "name", $_, 
+                "subtype", $subtype, "value", $val }, split(/\s*,\s*/, $ids);
+      }
+      else {
+        skipstatement();
+      }
     }
     elsif( $vline =~ s/^(generic|port)\s*\(//io ) {
       @newentries= readportlist(lc($1));
@@ -1832,7 +1846,8 @@ sub parsefile
           push @topuses, @newentries;
         }
       }
-      if( $parsdbg ) {
+      if( $parsdbg && $newentries[0]->{"type"} !~ /^(?:port|generic)$/ ) {
+        # "found..." message already output in readportlist() for ports/gens
         print "$.: found ", $newentries[0]->{"type"};
         print "s" if $#newentries;
         print " ", join(", ", map($_->{"name"}, @newentries))
@@ -2341,8 +2356,11 @@ sub resolve_configuration
             my @newfors= find_children($for, "type", "for");
             push @todo, map( [ $_, $for->{"bindarch"}, $for ], @newfors);
           }
-          $for->{"bindgen"}= $use->{"genericmap"};
         }
+        $for->{"bindgen"}= $use->{"genericmap"};
+      }
+      else {
+        $for->{"bindgen"}= $for->{"genericmap"};
       }
     }
   }
