@@ -1218,17 +1218,18 @@ my $AI= qr/(?:$ID|$OP|'.')(?:\s*\[[^]]*\])?/o;
 # List of attribute spec items:
 my $AILIST= qr/$AI(?:\s*,\s*$AI)*/o;
 
-# VHDL strings have to be treated specially:
-my $STR= qr/"[^"]*"|'[^']'/;
+# Quoted strings and chars (or bit vectors and bits) have to be treated
+# separately:
+my $QUOT= qr/"[^"\n]*"|'[^'\n]'/;
 # A non-empty expression without a semicolon:
-my $STUFF= qr/(?:$STR|[^;"])+/o;
+my $STUFF= qr/(?:$QUOT|[^;"])[^;"']*(?:(?:$QUOT|')[^;"']*)*/o;
 # Same, but not greedy:
-my $MSTUFF= qr/(?:$STR|[^;"])+?/o;
-# Possibly empty expression containing anything at all, with matched double
-# quotes (if any):
-my $ANY= qr/(?:$STR|[^"])*/o;
+my $MSTUFF= qr/(?:$QUOT|[^;"])[^;"']*?(?:(?:$QUOT|')[^;"']*?)*?/o;
+# Possibly empty expression containing anything at all, with matched quotes (if
+# any):
+my $ANY= qr/[^"']*(?:(?:$QUOT|')[^"']*)*/o;
 # Same, but not greedy:
-my $MANY= qr/(?:$STR|[^"])*?/o;
+my $MANY= qr/[^"']*?(?:(?:$QUOT|')[^"']*?)*?/o;
 
 
 my $vhandle;
@@ -1251,7 +1252,8 @@ sub getnextline
 
 
 # Preprocess next line from VHDL file.
-# -> Flag indicating readahead
+# -> New (single) line of VHDL code
+#    Flag indicating readahead
 sub preprocessline
 {
   my ($new, $ahead)= @_;
@@ -1293,6 +1295,30 @@ sub skipstatement
 }
 
 
+# Skip a statement if it has been read completely.  Comments are NOT taken into
+# account.  This is an optimisation function which avoids trying to match
+# s/^(?:|$STUFF);// again and again.
+# (<->) $vline: Current code line, with comments already removed
+sub skipifcomplete
+{
+  my $copy= $vline;
+
+  $copy =~ s/$QUOT//go;
+  if( $copy =~ /;/ ) {
+    # $vline =~ s/^(?:|$STUFF);//o;
+#    print "skipifcomplete: complete\n";
+    $vline =~ s/^[^;"']+//;
+    while( $vline !~ /^;/ ) {
+      $vline =~ s/^$QUOT//o;
+      $vline =~ s/^'?[^;"']*//;
+#      print "skipifcomplete: length ", length($vline), "\n";
+    }
+    return 1;
+  }
+  return 0;
+}
+
+
 # Read generic or port declaration list.  Nested parentheses are tracked.
 # Documentation comments are assigned to individual ports or generics.  Before
 # returning, the doc comment variables are cleared to avoid reuse at the end of
@@ -1310,7 +1336,7 @@ sub readportlist
   while( 13 ) {
     while( 13 ) {
       if( $vline =~ /;|\)/ ) {
-        $parentest =~ s/$STR//g;
+        $parentest =~ s/$QUOT//g;
         while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
         last if $parentest =~ s/^[^();]*[;)]//;
       }
@@ -1369,7 +1395,7 @@ sub readarglist
   while( 13 ) {
     while( 13 ) {
       if( $vline =~ /;|\)/ ) {
-        $parentest =~ s/$STR//g;
+        $parentest =~ s/$QUOT//g;
         while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
         last if $parentest =~ s/^[^();]*[;)]//;
       }
@@ -1417,7 +1443,7 @@ sub readcommalist
   while( 13 ) {
     while( 13 ) {
       if( $vline =~ /,|\)/ ) {
-        $parentest =~ s/$STR//g;
+        $parentest =~ s/$QUOT//g;
         while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
         last if $parentest =~ s/^[^(),]*[,)]//;
       }
@@ -1674,24 +1700,31 @@ sub parsefile
       @newentries= map +{ "type", "library", "name", $_ }, split(/\s*,\s*/, $1);
     }
     elsif( $vline =~ /^for\s+$ID/io ) {
-      if( $vline =~ s/^for\s+($IDLIST)\s*:\s*($ID)\s*([^\s])/$3/io ) {
-        $newchild= { "type", "for", "subtype", "instance", "objtype", $2,
-                                       "objnames", [split(/\s*,\s*/, $1)] };
-        unless( $inconfiguration ) {
-          @newentries= ( $newchild );
-          undef $newchild;
+      while( 13 ) {
+        if( $vline =~ s/^for\b$MSTUFF\bloop\b//iox ) {
+          $newchild= { "type", "loop", "name", undef, "subtype", "for" };
+          # duplicate of loop above
         }
-        $doccomment .= $aheaddoccom;
-        $keepdoccom ||= $keepaheaddoc;
-        $aheaddoccom= "";
-      }
-      elsif( $vline =~ s/^for\s+($ID)\s*([^\s,:])/$2/io ) {
-        $newchild= { "type", "for", "subtype", "architecture", "objname", $1 };
-      }
-      elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {}
-      else {
-        $readahead= 1;
-        next;
+        elsif( $vline =~ s/^for\s+($IDLIST)\s*:\s*($ID)\s*([^\s])/$3/io ) {
+          $newchild= { "type", "for", "subtype", "instance", "objtype", $2,
+                                         "objnames", [split(/\s*,\s*/, $1)] };
+          unless( $inconfiguration ) {
+            @newentries= ( $newchild );
+            undef $newchild;
+          }
+          $doccomment .= $aheaddoccom;
+          $keepdoccom ||= $keepaheaddoc;
+          $aheaddoccom= "";
+        }
+        elsif( $vline =~ s/^for\s+($ID)\s*([^\s,:])/$2/io ) {
+          $newchild= { "type", "for", "subtype", "architecture", "objname", $1 };
+        }
+        elsif( $vline =~ s/^(?:|$MSTUFF)\s*;// ) {}
+        else {
+          getnextline(1) or goto done;
+          next;
+        }
+        last;
       }
     }
     elsif( $vline =~ s/^use\s+(?:(entity)\s+($SID)(?:\s*\(\s*($ID)\s*\))?|
@@ -1774,7 +1807,7 @@ sub parsefile
     elsif( $vline =~ s/^elsif\b$MSTUFF\bthen\b//i || 
            $vline =~ s/^(?:else|begin|is)\b//i || 
            $vline =~ s/^when\b$MSTUFF=>//i ) {}
-    elsif( $vline =~ /;/ && $vline =~ s/^(?:|$MSTUFF);// ) {
+    elsif( $vline =~ /;/ && $vline =~ s/^(?:|$STUFF);//o ) {
       # Ignore ordinary statements and their documentation
     }
     else {      # get new source line if nothing matches
