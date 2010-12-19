@@ -1114,7 +1114,8 @@ support for multiple libraries and for configurations) could not be tested as
 thoroughly as its more frequenly used features.  If something breaks there, I
 would also be interested in your design, or even better a simple test case.
 
-Instantiations without a port map are not supported.
+Instantiations without either a port map or a generic map are not supported.
+Positional association for generic maps is not supported.
 
 Records and unit declarations are recognised but not documented in detail.
 
@@ -1302,7 +1303,7 @@ sub skipstatement
       chomp $vline;
       $vline =~ s/^($MANY)(--.*)$/$1/;
       $comment= $2;
-      if( $vline =~ s/^$STUFF;// ) {
+      if( $vline =~ s/^(?:|$STUFF);// ) {
         $vline .= $comment if $vline !~ /^\s*$/ && defined($comment);
         return;
       }
@@ -1524,7 +1525,7 @@ vhdlline:
 
     $vline =~ s/^\s+//;
     next unless $vline;
-#      print "investigating $vline\n";
+#    print "investigating $vline\n";
     if( $vline =~ /^end(?:\s+($ID))?(?:\s+($ID|$OP))?\s*;/io ) {
       if( !@parsestack ) {
         $errflag= 1;
@@ -1578,10 +1579,10 @@ vhdlline:
         if( $vline =~ s/^\s*(is\b|;|\(|\S)//i ) {
           if( $1 eq "(" && !$parlist ) {
             $parlist= readarglist($params);
-            redo;
+            redo;       # now search for "is" or ";"
           }
-          elsif( $1 eq "is" || $1 eq ";" ) {
-            $is= $1 eq "is";
+          elsif( lc($1) eq "is" || $1 eq ";" ) {
+            $is= $1 ne ";";
             last;
           }
           else {          # try to restart parsing
@@ -1606,9 +1607,9 @@ vhdlline:
         if( $vline =~ s/^\s*(return\b|\(|\S)//i ) {
           if( $1 eq "(" && !$parlist ) {
             $parlist= readarglist($params);
-            redo;
+            redo;       # now search for "return"
           }
-          elsif( $1 eq "return" ) {
+          elsif( lc($1) eq "return" ) {
             last;
           }
           else {          # try to restart parsing
@@ -1797,17 +1798,21 @@ vhdlline:
     elsif( $vline =~ s/^(generic|port)\s*\(//io ) {
       @newentries= readportlist(lc($1));
     }
-    elsif( $vline =~ /:/ &&
-      $vline =~ s/^($ID)\s*:\s*(?:(component|configuration|entity)\s+)?
-      ($SID)(?:\s*\(\s*($ID)\s*\))?\s*(generic|port)\s+map\s*\(//iox ) {
-      my $genmap= [];
-      @newentries= ( { "type", "instance", "name", $1, "objname", $3,
-                          "subtype", lc($2 || "component"), "archname", $4,
-                          "genericmap", $genmap, "uses",
-                      [ @parsestack ? @{$parsestack[-1]->{"uses"}} : () ] } );
-      $newentries[0]->{"objname"} =~ s/\s+//g;
-      readcommalist($genmap) if $5 eq "generic";
-      skipstatement();        # skip to end of port map
+    elsif( $vline =~ /^$ID\s*:\s*$SID/
+           && $vline !~ /^$ID\s*:\s*(?:if|for|block|case|while|for|
+              (?:postponed)?process|component|configuration|entity)\b/iox ) {
+      if( readuntil( qr/\bmap\s*\(/i ) &&
+          $vline =~ s/^($ID)\s*:\s*(?:(component|configuration|entity)\s+)?
+            ($SID)(?:\s*\(\s*($ID)\s*\))?\s*(generic|port)\s+map\s*\(//iox ) {
+        my $genmap= [];
+        @newentries= ( { "type", "instance", "name", $1, "objname", $3,
+                            "subtype", lc($2 || "component"), "archname", $4,
+                            "genericmap", $genmap, "uses",
+                        [ @parsestack ? @{$parsestack[-1]->{"uses"}} : () ] } );
+        $newentries[0]->{"objname"} =~ s/\s+//g;
+        readcommalist($genmap) if $5 eq "generic";
+      }
+      skipstatement();     # skip to end of port map or skip unknown statement
     }
     elsif( $vline =~ s/^(?:else|begin|is)\b//i ) {}
     elsif( $vline =~ s/^elsif\b//i ) {
@@ -1824,7 +1829,7 @@ vhdlline:
         architecture|configuration|procedure|pure|impure|function|if|case|
         (?:postponed)?process|library|type|subtype|while|for|use|generic|port|
         attribute|constant|elsif|else|begin|is|when)\b/ix
-           && $vline !~ /^($ID)\s*:\s*(?:if|for|block|case|while|for|
+           && $vline !~ /^$ID\s*:\s*(?:if|for|block|case|while|for|
               (?:postponed)?process|component|configuration|entity)\b/iox )
     {
       # This VHDL statement will never match elsewhere even if we add more
