@@ -1199,8 +1199,6 @@ sub parsedoccom
 }
 
 
-{   # Start of scope of parsing variables
-
 # VHDL identifier:
 my $ID= qr/\b[a-zA-Z](?:\w*[a-zA-Z0-9])?\b/;
 # List of identifiers for variable, signal and other declarations:
@@ -1221,16 +1219,35 @@ my $AILIST= qr/$AI(?:\s*,\s*$AI)*/o;
 # Quoted strings and chars (or bit vectors and bits) have to be treated
 # separately:
 my $QUOT= qr/"[^"\n]*"|'[^'\n]'/;
+# Quoted strings or chars or single apostrophe:
+my $QUOTA= qr/"[^"\n]*"|'[^'\n]'|'/;
 # A non-empty expression without a semicolon:
-my $STUFF= qr/(?:$QUOT|[^;"])[^;"']*(?:(?:$QUOT|')[^;"']*)*/o;
+my $STUFF= qr/(?:$QUOT|[^;"])[^;"']*(?:$QUOTA[^;"']*)*/o;
 # Same, but not greedy:
-my $MSTUFF= qr/(?:$QUOT|[^;"])[^;"']*?(?:(?:$QUOT|')[^;"']*?)*?/o;
+my $MSTUFF= qr/(?:$QUOT|[^;"])[^;"']*?(?:$QUOTA[^;"']*?)*?/o;
 # Possibly empty expression containing anything at all, with matched quotes (if
 # any):
-my $ANY= qr/[^"']*(?:(?:$QUOT|')[^"']*)*/o;
+my $ANY= qr/[^"']*(?:$QUOTA[^"']*)*/o;
 # Same, but not greedy:
-my $MANY= qr/[^"']*?(?:(?:$QUOT|')[^"']*?)*?/o;
+my $MANY= qr/[^"']*?(?:$QUOTA[^"']*?)*?/o;
+# Possibly nested parenthetical expression:
+my $PAREN;
+# This needs Perl 5.10:
+eval { $PAREN= qr/(\([^()"']*(?:(?:(?-1)|$QUOTA)[^()"']*)*\))/o; };
+if( $@ ) {      # fallback for older Perls
+  use re 'eval';
+  $PAREN= qr/\([^()"']*(?:(?:(??{$PAREN})|$QUOTA)[^()"']*)*\)/o;
+  print "" if "foo" =~ /$PAREN/;
+};
+# Code containing no parentheses outside quotes: (currently unused)
+# my $NOPAREN= qr/[^()"']*(?:$QUOTA[^()"']*)*/o;
+# Entry in a comma-separated list, accounting for quotes and parentheses:
+my $COMMAENTRY= qr/[^,()"']*(?:(?:$PAREN|$QUOTA)[^,()"']*)*/o;
+# Same for semicolon-separated list:
+my $SEMIENTRY= qr/[^;()"']*(?:(?:$PAREN|$QUOTA)[^;()"']*)*/o;
 
+
+{   # Start of scope of parsing variables
 
 my $vhandle;
 my $vline;
@@ -1338,16 +1355,14 @@ sub readportlist
 {
   my ($type)= @_;
   my $defdir= $type eq "port" ? "in" : "";
-  my ($parentest, @ports);
+  my ($port, @ports);
 
-  $parentest= $vline;
   while( 13 ) {
+    $port= "";
     while( 13 ) {
-      if( $vline =~ /;|\)/ ) {
-        $parentest =~ s/$QUOT//g;
-        while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
-        last if $parentest =~ s/^[^();]*[;)]//;
-      }
+      $vline =~ s/^($SEMIENTRY)//o or print "no match: $vline\n";
+      $port .= $1;
+      last if $vline =~ /^[;)]/;
       my $new= <$vhandle>;
       return unless defined($new);
       $new =~ s/^\s*//;
@@ -1359,13 +1374,8 @@ sub readportlist
       }
       chomp $new;
       $vline .= " " . $new;
-      $parentest .= " " . $new;
-      chomp $vline;
     }
-    my $port= substr($vline, 0, length($vline)-length($parentest));
-    $vline= substr($vline, length($vline)-length($parentest));
-    last if $port =~ /^\s*\)/;
-    $port =~ s/([;)])$//;
+    $vline =~ s/^([;)])//;
     my $delimiter= $1;
     if( $port =~ /^\s*($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
                                   ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
@@ -1396,30 +1406,23 @@ sub readportlist
 sub readarglist
 {
   my ($list)= @_;
-  my ($parentest, $allargs);
+  my ($arg, $allargs);
 
   $allargs= "";
-  $parentest= $vline;
   while( 13 ) {
+    $arg= "";
     while( 13 ) {
-      if( $vline =~ /;|\)/ ) {
-        $parentest =~ s/$QUOT//g;
-        while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
-        last if $parentest =~ s/^[^();]*[;)]//;
-      }
+      $vline =~ s/^($SEMIENTRY)//o;
+      $arg .= $1;
+      last if $vline =~ /^[;)]/;
       my $new= <$vhandle>;
       return undef unless defined($new);
       chomp $new;
       $new =~ s/^($MANY)--.*$/$1/;
       $vline .= " " . $new;
-      $parentest .= " " . $new;
-      chomp $vline;
     }
-    my $arg= substr($vline, 0, length($vline)-length($parentest));
-    $vline= substr($vline, length($vline)-length($parentest));
-    last if $arg =~ /^\s*\)/;
     $allargs .= $arg;
-    $arg =~ s/([;)])$//;
+    $vline =~ s/^([;)])//;
     my $delimiter= $1;
     if( $list ) {
       $arg =~ /^\s*(?:(constant|signal|variable|file)\s+)?($IDLIST)\s*:\s*
@@ -1430,8 +1433,8 @@ sub readarglist
             "direction", lc($3 || ""), "value", $5 }, split(/\s*,\s*/, $2));
     }
     last if $delimiter eq ")";
+    $allargs .= ";";
   }
-  $allargs =~ s/\)$//;
   return $allargs;
 }
 
@@ -1444,30 +1447,23 @@ sub readarglist
 sub readcommalist
 {
   my ($map)= @_;
-  my ($parentest, $allentries);
+  my ($entry, $allentries);
 
   $allentries= "";
-  $parentest= $vline;
   while( 13 ) {
+    $entry= "";
     while( 13 ) {
-      if( $vline =~ /,|\)/ ) {
-        $parentest =~ s/$QUOT//g;
-        while( $parentest =~ s/^([^)]*)\([^()]*\)/$1/ ) {}
-        last if $parentest =~ s/^[^(),]*[,)]//;
-      }
+      $vline =~ s/^($COMMAENTRY)//o;
+      $entry .= $1;
+      last if $vline =~ /^[,)]/;
       my $new= <$vhandle>;
       return undef unless defined($new);
       chomp $new;
       $new =~ s/^($MANY)--.*$/$1/;
       $vline .= " " . $new;
-      $parentest .= " " . $new;
-      chomp $vline;
     }
-    my $entry= substr($vline, 0, length($vline)-length($parentest));
-    $vline= substr($vline, length($vline)-length($parentest));
-    last if $entry =~ /^\s*\)/;
     $allentries .= $entry;
-    $entry =~ s/([,)])$//;
+    $vline =~ s/^([,)])//;
     my $delimiter= $1;
     if( $map && $entry =~ /^\s*($ID)\s*=>(.*)$/io ) {
       my ($key, $val)= ($1, $2);
@@ -1476,8 +1472,8 @@ sub readcommalist
       push @$map, [ $key, $val ];
     }
     last if $delimiter eq ")";
+    $allentries .= ",";
   }
-  $allentries =~ s/\)$//;
   return $allentries;
 }
 
