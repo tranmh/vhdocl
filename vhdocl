@@ -254,16 +254,16 @@ sub parseargv
 }
 
 
-# Parse one option or input file from an array.  The function dies if an
-# illegal option was given.
+# Parse one option or input file from an array.  The parsed option (and
+# possibly its argument) is removed from the array.  A parsed option is entered
+# into %config, an input file name generates a new entry in the file list.
+# Hashes representing files have the entries "type" (= "file"), "name" (the
+# file name) and "libname" (the library name).
 # -> Reference to array containing options, their arguments and input files
 #    Reference to array containing references to hashes representing input
 #    files
-# <- 1 if something could be parsed, 0 if an argument is missing.  The parsed
-#    option (and possibly its argument) is removed from the array.  A parsed
-#    option is entered into %config, an input file name generates a new entry
-#    in the file list.  Hashes representing files have the entries "type" (=
-#    "file"), "name" (the file name) and "libname" (the library name).
+# <- 1 if something could be parsed, 0 if an argument is missing or the option
+#    was "-" (read from stdin).
 sub parseopt
 {
   my ($arglist, $filelist)= @_;
@@ -364,6 +364,7 @@ sub parseopt
     my ($fname)= grep -f, glob("$nextarg.[vV][hH][dD]{,[lL]}");
     push @$filelist, { "type", "file", "name", $fname || $nextarg,
                         "libname", $config{"curlib"} };
+    return 1;
   }
   else {
     push @$filelist, { "type", "file", "name", $nextarg,
