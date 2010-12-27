@@ -1,0 +1,553 @@
+
+=pod
+
+=head1 NAME
+
+vhdocl - a VHDL documentation and structure examination utility
+
+
+=head1 SYNOPSIS
+
+B<vhdocl> [options] E<lt>input files...E<gt> [ [-l E<lt>libraryE<gt>] E<lt>input files...E<gt>]
+
+print_filenames | B<vhdocl> [options] -
+
+B<vhdocl> [-f] E<lt>config.vhdoclE<gt>
+
+
+=head1 DESCRIPTION
+
+VHDocL is the pendant of doxygen, kdoc or javadoc for the hardware description
+language VHDL.  It generates a set of interlinked HTML pages from a hardware
+design.  Specially formatted comments in the VHDL code are read and
+incorporated into the HTML pages (see L</MARKUP LANGUAGE> below).  For
+undocumented designs, VHDocL can still help understanding by making the
+structure of the design apparent.
+
+An HTML page is generated for every entity, architecture, configuration and
+package or package body.  Documented items include processes, instantiations,
+ports, generic constants, component declarations, function and procedure
+declarations.  Instances are bound to their matching entity and hyperlinked to
+its HTML page.  See L</OUTPUT> below for more information on VHDocL's output.
+
+Besides, VHDocL creates a global list of entities (with their architectures and
+configurations) and packages and an instantiation hierarchy.  The hierarchy
+results from the bindings of instantiations of components, entities and
+configurations within architectures or configurations.  VHDocL takes for...use
+statements, configurations and default bindings of components into account when
+determining bindings of component instantiations.  Nested configurations (ie
+configurations which configure sub-instances within instantiated modules) are
+also supported.
+
+VHDocL is not a VHDL syntax checker.  It tries to be as tolerant as possible
+regarding coding style and as a consequence may occasionally accept incorrect
+VHDL.  Usually, however, incorrect code will cause it to fail without any
+useful error message.  VHDocL parses its input using regular expressions
+designed to match those elements of VHDL which are relevant to its task and
+will simply ignore what it does not recognise.
+
+
+=head1 OPTIONS
+
+=over
+
+=item B<-c> I<pixels>, B<--cellpadding>=I<pixels>
+
+Cell padding of HTML tables, in pixels.  This determines the spacing in almost
+all lists in the output.  The default value is 3 pixels.
+
+=item B<-f> I<file.vhdocl>, B<--configfile>=I<file.vhdocl>
+
+Tells VHDocL to interrupt command line argument processing and to read options
+and input file names from the given configuration file.  If given, this will
+usually be the only option (but need not be).  Processing of command-line
+arguments will resume after the config file has been read.  See
+L</CONFIGURATION FILE> below for the configuration file's format.
+
+=item B<-h>, B<--help>
+
+Print brief usage message and the most important command-line options, then
+exit.  No processing will be done if this option is encountered.
+
+=item B<-i> I<pixels>, B<--indentation>=I<pixels>
+
+Indentation of nested lists in the HTML output.  Default: 50 pixels.
+
+=item B<--leftlogo>=I<image>
+
+File name or URL of an image to put in the top left of every HTML page
+generated.  Intended for institute or company logos.  
+
+=item B<-l> I<libname>, B<--library>=I<libname>
+
+Indicates that the following source files belong to the VHDL design library
+<libname>.  This will affect how components are bound.  The default library is
+"work".  All file names given before the first (or in the absence of any)
+library option are assigned to it.
+
+=item B<-m>, B<--compatibility>
+
+Vhdldoc compatibility mode.  DON'T USE this option when writing new
+documentation.
+
+=item B<-o> I<path>, B<--outputdir>=I<path>
+
+Set the output directory.  It (and the required subdirectories) will be
+created if it does not yet exist.  The default output directory is "doc".
+
+=item B<--parsedebug>
+
+Switch on debugging of the VHDL parser.  Prints out every declarative item
+found, and whether entering or returning from a nested block.  Only of interest
+to the author.
+
+=item B<-p> I<word>, B<--prefix>=I<word>
+
+Set a prefix for all HTML file names generated in this run.  This allows to
+generate documentation of several unrelated designs in the same output
+directory without interference.
+
+=item B<-q>, B<--quiet>
+
+Do not output what VHDocL is doing.  Parsing errors will still be reported,
+though less verbosely than they would normally.
+
+=item B<--rightlogo>=I<image>
+
+File name or URL of an image to put in the top right of every HTML page
+generated.  Intended for institute or company logos.  
+
+=item B<--stylesheet>=I<stylefile.css>
+
+File name or URL of a CSS stylesheet to reference in the headers of all
+generated HTML files.  This allows the user to influence the appearance of the
+generated HTML.
+
+=item B<--title>
+
+Title string to be printed at the top of every documentation file.  Intended
+to contain a brief description of the purpose of the design documented.
+
+=item B<--toplink>=[I<text|>]I<file.html>
+
+Gives a hyperlink to appear in the navigation bar of all generated HTML files.
+Intended for "interfacing" with other local documentation of which the
+generated design docs are part.  If present, the text before the vertical bar
+is used for the text of the hyperlink reference.  Be aware that your shell may
+try to interpret the vertical bar and escape it if necessary.
+
+=item B<--version>
+
+Print version of VHDocL and exit.  No processing will be done if this option is
+encountered.
+
+=back
+
+Long options may be abbreviated.  Boolean-valued short options can be negated
+by replacing the "-" by a "+", long options by prepending "no" to the option
+name.  Options other than the -l/--library option can be mixed freely with
+input file names.  If the same option occurs several times, the last occurrence
+overrides the others.
+
+
+=head1 USAGE
+
+The most immediately obvious way to use VHDocL is by giving the source files to
+be parsed on the command line, like this:
+
+    vhdocl submodule1.vhd topmodule.vhd submodule2.vhd
+
+This will cause VHDocL to read the VHDL files, create the default output
+directory "doc" and some subdirectories and generate HTML pages in these
+directories.  The file extension .vhd/.vhdl may be omitted when specifying
+source files.
+
+It is not necessary to tell VHDocL every single source file name.  If all your
+design files are located in a single directory, it is sufficient to say:
+
+    vhdocl .
+
+(Assuming you are currently in that directory.)  VHDocL will then process all
+files with the extension .vhd or .vhdl in that directory, though not in
+subdirectories.  If you want to process all VHDL files in a directory tree
+without manually making a list, you could do the following:
+
+    find . -iname \*.vhd | vhdocl -
+
+(Assuming all your source files have the extension .vhd rather than .vhdl.)
+The argument "-" causes VHDocL to interrupt command-line processing and read
+arguments from standard input.
+
+It is not necessary to tell VHDocL which of the source files contains the top
+module, as it will automatically resolve instantiations and treat those modules
+which are instantiated nowhere as top modules.  (So unless you omit testbench
+files from the source file list, they will be regarded as top modules.)
+
+Arguments to VHDocL, both options and input file names, can be given in three
+ways: on the command line, on standard input and in the configuration file (see
+below).  These three possibilities can in principle be intermixed freely
+(though in how far that is a good idea is a different matter).  Parsing of
+command-line arguments will resume after parsing a configuration file or
+standard input, and parsing of the remainder of a config file will continue
+after parsing an included configuration file.
+
+Assuming your design comprises two design libraries, work and play, and you are
+currently in the directory of the play library, which does not have any
+subdirectories and is located beside the directory containing the work library,
+you can generate documentation with:
+
+    find ../work -iname \*.vhd | vhdocl - -l play .
+
+VHDocL will read all file names found by C<find> from standard input and assign
+them to the default library work.  Then it encounters the library option and
+the directory ".".  It finds all VHDL files in this directory and assigns them
+to the library play.
+
+
+=head1 CONFIGURATION FILE
+
+Instead of on the command line, VHDocL options and input files can be given in
+a configuration file.  This allows VHDocL's arguments to be saved as part of a
+design project.  A configuration file to be read is specified with the B<-f>
+option.  As a special case, if only one file name is specified on VHDocL's
+command line and if that file has the extension .vhdocl, this is taken to be a
+configuration file not a source file.
+
+The configuration file is a plain text file containing VHDocL options, input
+files and possibly comments.  An option is specified by the option name, which
+is identical to the long command line option without the "--", an optional
+equals sign and its value.
+
+Boolean-valued options can be specified by just giving their name or its
+negated form.  Otherwise they may only have the values "1", "on", "yes",
+"true", "0", "off", "no" or "false" (case insensitive).  The option
+"configfile" serves as an include directive.
+
+Input files and directories are specified like options, with "input" instead of
+the option name.  File names are taken relative to the location of the
+configuration file.  (So are the arguments of options like "outputdir",
+"stylesheet" etc.)  Multiple "input"s are allowed, as are several files per
+"input", separated by spaces.  File  names containing any of *?[]{}~ are
+interpreted as glob patterns for searching for source files (but not
+directories).  File names which contain any of these characters or white space
+can be specified by replacing them by "?".  As on the command line, the source
+files are assigned to the library given with the latest "library" option, or
+the work library if no "library" option was encountered.
+
+The configuration file is line-oriented.  Every option or input file
+specification has to be contained in a single line.  However, lines may be
+continued in the following text line by putting a backslash at the end of the
+previous line.  The backslash may be followed by white space and a comment.
+Comments start with the "#" character and extend up to the end of the text
+line.
+
+A configuration file could for example look like this:
+
+    ######################################################
+    #  Contrived VHDocL config file for non-existent design
+    ######################################################
+    
+    quiet= true
+    noparsedebug
+    leftlogo= http://www.bigbucks.inc.biz/logo.png
+  
+    # These go into library work:
+    input topmodule.vhd submodule1.vhd \  # comment allowed here
+          submodule2.vhd
+    
+    library play
+    input= fun.vhd songndance.vhd
+
+As on the command line, directories may be given instead of files, and all VHDL
+files in those directories will be parsed.  The special input file "-" for
+reading file names from standard input is not allowed in config files.
+
+
+=head1 MARKUP LANGUAGE
+
+Though VHDocL helps to understand undocumented designs, its primary purpose is
+as a documentation tool.  Most VHDL declarative items can have a description
+associated with them, which will be printed in the relevant HTML page.  These
+descriptions are given in comments in the VHDL code which start with --*
+instead of --.  They have to directly precede the declarative item to which
+they refer or be located on the same line.  Documentation comments preceding
+statements or declarations which are not documented are discarded.  Empty lines
+(just --* and white space) serve to separate paragraphs in the documentation
+text.
+
+Here is an example:
+
+    --* This process defines an up-counter.  This would not normally warrant
+    --* much of a description, but this is to demonstrate that VHDocL
+    --* documentation comments can extend over several comment lines.
+    --*
+    --* Here is an equally contrived second paragraph, again designed to show
+    --* how to write documentation for VHDocL.
+    upctr : process( reset, clk ) is
+    begin
+      if reset = '1' then
+        count <= (others => '0');
+      elsif rising_edge(clk) then
+        count <= std_logic_vector(unsigned(count) + 1);
+      end if;
+    end process upctr;
+
+To prevent separators from being misinterpreted as documentation, --* may not
+be immediately followed by a further "*", or the comment will be ignored.  If
+you want to create a separator in the documentation, insert a space between --*
+and the row of asterisks.
+
+The description text in the documentation comments can contain certain HTML
+tags.  The original plan was to allow just any tags, but certain people I<have>
+to use < and > for other purposes...  The following tags are allowed without
+attributes: C<b>, C<i>, C<tt>, C<u>, C<big>, C<small>, C<sub>, C<sup>, C<em>,
+C<strong>, C<code>, C<var>, C<ul>, C<ol>, C<li>, C<br>, C<center>, C<pre>,
+C<table>, C<tr>, C<td>, and C<th>.  The tags C<a>, C<span> and C<img> are
+allowed with attributes.  Note that the URLs in the C<a> and C<img> tags will
+not be transformed in any way, so they have to be either an absolute URL or a
+path relative to the future location of the documentation HTML file in which
+they will appear.
+
+For instance, the C<pre> tag can be used to create ASCII graphics:
+
+    --* This entity represents an adder tree with four inputs:
+    --*
+    --* <pre>
+    --*           +
+    --*      ,---' `--.
+    --*     +          `+
+    --*    / \         / \
+    --* in1   in2   in3   in4
+    --* </pre>
+    
+    entity adder4 is
+      port (
+        --+ Inputs to be added up
+        in1    : in std_logic_vector(7 downto 0);
+        in2    : in std_logic_vector(7 downto 0);
+        in3    : in std_logic_vector(7 downto 0);
+        in4    : in std_logic_vector(7 downto 0);
+        --* Output giving the addition result.  This is two bits wider than the
+        --* inputs to avoid overflow.
+        result : out std_logic_vector(9 downto 0)
+      );
+    end entity adder4;
+
+The example demonstrates another feature of VHDocL:  If a documentation comment
+starts with --+ instead of --*, the given description is added not just to the
+following declaration, but to all following declarations of the same type
+(ports in this case), until a different description is encountered.  --+ is
+intended and will work only for "simple" declarations such as ports, constants
+and so on, not for declarations like processes or functions which are followed
+by a block of code.  Analogously as --*, --+ may not be immediately followed by
+a further "+".
+
+This brings us to the question which declarations can be documented.  First,
+the "big five" top-level declarations (entities, architectures, configurations,
+packages and package bodies) can have descriptions.  (They, and only they, may
+contain special markup codes described below.)  So can ports, generics,
+library and use statements.  Within architectures and packages, constants,
+functions, procedures and component declarations can be documented.  Likewise
+generate and block statements, processes and instantiations inside
+architectures and for ...  use statements in architectures and configurations.
+Local declarations of constants, functions etc. within other functions,
+generate statements of similar declarations with their own declarative part
+cannot be documented and will not be output to the generated HTML pages.  See
+L</OUTPUT> below for a description of what VHDocL generates.
+
+The description of entities, architectures, configurations, packages and
+package bodies can contain the following markup codes, which are similar to
+vhdldoc, kdoc and javadoc.  Their arguments extend up to the next empty line or
+the next markup code.  Markup codes have to be preceded by white space or the
+beginning of a line, so e-mail addresses can be given without risk of
+misinterpretation.
+
+=over
+
+=item B<@author> I<name>, ...
+
+Author or list of authors separated by commas.  May occur several times.
+
+=item B<@brief> I<description>
+
+Brief description to be printed at the top of the item's HTML page and in the
+global lists.
+
+=item B<@date> I<date>
+
+Modification date of this item.
+
+=item B<@deprecated>
+
+Causes the word "deprecated" to be printed in the top region of the item's HTML
+file.
+
+=item B<@id> I<ID>
+
+ID of the item.
+
+=item B<@internal>
+
+Causes the word "internal" to be printed in the top region of the item's HTML
+file.
+
+=item B<@see> I<reference1>, I<reference2>, ...
+
+Cross reference.  This markup code may occur several times, and every time
+multiple cross references may be given separated by commas.  If the reference
+is the name of an entity, architecture, configuration or package, the reference
+will be hyperlinked to its HTML page.
+
+=item B<@short> I<description>
+
+Brief description to be printed at the top of the item's HTML page and in the
+global lists.  Don't use both @short and @brief for the same item.  In places
+where only one of these two can be used (such as the entity list), @brief takes
+precedence.
+
+=item B<@version> I<version>
+
+Version information.
+
+=back
+
+
+@date, @id and @version tally nicely with keywords automatically substituted by
+revision management systems such as Subversion
+(L<http://subversion.tigris.org/>).  (@author is a different matter since
+Subversion merely substitutes the author who did the last commit.)  If you use
+Subversion, you can enable keyword substitution for your VHDL file with the
+following command:
+
+    svn propset svn:keywords "Date Id Rev" source.vhd
+
+You can then write in the description of an entity:
+
+    --* @date $Date$
+    --* @id $Id$
+    --* @version $Rev$
+
+The date, ID and version number of the last change to source.vhd will then be
+inserted into the documentation comments by Subversion.  VHDocL strips the
+Subversion keywords and dollar signs, leaving only the information substituted
+by Subversion.  This is in fact done for all Subversion keywords in all
+documentation comments, so you may also use them in your documentation text if
+you like.  Note that VHDocL descriptions relate to an entity or an architecture
+(or other declarative item), whereas Subversion keywords relate to files.  So a
+changed date does not necessarily mean that something changed in the entity
+declaration.  But if you have a separate file for each entity/architecture and
+package/package body pair, having Subversion data in their description is still
+meaningful.
+
+
+=head1 OUTPUT
+
+VHDocL generates four top-level documentation pages which are located in the
+output directory: A list of entities (with their architectures and
+configurations), a list of packages, an instantiation overview and an
+instantiation hierarchy.  They are named entities.html, packages.html,
+instantiations.html and hierarchy.html, possibly preceded by the prefix.  The
+difference between the instantiation overview and hierarchy is that the
+overview merely shows the first-level instantiations in each architecture and
+configuration, while the hierarchy recursively shows all instantiations in
+sub-(sub-...)modules.  Both list every instantiated module only once, even when
+it is instantiated several times.  The hierarchy stops at recursive
+instantiations, if applicable.
+
+There is also an index.html in the output directory which links to the four
+pages mentioned above.  If a top-level URL is given  with the --toplink option,
+this is supposed to replace it, and index.html will not be generated.  The
+top-level declarations listed in the top-level HTML files are hyperlinked to
+the HTML file which describes them in detail, located in the accordingly named
+subdirectory of the output directory.  If a @brief/@short description is
+available, the top-level HTML files display it.
+
+All entities, architectures, configurations, packages and package bodies are
+described in HTML files of their own located in the respective subdirectory.
+(Packages and their package body share the same file.)  It contains their
+description, with special markup codes such as @author displayed prominently
+near the top.  The name of the source file which contains their definition is
+displayed, and the file is hyperlinked.  The top-level library and use clauses
+in that source file are documented.  The documentation of other
+sub-declarations follows.
+
+An entity's HTML page documents its ports and generics and links to the pages
+of their architectures and configurations.  Architecture pages contain all of
+the following as applicable: declarations of functions, procedures, types,
+constants and components, instantiations, processes and generate and block
+statements.  Instantiations are hyperlinked to the instantiated component,
+entity or configuration.  Use statements referring to component instantiations
+are not printed separately, but expressed implicitly in the binding of the
+instances.  Attributes are mentioned in the documentation of the declarative
+items they refer to.  Similarly, generate and block statements are documented
+along with the instantiation or process they enclose.  If they do not contain
+either, they are ignored, like use statements or attributes which refer to
+nothing.
+
+Here is an example of how an instantiation which is inside three nested
+generate statements is documented:
+
+    Comparator : RankCmp
+        Compare centre pixel to each other pixel in the neighbourhood
+        Generic map:
+            DataWidth   => 8
+        Binding: work.RankCmp (combinatorial)
+        This instantiation is inside the following constructs:
+            RankRows : for row in 1 to WindowHeight generate
+            RankCols : for col in 1 to WindowWidth generate
+            SkipCentre : if row /= WindowHeight/2+1 or col /= WindowWidth/2+1 generate
+
+The first line gives the name of the instance and the name of the component,
+which is hyperlinked to its declaration.  This is followed by the instance's
+description and its generic map.  Next, the component's binding is given, with
+links to the appropriate entity and architecture.  Last comes a list of the
+generate statements enclosing this instantiation.  If they had descriptions,
+they would be printed under the generate statement they refer to.
+
+Pages of configurations display the prescribed bindings in a hierarchical
+manner similar to the global instantiation hierarchy.  The use statements are
+hyperlinked to the pages of the selected entities, architectures and/or other
+configurations.
+
+Packages and their package bodies are documented in the same HTML page.  It
+contains the declarations of types, constants, functions, procedures and
+components.
+
+
+=head1 BUGS AND LIMITATIONS
+
+VHDL is acknowledged to be a hard language to parse, and it offers many
+freedoms which lead to large differences in coding style.  VHDocL performs a
+basic parsing of the declarative elements in the input files by trying to
+identify them using regular expressions.  The parsing has now been tested on a
+largish number of designs, most of them not coded by the author.  Still, it is
+possible that your design may be incorrectly parsed.  If so, you can help me
+greatly by sending me a copy of the VHDL file which failed to be parsed.
+
+Purely syntactical issues aside, the more advanced features of VHDocL (such as
+support for multiple libraries and for configurations) could not be tested as
+thoroughly as its more frequenly used features.  If something breaks there, I
+would also be interested in your design, or even better a simple test case.
+
+Instantiations without either a port map or a generic map are not supported.
+Positional association for generic maps is not supported.
+
+Records and unit declarations are recognised but not documented in detail.
+
+Nested declarations, such as functions inside functions, constants inside
+processes, etc. are parsed but not documented.
+
+The home page of VHDocL is L<http://www.volkerschatz.com/hardware/vhdocl.html>.
+Backfeed is welcome to the e-mail vhdocl at that domain.  (Hopefully this
+formulation will defeat the spambots.)
+
+
+=head1 COPYRIGHT
+
+VHDocL is (c) 2007-10 Volker Schatz, with enhancements by Minh Cuong Tran.  It
+is free software and may be redistributed and/or modified under the terms of
+the GNU General Public License, version 3 or later.
+
+=cut
+
+

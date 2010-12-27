@@ -3,6 +3,7 @@
 ver=`grep '^my $version' vhdocl | sed 's/.*"\(.*\)".*/\1/'`
 
 cp vhdocl vhdocl-dist/
+cp pod/vhdocl.pod vhdocl-dist/
 
 rm -f vhdocl-dist/pod2htm?.tmp
 

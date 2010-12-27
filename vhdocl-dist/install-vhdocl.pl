@@ -7,6 +7,10 @@ use Pod::Html;
 
 my $usage= <<EOF;
 usage: install-vhdocl.pl [ -n ] [ DATADIR=<directory> ] [ <installation dir> ]
+-n      No operation - output what would be done, but do nothing
+DATADIR Target directory for style files
+The installation directory is the base directory for the executable and most
+other files.  Use -n to view the individual install paths.
 EOF
 
 sub install
@@ -71,11 +75,12 @@ if( $mandir ) {
 
     my $parser= Pod::Man->new( "stderr" => 1 );
     print "Installing manual page to $mandir...\n";
-    $parser->parse_from_file("vhdocl", "$mandir/vhdocl.1") unless $noop;
+    $parser->parse_from_file("vhdocl.pod", "$mandir/vhdocl.1") unless $noop;
 }
 
 print "Installing HTML manual to $htmldir...\n";
-pod2html("--infile=vhdocl", "--outfile=$htmldir/vhdocl.html") unless $noop;
+pod2html("--infile=vhdocl.pod", "--outfile=$htmldir/vhdocl.html") unless $noop;
+unlink "pod2htmd.tmp", "pod2htmi.tmp" unless $noop;
 
 print "Installing style files to $datadir...\n";
 if( !$noop ) {
