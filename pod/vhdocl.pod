@@ -51,6 +51,11 @@ will simply ignore what it does not recognise.
 
 =over
 
+=item B<--benchmark>
+
+Print how much time B<vhdocl> took for parsing each file and for subsequent
+processing.  Only really useful to the author for identifying hot spots.
+
 =item B<-c> I<pixels>, B<--cellpadding>=I<pixels>
 
 Cell padding of HTML tables, in pixels.  This determines the spacing in almost

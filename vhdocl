@@ -193,6 +193,29 @@ sub croak
 }
 
 
+{
+my $starttime;
+
+sub benchmark
+{
+  my ($msg, $lines)= @_;
+
+  if( !$msg ) {
+    $starttime= [ Time::HiRes::gettimeofday() ];
+  }
+  else {
+    my $secs= Time::HiRes::tv_interval($starttime);
+    my $perline= "";
+    $perline= ", " . sprintf("%g", $secs / $lines) . " s per line"
+        if $lines;
+    $secs= sprintf "%g", $secs;
+    print "Took $secs s $msg$perline.\n";
+  }
+}
+
+}
+
+
 ##############################################################################
 ##############################################################################
 ####                    Command line parsing functions
@@ -207,6 +230,7 @@ my @options= (
 [ "p", "prefix", "w", "prefix" ],
 [ "l", "library", "w", "curlib" ],
 [ "", "parsedebug", "?", "parsedebug" ],
+[ "", "benchmark", "?", "benchmark" ],
 [ "q", "quiet", "?", "quiet" ],
 [ "c", "cellpadding", "#", "cellpadding" ],
 [ "i", "indentation", "#", "indentation" ],
@@ -967,6 +991,7 @@ sub parsefile
   ($vline, $doccomment, $aheaddoccom, $keepdoccom, $keepaheaddoc)= ("") x 5;
   open($vhandle, $fname) or croak "Could not open $fname!  Aborting.";
   print "Parsing $fname...\n" unless $config{"quiet"};
+  benchmark() if $config{"benchmark"};
 vhdlline:
   while( 13 )
   {
@@ -1383,6 +1408,7 @@ skipnext:
     $label= "";
   }
 done:
+  benchmark("to parse", $.) if $config{"benchmark"};
   close $vhandle;
   if( @parsestack ) {
     print STDERR "Not all blocks were closed - missing one or more \"end\"s.\n";
@@ -3668,6 +3694,14 @@ sub sourcelisthtml
 
 my @vhdlfiles= @{parseargv(\@ARGV)};
 
+if( $config{"benchmark"} ) {
+  eval { require Time::HiRes; };
+  if( $@ ) {
+    print STDERR "Module Time::HiRes is required for --benchmark.  Aborting.\n";
+    exit 1;
+  }
+}
+
 $config{"absoutputdir"}= mycanonpath($config{"outputdir"});
 
 if( uniq_files(\@vhdlfiles) ) {
@@ -3702,31 +3736,7 @@ for my $file (@vhdlfiles) {
 
 
 print "Scrunching and twisting everything together...\n" unless $config{"quiet"};
-
-my $t1;
-$t1= [ Time::HiRes::gettimeofday() ];
-sub nextinter
-{
-    my $dt= Time::HiRes::tv_interval($t1);
-    print $_[0] || "Elapsed", ": $dt\n";
-    $t1= [ Time::HiRes::gettimeofday() ];
-}
-my %timers;
-sub addtime
-{
-    my ($name, $op)= @_;
-    if( $op == 0 ) {
-        $timers{$name}->{"start"}= [ Time::HiRes::gettimeofday() ];
-    }
-    elsif( $op == 1 ) {
-        $timers{$name}->{"duration"} += Time::HiRes::tv_interval($timers{$name}->{"start"});
-        ++$timers{$name}->{"intervals"};
-    }
-    elsif( $op == 2 ) {
-        print "Duration for $name: ", $timers{$name}->{"duration"} || 0, "  (",
-                         $timers{$name}->{"intervals"} || 0, " intervals)\n";
-    }
-}
+benchmark() if $config{"benchmark"};
 
 my @entities;
 my @architectures;
@@ -3773,7 +3783,6 @@ for my $lib (keys(%libraries)) {
 
 print STDERR "Warning: Duplicate declarations were discarded.\n" if $duplicate;
 
-nextinter("before entities");
 
 for my $ent (@entities)
 {
@@ -3849,7 +3858,6 @@ for my $ent (@entities)
   $ent->{"docfilename"}= $config{"prefix"} . $ent->{"fullname"} . ".html";
 }
 
-nextinter("after entities");
 
 
 my @orphanedarchs;
@@ -3870,7 +3878,6 @@ for my $arch (@architectures) {
   }
 }
 
-nextinter("after architectures");
 
 
 my @orphanedconfs;
@@ -3949,7 +3956,6 @@ for my $opb (@orphanedpbodies)
   add_selnames($opb->{"fullname"}, @{$opb->{"childtype"}->{"component"}});
 }
 
-nextinter("before instance resolution");
 
 
 # Now take care of locally specified bindings and generic maps of instances.
@@ -3960,9 +3966,7 @@ for my $file (@vhdlfiles)
   for my $useclause (@fuses) {
     next unless $useclause->{"name"} =~ /^([^.\s]+\s*\.\s*[^.\s]+)/;
     my $pack= $1;
-addtime("find_selname", 0);
     $useclause->{"package"}= find_selname($pack, "package", $file->{"libname"});
-addtime("find_selname", 1);
     next unless $useclause->{"package"};
     next if $useclause->{"name"} =~ /\ball$/i;
     $useclause->{"name"} =~ /^$pack\s*\.\s*([^.\s]+)/;
@@ -3974,13 +3978,10 @@ for my $arch (@architectures, @orphanedarchs)
 {
   my @topuses= reverse grep $_->{"subtype"} eq "package", @{$arch->{"uses"}};
   my @comps= @{$arch->{"childtype"}->{"component"} || []};
-addtime("find_selname", 0);
   # Assign default binding to component declarations
   map { $_->{"binding"}= find_selname($_->{"name"}, "entity",
                                       $arch->{"libname"}); } @comps;
-addtime("find_selname", 1);
   my @noncompinsts;
-addtime("component instance binding", 0);
 bindcompinst:
   for my $inst (@{$arch->{"allinstances"}}) {
     if( $inst->{"subtype"} ne "component" ) {
@@ -3994,25 +3995,20 @@ bindcompinst:
     # If there is no matching local component declaration, we have to find
     # one in one of the packages.  If the bare name is unique, we choose that
     # component.
-addtime("find_selname", 0);
     $inst->{"component"}= find_selname($inst->{"objname"}, "component")
         unless $inst->{"component"};
-addtime("find_selname", 1);
     # If not, try selected names according to use clauses.
     if( defined($inst->{"component"}) && $inst->{"component"} == 0 ) {
       for my $useclause (@topuses) {
         my $name= merge_selname($useclause->{"name"}, $inst->{"objname"});
         next unless $name;
-addtime("find_selname", 0);
         $inst->{"component"}= find_selname($name, "component");
-addtime("find_selname", 1);
         last if $inst->{"component"};
       }
     }
     # This procedure has the illogical side effect that an ambiguous component
     # instantiation will be shown as unresolved if no matching use clause is
     # found.
-addtime("uses in hierarchy", 0);
     # Now we tackle binding indications in the blocks enclosing the
     # instantiation.
     for my $use (reverse @{$inst->{"uses"}}) {
@@ -4028,10 +4024,8 @@ addtime("uses in hierarchy", 0);
       push @{$inst->{"binddoc"}}, @{$use->{"doc"}->{"description"}}
                   if $use->{"doc"}->{"description"};
       $inst->{"bindname"}= $use->{"name"};
-addtime("find_selname", 0);
       $inst->{"binding"}= find_selname($use->{"name"},
                               $use->{"subtype"}, $arch->{"libname"});
-addtime("find_selname", 1);
       if( $inst->{"binding"} ) {
         if( $use->{"archname"} ) {
           $inst->{"archname"}= $use->{"archname"};
@@ -4053,7 +4047,6 @@ addtime("find_selname", 1);
       $inst->{"bindgen"}= $use->{"genericmap"};
       next bindcompinst;
     }
-addtime("uses in hierarchy", 1);
     # Without an explicit binding specification we bind to the binding of the
     # matching component declaration, if any.
     if( $inst->{"component"} ) {
@@ -4062,36 +4055,27 @@ addtime("uses in hierarchy", 1);
     # Aaargh... the component is not even declared.  Sloppy designer!  So we
     # resolve the instantiation by name.
     else {
-addtime("find_selname", 0);
       $inst->{"binding"}= find_selname($inst->{"objname"}, "entity",
                                           $arch->{"libname"});
-addtime("find_selname", 1);
     }
     if( $inst->{"binding"} && @{$inst->{"binding"}->{"architectures"}} ) {
       $inst->{"bindarch"}= $inst->{"binding"}->{"architectures"}->[0];
       $inst->{"archname"}= $inst->{"bindarch"}->{"name"};
     }
   }
-addtime("component instance binding", 1);
 
   for my $inst (@noncompinsts) {
-addtime("find_selname", 0);
     $inst->{"binding"}= find_selname($inst->{"objname"}, $inst->{"subtype"});
-addtime("find_selname", 1);
     # If the name is abiguous, go looking in current library and use clauses.
     if( defined($inst->{"binding"}) && $inst->{"binding"} == 0 ) {
-addtime("find_selname", 0);
       $inst->{"binding"}= find_selname($inst->{"objname"}, $inst->{"subtype"},
                                         $arch->{"libname"});
-addtime("find_selname", 1);
       unless( $inst->{"binding"} ) {
 # TODO: do entity and configuration declarations even exist in packages?
         for my $useclause (@topuses) {
           my $name= merge_selname($useclause->{"name"}, $inst->{"name"});
           next unless $name;
-addtime("find_selname", 0);
           $inst->{"binding"}= find_selname($name, $inst->{"subtype"});
-addtime("find_selname", 1);
           last if $inst->{"binding"};
         }
       }
@@ -4115,12 +4099,6 @@ addtime("find_selname", 1);
     }
   }
 }
-
-nextinter("after instance resolution");
-
-addtime("find_selname", 2);
-addtime("component instance binding", 2);
-addtime("uses in hierarchy", 2);
 
 
 # The following data structures represent the instantiation hierarchy.  They
@@ -4193,12 +4171,13 @@ for my $anode (@ahier) {
 
 @hierarchy= sort hier_sort_cmp @hierarchy;
 
-nextinter("done scrunching");
+benchmark("to process") if $config{"benchmark"};
 
 
 # Now generate documentation
 
 print "Generating docs...\n" unless $config{"quiet"};
+benchmark() if $config{"benchmark"};
 
 # Find targets of cross references, if any
 for my $obj (@entities, @architectures, @configurations, @packages,
@@ -4233,4 +4212,8 @@ for my $pack (@packages, @orphanedpbodies) {
 for my $file (@vhdlfiles) {
   sourcehtml($file);
 }
+
+benchmark("to generate HTML") if $config{"benchmark"};
+
+exit 0;
 
