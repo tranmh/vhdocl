@@ -2046,7 +2046,7 @@ sub configure_hierarchy
     if( $node->{"entity"}->{"architectures"}->[0] ) {
       $node->{"architecture"}= $node->{"entity"}->{"architectures"}->[0];
       $node->{"archname"}= $node->{"architecture"}->{"name"};
-      if( my ($anode)= grep_hier($node, @$ahier, 1) ) {
+      if( my ($anode)= grep_hier($node, $ahier, 1) ) {
         $node->{"proxy"}= $anode;
         $anode->{"instantiated"}= 1;
       }
