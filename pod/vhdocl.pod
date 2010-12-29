@@ -28,7 +28,7 @@ An HTML page is generated for every entity, architecture, configuration and
 package or package body.  Documented items include processes, instantiations,
 ports, generic constants, component declarations, function and procedure
 declarations.  Instances are bound to their matching entity and hyperlinked to
-its HTML page.  See L</OUTPUT> below for more information on VHDocL's output.
+its HTML page.  See L</OUTPUT> below for more information on generated files.
 
 Besides, VHDocL creates a global list of entities (with their architectures and
 configurations) and packages and an instantiation hierarchy.  The hierarchy
@@ -62,7 +62,7 @@ Tells VHDocL to interrupt command line argument processing and to read options
 and input file names from the given configuration file.  If given, this will
 usually be the only option (but need not be).  Processing of command-line
 arguments will resume after the config file has been read.  See
-L</CONFIGURATION FILE> below for the configuration file's format.
+L</CONFIGURATION FILE> below for the configuration file format.
 
 =item B<-h>, B<--help>
 
@@ -76,7 +76,8 @@ Indentation of nested lists in the HTML output.  Default: 50 pixels.
 =item B<--leftlogo>=I<image>
 
 File name or URL of an image to put in the top left of every HTML page
-generated.  Intended for institute or company logos.  
+generated.  Intended for institute or company logos.  If this is a file, it
+will be copied to the documentation folder.
 
 =item B<-l> I<libname>, B<--library>=I<libname>
 
@@ -93,7 +94,7 @@ documentation.
 =item B<-o> I<path>, B<--outputdir>=I<path>
 
 Set the output directory.  It (and the required subdirectories) will be
-created if it does not yet exist.  The default output directory is "doc".
+created if it does not yet exist.  The default output directory is "./doc".
 
 =item B<--parsedebug>
 
@@ -115,13 +116,15 @@ though less verbosely than they would normally.
 =item B<--rightlogo>=I<image>
 
 File name or URL of an image to put in the top right of every HTML page
-generated.  Intended for institute or company logos.  
+generated.  Intended for institute or company logos.  If this is a file, it
+will be copied to the documentation folder.
 
 =item B<--stylesheet>=I<stylefile.css>
 
 File name or URL of a CSS stylesheet to reference in the headers of all
 generated HTML files.  This allows the user to influence the appearance of the
-generated HTML.
+generated HTML.  If this is a file, it will be copied to the documentation
+folder.
 
 =item B<--title>
 
@@ -207,10 +210,10 @@ to the library play.
 =head1 CONFIGURATION FILE
 
 Instead of on the command line, VHDocL options and input files can be given in
-a configuration file.  This allows VHDocL's arguments to be saved as part of a
+a configuration file.  This allows these arguments to be saved as part of a
 design project.  A configuration file to be read is specified with the B<-f>
-option.  As a special case, if only one file name is specified on VHDocL's
-command line and if that file has the extension .vhdocl, this is taken to be a
+option.  As a special case, if only one file name is specified on the command
+line and if that file has the extension .vhdocl, this is taken to be a
 configuration file not a source file.
 
 The configuration file is a plain text file containing VHDocL options, input
@@ -219,7 +222,7 @@ is identical to the long command line option without the "--", an optional
 equals sign and its value.
 
 Boolean-valued options can be specified by just giving their name or its
-negated form.  Otherwise they may only have the values "1", "on", "yes",
+negated form ("no...").  If a value is given, it may only be "1", "on", "yes",
 "true", "0", "off", "no" or "false" (case insensitive).  The option
 "configfile" serves as an include directive.
 
@@ -442,23 +445,24 @@ meaningful.
 
 =head1 OUTPUT
 
-VHDocL generates four top-level documentation pages which are located in the
+VHDocL generates five top-level documentation pages which are located in the
 output directory: A list of entities (with their architectures and
-configurations), a list of packages, an instantiation overview and an
-instantiation hierarchy.  They are named entities.html, packages.html,
-instantiations.html and hierarchy.html, possibly preceded by the prefix.  The
-difference between the instantiation overview and hierarchy is that the
-overview merely shows the first-level instantiations in each architecture and
-configuration, while the hierarchy recursively shows all instantiations in
-sub-(sub-...)modules.  Both list every instantiated module only once, even when
-it is instantiated several times.  The hierarchy stops at recursive
+configurations), a list of packages, an instantiation overview, an
+instantiation hierarchy and a list of source files.  They are named
+entities.html, packages.html, instantiations.html, hierarchy.html and
+sources.html, possibly preceded by the prefix.  The difference between the
+instantiation overview and hierarchy is that the overview merely shows the
+first-level instantiations in each architecture and configuration, while the
+hierarchy recursively shows all instantiations in sub-(sub-...)modules.  Both
+list every instantiated module only once, even when it is instantiated several
+times in the same parent module.  The hierarchy stops at recursive
 instantiations, if applicable.
 
-There is also an index.html in the output directory which links to the four
+There is also an index.html in the output directory which links to the five
 pages mentioned above.  If a top-level URL is given  with the --toplink option,
 this is supposed to replace it, and index.html will not be generated.  The
 top-level declarations listed in the top-level HTML files are hyperlinked to
-the HTML file which describes them in detail, located in the accordingly named
+the HTML files which describe them in detail, located in the accordingly named
 subdirectory of the output directory.  If a @brief/@short description is
 available, the top-level HTML files display it.
 
@@ -467,8 +471,8 @@ described in HTML files of their own located in the respective subdirectory.
 (Packages and their package body share the same file.)  It contains their
 description, with special markup codes such as @author displayed prominently
 near the top.  The name of the source file which contains their definition is
-displayed, and the file is hyperlinked.  The top-level library and use clauses
-in that source file are documented.  The documentation of other
+displayed, and the source HTML page is hyperlinked.  The top-level library and
+use clauses in that source file are documented.  The documentation of other
 sub-declarations follows.
 
 An entity's HTML page documents its ports and generics and links to the pages
@@ -512,6 +516,12 @@ configurations.
 Packages and their package bodies are documented in the same HTML page.  It
 contains the declarations of types, constants, functions, procedures and
 components.
+
+Source files are converted to HTML files with syntax highlighting and line
+numbering (thanks to SyntaxHighlighter by Alex Gorbatchev and the VHDL style by
+Minh Cuong Tran).  The source file itself is hyperlinked, so you can edit it by
+clicking on the link if you have the file associations of  your browser set
+accordingly.
 
 
 =head1 BUGS AND LIMITATIONS
