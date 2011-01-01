@@ -649,7 +649,7 @@ sub parsedoccom
       elsif( $line =~ /^\@see\s+(.*)$/is ) {
         push @{$doc{"see"}}, map( [ $_ ], split(/\s*,\s*/, $1));
       }
-      elsif( $line =~ /^\@(deprecated|internal)\b/is ) {
+      elsif( $line =~ /^\@(deprecated|internal|simulation|synthesis|testbench)\b/is ) {
         $doc{$1}= 1;
       }
       elsif( $config{"compat"} && $line =~ /^\@li\s/is ) {
@@ -2530,8 +2530,9 @@ sub printobjhtml
       print $handle $obj->{"filename"}, "</p>\n"
     }
   }
-  print $handle "<p><b>Internal</b></p>\n" if $obj->{"doc"}->{"internal"};
-  print $handle "<p><b>Deprecated</b></p>\n" if $obj->{"doc"}->{"deprecated"};
+  for (qw(synthesis simulation testbench deprecated internal)) {
+    print $handle "<p><b>", ucfirst($_), "</b></p>\n" if $obj->{"doc"}->{$_};
+  }
   print $handle "<p>\n";
   if( $obj->{"doc"}->{"author"} ) {
     $obj->{"doc"}->{"author"} =~ s/,\s*$//;

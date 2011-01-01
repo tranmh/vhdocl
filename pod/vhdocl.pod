@@ -376,28 +376,25 @@ misinterpretation.
 
 Author or list of authors separated by commas.  May occur several times.
 
-=item B<@brief> I<description>
+=item B<@brief> I<description> or B<@short> I<description>
 
 Brief description to be printed at the top of the item's HTML page and in the
-global lists.
+global lists.  Don't use both @short and @brief for the same item.  In places
+where only one of these two can be used (such as the entity list), @brief takes
+precedence.
 
 =item B<@date> I<date>
 
 Modification date of this item.
 
-=item B<@deprecated>
+=item B<@deprecated>, B<@internal>, B<@simulation>, B<@synthesis>, B<@testbench>
 
-Causes the word "deprecated" to be printed in the top region of the item's HTML
+Causes that word to be printed prominently in the top region of the item's HTML
 file.
 
 =item B<@id> I<ID>
 
-ID of the item.
-
-=item B<@internal>
-
-Causes the word "internal" to be printed in the top region of the item's HTML
-file.
+Revision control system ID of the item.
 
 =item B<@see> I<reference1>, I<reference2>, ...
 
@@ -406,16 +403,9 @@ multiple cross references may be given separated by commas.  If the reference
 is the name of an entity, architecture, configuration or package, the reference
 will be hyperlinked to its HTML page.
 
-=item B<@short> I<description>
-
-Brief description to be printed at the top of the item's HTML page and in the
-global lists.  Don't use both @short and @brief for the same item.  In places
-where only one of these two can be used (such as the entity list), @brief takes
-precedence.
-
 =item B<@version> I<version>
 
-Version information.
+Revision of the item.
 
 =back
 
