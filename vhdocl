@@ -830,6 +830,7 @@ sub readportlist
   my ($type)= @_;
   my $defdir= $type eq "port" ? "in" : "";
   my ($port, @ports);
+  my $lastdoccom;
 
   while( 13 ) {
     $port= "";
@@ -853,6 +854,7 @@ sub readportlist
     my $delimiter= $1;
     if( $port =~ /^\s*($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
                                   ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
+      $doccomment ||= $lastdoccom if $keepdoccom;
       my $doc= $doccomment? parsedoccom($doccomment) : undef;
       my @newports= map +{ "type", $type, "name", $_, "doc", $doc,
                               "direction", lc($2 || $defdir), "subtype", $3,
@@ -865,7 +867,8 @@ sub readportlist
       }
     }
     last if $delimiter eq ")";
-    $doccomment= "" unless $keepdoccom;
+    $lastdoccom= $doccomment if $keepdoccom;
+    $doccomment= "";
   }
   $doccomment= "";
   $keepdoccom= 0;
