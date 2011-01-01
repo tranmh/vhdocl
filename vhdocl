@@ -3798,30 +3798,11 @@ for my $ent (@entities)
           grep lc($_->{"objname"}) eq lc($ent->{"fullname"}), @configurations;
   map $_->{"entity"}= $ent, @{$ent->{"configurations"}};
 
-  my @gens= @{$ent->{"childtype"}->{"generic"} || []};
-  if( @gens ) {
-    # Clean up closing parenthesis of generic list which is left by our parsing
-    if( $gens[$#gens]->{"value"} ) {
-      $gens[$#gens]->{"value"} =~ s/\)\s*$// 
-    }
-    else {
-      $gens[$#gens]->{"subtype"} =~ s/\)\s*$//;
-    }
-  }
-  my @ports= @{$ent->{"childtype"}->{"port"} || []};
-  if( @ports ) {
-    # Clean up closing parenthesis of port list which is left by our parsing
-    if( $ports[$#ports]->{"value"} ) {
-      $ports[$#ports]->{"value"} =~ s/\)\s*$// 
-    }
-    else {
-      $ports[$#ports]->{"subtype"} =~ s/\)\s*$//;
-    }
-  }
-
   # Assign @generic and @port docs to their declarations if legacy mode is on
   if( $config{"compat"} )
   {
+    my @gens= @{$ent->{"childtype"}->{"generic"} || []};
+    my @ports= @{$ent->{"childtype"}->{"port"} || []};
     if( @gens ) {
       # Copy generic documentation from the entity docs to its generic(s)
       for my $docname (keys(%{$ent->{"doc"}->{"generic"}})) {
