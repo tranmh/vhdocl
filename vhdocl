@@ -2568,18 +2568,53 @@ sub printobjhtml
 my %labels= ( "function" => "func:", "procedure" => "proc:",
             "component" => "comp:", "instance" => "inst:", "type" => "type:" );
 
-# Print HTML fragment describing a library or package use clause
+# Print HTML fragment describing the libraries and package use clauses
+# affecting and object.
 # -> File handle to print to
-#    Reference to hash representing library or use clause
+#    Reference to hash representing entity, architecture, configuration,
+#    package or package body
 sub printlibusehtml
+{
+  my ($handle, $obj)= @_;
+  my (%libs, %uses);        # use hashes to make libs/packages unique
+
+  for (@{$obj->{"file"}->{"children"}}, @{$obj->{"children"}}) {
+    if( $_->{"type"} eq "library" ) {
+      $libs{lc($_->{"name"})}= $_;
+    }
+    elsif( $_->{"type"} eq "use" && $_->{"subtype"} eq "package" ) {
+      $uses{lc($_->{"name"})}= $_;
+    }
+  }
+  return unless keys(%libs) || keys(%uses);
+  print $handle "\n<h2>Libraries and global use clauses</h2>\n\n",
+                    "<table border=\"0\" cellpadding=\"$cp\">\n";
+  my @sortuses= sort keys %uses;
+  for my $lib (sort keys %libs) {
+    print $handle "<tr><td colspan=\"2\"><b>library ", $libs{$lib}->{"name"},
+                  "</b></td></tr>\n";
+    map { print $handle "<tr><td width=\"$iw\"></td><td>", $_, "</td></tr>\n"; }
+                          @{$libs{$lib}->{"doc"}->{"description"}};
+    for my $usename (grep $_ =~ /^$lib\b/, @sortuses) {
+      printusehtml($handle, $uses{$usename});
+      delete $uses{$usename};
+    }
+  }
+  for my $usename (sort keys %uses) {
+    printusehtml($handle, $uses{$usename});
+  }
+  print $handle "</table>\n\n";
+}
+
+
+# Print HTML fragment describing a package use clause
+# -> File handle to print to
+#    Reference to hash representing use clause
+sub printusehtml
 {
   my ($handle, $use)= @_;
 
-  if( $use->{"type"} eq "library" ) {
-    print $handle "<tr><td colspan=\"2\">library ", $use->{"name"},
-                  "</td></tr>\n";
-  }
-  elsif( $use->{"object"} && (my $link= $use->{"object"}->{"doclink"}) ) {
+  if( $use->{"object"} && (my $link= $use->{"object"}->{"doclink"}) ) {
     print $handle "<tr><td colspan=\"2\">use <a href=\"", $link, "\">",
                   $use->{"name"}, "</a></td></tr>\n";
   }
@@ -2633,16 +2668,7 @@ sub entityhtml
   printhtmlheader(*ENT{IO}, $ent->{"fullname"});
   print ENT "\n<h1>Entity ", $ent->{"fullname"}, "</h1>\n";
   printobjhtml(*ENT{IO}, $ent);
-  my @uses= grep( ($_->{"type"} eq "use" && $_->{"subtype"} eq "package") ||
-                $_->{"type"} eq "library", @{$ent->{"file"}->{"children"}});
-  push @uses, (grep $_->{"type"} eq "use" && $_->{"subtype"} eq "package",
-                @{$ent->{"children"}});
-  if( @uses ) {
-    print ENT "\n<h2>Libraries and global use clauses</h2>\n\n",
-                "<table border=\"0\" cellpadding=\"$cp\">\n";
-    map { printlibusehtml(*ENT{IO}, $_) } @uses;
-    print ENT "</table>\n\n";
-  }
+  printlibusehtml(*ENT{IO}, $ent);
   if( my @gens= @{$ent->{"childtype"}->{"generic"} || []} ) {
     print ENT "\n<h2>Generics</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
     map { printgenporthtml(*ENT{IO}, $_) } @gens;
@@ -2975,16 +3001,7 @@ sub architecturehtml
           $arch->{"objname"}, "</a></h1>\n\n";
   }
   printobjhtml(*ARCH{IO}, $arch);
-  my @uses= grep( ($_->{"type"} eq "use" && $_->{"subtype"} eq "package") ||
-                $_->{"type"} eq "library", @{$arch->{"file"}->{"children"}});
-  push @uses, (grep $_->{"type"} eq "use" && $_->{"subtype"} eq "package",
-                @{$arch->{"children"}});
-  if( @uses ) {
-    print ARCH "\n<h2>Libraries and global use clauses</h2>\n\n",
-                "<table border=\"0\" cellpadding=\"$cp\">\n";
-    map { printlibusehtml(*ARCH{IO}, $_) } @uses;
-    print ARCH "</table>\n\n";
-  }
+  printlibusehtml(*ARCH{IO}, $arch);
   if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|protected|
                         protectedbody)$/ix, @{$arch->{"children"}}) ) {
     print ARCH "\n<h2>Type declarations</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
@@ -3153,16 +3170,7 @@ sub configurationhtml
           $conf->{"objname"}, "</a></h1>\n\n";
   }
   printobjhtml(*CONF{IO}, $conf);
-  my @uses= grep( ($_->{"type"} eq "use" && $_->{"subtype"} eq "package") ||
-                $_->{"type"} eq "library", @{$conf->{"file"}->{"children"}});
-  push @uses, (grep $_->{"type"} eq "use" && $_->{"subtype"} eq "package",
-                @{$conf->{"children"}});
-  if( @uses ) {
-    print CONF "\n<h2>Libraries and global use clauses</h2>\n\n",
-                "<table border=\"0\" cellpadding=\"$cp\">\n";
-    map { printlibusehtml(*CONF{IO}, $_) } @uses;
-    print CONF "</table>\n\n";
-  }
+  printlibusehtml(*CONF{IO}, $conf);
   print CONF "\n<h2>Configuration</h2>\n\n<table border=\"0\" ",
                 "cellpadding=\"$cp\">\n";
   $maxdepth= max_depth($conf);
@@ -3193,16 +3201,7 @@ sub packagehtml
   if( $pack->{"type"} eq "package" ) {
     print PACK "<h1>Package ", $pack->{"fullname"}, "</h1>\n\n";
     printobjhtml(*PACK{IO}, $pack);
-    my @uses= grep( ($_->{"type"} eq "use" && $_->{"subtype"} eq "package") ||
-                  $_->{"type"} eq "library", @{$pack->{"file"}->{"children"}});
-    push @uses, (grep $_->{"type"} eq "use" && $_->{"subtype"} eq "package",
-                  @{$pack->{"children"}});
-    if( @uses ) {
-      print PACK "\n<h2>Libraries and global use clauses</h2>\n\n",
-                "<table border=\"0\" cellpadding=\"$cp\">\n";
-      map { printlibusehtml(*PACK{IO}, $_) } @uses;
-      print PACK "</table>\n\n";
-    }
+    printlibusehtml(*PACK{IO}, $pack);
     if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|
                       protected|protectedbody)$/ix, @{$pack->{"children"}}) ) {
       print PACK "\n<h2>Type declarations</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
@@ -3243,16 +3242,7 @@ sub packagehtml
   }
   print PACK "<h1>Package body ", $pbody->{"fullname"}, "</h1>\n\n";
   printobjhtml(*PACK{IO}, $pbody);
-  my @uses= grep( ($_->{"type"} eq "use" && $_->{"subtype"} eq "package") ||
-                $_->{"type"} eq "library", @{$pbody->{"file"}->{"children"}});
-  push @uses, (grep $_->{"type"} eq "use" && $_->{"subtype"} eq "package",
-                @{$pbody->{"children"}});
-  if( @uses ) {
-    print PACK "\n<h2>Libaries and global use clauses</h2>\n\n",
-                "<table border=\"0\" cellpadding=\"$cp\">\n";
-    map { printlibusehtml(*PACK{IO}, $_) } @uses;
-    print PACK "</table>\n\n";
-  }
+  printlibusehtml(*PACK{IO}, $pbody);
   if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|protected|
                         protectedbody)$/ix, @{$pbody->{"children"}}) ) {
     print PACK "\n<h2>Type declarations</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
@@ -4001,12 +3991,12 @@ bindcompinst:
       next unless $for && lc($for->{"objtype"}) eq lc($inst->{"objname"}) &&
             ( lc($for->{"objnames"}->[0]) eq "all" ||
             elem { lc($_) eq lc($inst->{"name"}) } @{$for->{"objnames"}} );
-# TODO: handle open bindings, also in docs
-#            last if $use->{"subtype"} eq "open";
       @{$inst->{"binddoc"}}= @{$for->{"doc"}->{"description"}}
           if $for->{"doc"}->{"description"};
       push @{$inst->{"binddoc"}}, @{$use->{"doc"}->{"description"}}
                   if $use->{"doc"}->{"description"};
+# TODO: handle open bindings, also in docs
+#     next bindcompinst if $use->{"subtype"} eq "open";
       $inst->{"bindname"}= $use->{"name"};
       $inst->{"binding"}= find_selname($use->{"name"},
                               $use->{"subtype"}, $arch->{"libname"});
