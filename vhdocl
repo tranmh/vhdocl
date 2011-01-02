@@ -828,7 +828,6 @@ sub readuntil
 sub readportlist
 {
   my ($type)= @_;
-  my $defdir= $type eq "port" ? "in" : "";
   my ($port, @ports);
   my $lastdoccom;
 
@@ -857,8 +856,8 @@ sub readportlist
       $doccomment ||= $lastdoccom if $keepdoccom;
       my $doc= $doccomment? parsedoccom($doccomment) : undef;
       my @newports= map +{ "type", $type, "name", $_, "doc", $doc,
-                              "direction", lc($2 || $defdir), "subtype", $3,
-                              "value", $4 }, split(/\s*,\s*/, $1);
+                          "direction", $type eq "port" ? lc($2 || "in") : "",
+                          "subtype", $3, "value", $4 }, split(/\s*,\s*/, $1);
       push @ports, @newports;
       if( $config{"parsedebug"} ) {
         print "$.: found $type";
