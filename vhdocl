@@ -2321,15 +2321,14 @@ EOF
     if( $config{$item} ) {
       $config{$item."url"}= $config{$item} =~ /^\w+:\/\//;
       if( !$config{$item."url"} ) {
-        my $destname= File::Spec->catfile($styledir,
-                        $config{"prefix"} . $item . fileext($config{$item}));
-        if( ! copyfile($config{$item}, $destname) ) {
+        my $destname= $config{"prefix"} . $item . "." . fileext($config{$item});
+        if( ! copyfile($config{$item}, File::Spec->catfile($styledir, $destname)) ) {
           print STDERR "Could not copy `", $config{$item}, "to style",
                     " directory.  Continuing regardless.\n"
             unless $config{"quiet"};
         }
         else {
-          $config{$item}= $destname;
+          $config{$item}= "style/" . $destname;
         }
       }
     }
@@ -2525,7 +2524,8 @@ sub printobjhtml
     print $handle "<p>Defined in ";
     if( $obj->{"file"} ) {
       print $handle "<a href=\"../sources/", $obj->{"file"}->{"docfilename"},
-            "\">", $obj->{"filename"}, "</a>&nbsp;&nbsp;&nbsp;<a href=\"../",
+            "\">", $obj->{"filename"}, "</a>&nbsp;&nbsp;&nbsp;<a href=\"",
+            ($obj->{"file"}->{"link"} =~ /^\w+:\/\// ? "":"../"),
             $obj->{"file"}->{"link"}, "\">[source file]</a></p>\n";
     }
     else {
@@ -3300,7 +3300,8 @@ sub sourcehtml
 EOF
   print SRCHTML $header;
   print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
-  print SRCHTML "\n<p><a href=\"../", $file->{"link"}, "\">Link to file</a></p>\n";
+  print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
+                                $file->{"link"}, "\">Link to file</a></p>\n";
   print SRCHTML "<pre class=\"brush: vhdl;\">\n";
   while( <VHDL> )
   {
