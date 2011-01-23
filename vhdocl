@@ -26,7 +26,7 @@ use Digest::MD5;
 use Cwd 'abs_path';
 use Time::HiRes;
 
-my $version= "0.1beta6";
+my $version= "0.2.0";
 
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "compat" => 0, "cwd" => "", 
