@@ -1,15 +1,25 @@
 #!/bin/sh
 
-ver=`grep '^my $version' vhdocl | sed 's/.*"\(.*\)".*/\1/'`
+commit=`git log | head -n 1`
 
-cp vhdocl vhdocl-dist/
+if echo $commit | grep -q '\<tag: ' ; then
+    commit=`echo $commit | sed -e 's/^.*\<tag: \([^,]\+\).*$/\1/'`
+    echo "Packaging version $commit"
+else
+    commit="${commit##commit }"
+    commit=${commit:0:8}
+    echo "Packaging commit $commit"
+fi
+
+sed -e 's/^my \$version\>.*$/my $version= "'"$commit"'";/' vhdocl > vhdocl-dist/vhdocl
+
 cp pod/vhdocl.pod vhdocl-dist/
 
 rm -f vhdocl-dist/pod2htm?.tmp
 
-mv vhdocl-dist vhdocl-"$ver"
+ln -sf vhdocl-dist vhdocl-"$commit"
 
-tar czf vhdocl-"$ver".tgz vhdocl-"$ver"
+tar czhf vhdocl-"$commit".tgz vhdocl-"$commit"
 
-mv vhdocl-"$ver" vhdocl-dist
+rm -f vhdocl-"$commit"
 
