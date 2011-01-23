@@ -1,6 +1,6 @@
 #!/bin/sh
 
-commit=`git log | head -n 1`
+commit=`git log --decorate=short | head -n 1`
 
 if echo $commit | grep -q '\<tag: ' ; then
     commit=`echo $commit | sed -e 's/^.*\<tag: \([^,]\+\).*$/\1/'`
