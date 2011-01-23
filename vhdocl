@@ -2533,7 +2533,7 @@ sub printobjhtml
     }
   }
   for (qw(synthesis simulation testbench deprecated internal)) {
-    print $handle "<p><b>", ucfirst($_), "</b></p>\n" if $obj->{"doc"}->{$_};
+    print $handle "<h3><b>", ucfirst($_), "</b></h3>\n" if $obj->{"doc"}->{$_};
   }
   print $handle "<p>\n";
   if( $obj->{"doc"}->{"author"} ) {
