@@ -3576,8 +3576,8 @@ EOF
         if $haveconfs;
   print INST <<EOF;
 
-<p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);">Open all</span> /
-<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);">Close all</span></p>
+<p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);"><b>Open all</b></span> /
+<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);"><b>Close all</b></span></p>
 
 <dl id="treeview">
 EOF
@@ -3628,8 +3628,8 @@ EOF
         if $haveconfs;
   print HIER <<EOF;
 
-<p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);">Open all</span> /
-<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);">Close all</span></p>
+<p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);"><b>Open all</b></span> /
+<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);"><b>Close all</b></span></p>
 
 <dl id="treeview">
 EOF
