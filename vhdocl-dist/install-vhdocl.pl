@@ -62,7 +62,7 @@ else {
 
 print "Installing to $destdir, data directory $datadir...\n";
 
-print "Crating install directories...\n";
+print "Creating install directories...\n";
 File::Path::make_path($exedir, $datadir, "$datadir/style", $htmldir) unless $noop;
 File::Path::make_path($mandir) if $mandir && !$noop;
 
