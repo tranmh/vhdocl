@@ -1,4 +1,9 @@
 
+0.2.0
+ - parser rewrite for more efficiency
+ - source pages with syntac highlighting and source list
+ - hierarchical list for instantiation overview / hierarchy
+
 0.1beta5
  - fixed wrong source file links
 
