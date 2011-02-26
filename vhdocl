@@ -3726,6 +3726,9 @@ prepareoutput();
 # declarations in that library.
 my %libraries;
 
+{
+my %docfilenames;
+
 for my $file (@vhdlfiles) {
   parsefile($file);
   push @{$libraries{lc($file->{"libname"})}}, @{$file->{"children"}};
@@ -3733,10 +3736,20 @@ for my $file (@vhdlfiles) {
   (undef, undef, $trunkname)= File::Spec->splitpath($file->{"name"});
   $trunkname =~ s/\.[^\.]*$//;
   $file->{"link"}= sourcelink($file->{"name"});
-  $file->{"docfilename"}= $config{"prefix"} . $trunkname . "_" .
-                substr(Digest::MD5::md5_hex($file->{"name"}), 0, 8) . ".html";
+  $file->{"docfilename"}= $config{"prefix"} . $trunkname . ".html";
+  push @{$docfilenames{$file->{"docfilename"}}}, $file;
 }
 
+# Disambiguate duplicate source HTML file names
+for my $docfiles (values %docfilenames) {
+  next if @$docfiles == 1;
+  for my $file (@$docfiles) {
+    my $suffix= substr(Digest::MD5::md5_hex($file->{"name"}), 0, 8);
+    $file->{"docfilename"} =~ s/\.html$/_$suffix.html/i;
+  }
+}
+
+}
 
 print "Scrunching and twisting everything together...\n" unless $config{"quiet"};
 benchmark() if $config{"benchmark"};
