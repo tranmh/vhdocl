@@ -2824,6 +2824,8 @@ sub printtypehtml
   else {
     print $handle "???</td></tr>\n";
   }
+  map { print $handle "<tr><td></td><td colspan=\"3\">", $_, "</td></tr>\n"; }
+                        @{$type->{"doc"}->{"description"}};
 }
 
 
