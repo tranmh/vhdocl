@@ -2261,6 +2261,17 @@ sub hier_max_depth
 ##############################################################################
 ##############################################################################
 
+# classes and <span> tags for VHDL language elements:
+my $SPDOC= "<span class=\"doccom\">";       # documentation comment text
+my $SPID= "<span class=\"identifier\">";    # identifier
+my $SPIO= "<span class=\"vhdlio\">";        # in, out, inout
+my $SPVA= "<span class=\"vhdlvar\">";       # signal, constant, variable, attr.
+my $SPDCL= "<span class=\"vhdldecl\">";     # declarative item
+my $SPWD= "<span class=\"vhdlword\">";      # other VHDL reserved word
+my $CCO= " class=\"vhdlcode\"";
+my $SPCO= "<span class=\"vhdlcode\">";      # encloses all VHDL code
+my $SP_= "</span>";
+
 # Try to create output directories if they do not yet exist, and localise the
 # file name of style sheet and logos relative to the output directory if
 # applicable.  The function dies if it cannot create the directories.
@@ -2483,7 +2494,6 @@ sub html_esc
 }
 
 
-
 # Print detailed description of entity etc.  List items starting with @li are
 # converted to their HTML equivalent
 # -> File handle to print to
@@ -2500,14 +2510,14 @@ sub printdescription
         print $handle "<ul>\n";
         $listnow= 1;
       }
-      print $handle "<li>$line</li>\n";
+      print $handle "<li>$SPDOC$line$SP_</li>\n";
     }
     else {
       if( $listnow ) {
         print $handle "</ul>\n";
         $listnow= 0;
       }
-      print $handle "<p>\n$line\n</p>\n";
+      print $handle "<p>$SPDOC\n$line\n$SP_</p>\n";
     }
   }
   print $handle "</ul>\n" if $listnow;
@@ -2584,6 +2594,7 @@ sub printlibusehtml
   my ($handle, $obj)= @_;
   my (%libs, %uses);        # use hashes to make libs/packages unique
 
+# TODO: don't we habe these lists from parsing?
   for (@{$obj->{"file"}->{"children"}}, @{$obj->{"children"}}) {
     if( $_->{"type"} eq "library" ) {
       $libs{lc($_->{"name"})}= $_;
@@ -2597,9 +2608,9 @@ sub printlibusehtml
                     "<table border=\"0\" cellpadding=\"$cp\">\n";
   my @sortuses= sort keys %uses;
   for my $lib (sort keys %libs) {
-    print $handle "<tr><td colspan=\"2\"><b>library ", $libs{$lib}->{"name"},
-                  "</b></td></tr>\n";
-    map { print $handle "<tr><td width=\"$iw\"></td><td>", $_, "</td></tr>\n"; }
+    print $handle "<tr$CCO><td colspan=\"2\"><b>${SPDCL}library$SP_ $SPID",
+                  $libs{$lib}->{"name"}, "$SP_</b></td></tr>\n";
+    map { print $handle "<tr><td width=\"$iw\"></td><td>$SPDOC$_$SP_</td></tr>\n"; }
                           @{$libs{$lib}->{"doc"}->{"description"}};
     for my $usename (grep $_ =~ /^$lib\b/, @sortuses) {
       printusehtml($handle, $uses{$usename});
@@ -2621,18 +2632,19 @@ sub printusehtml
   my ($handle, $use)= @_;
 
   if( $use->{"object"} && (my $link= $use->{"object"}->{"doclink"}) ) {
-    print $handle "<tr><td colspan=\"2\">use <a href=\"", $link, "\">",
-                  $use->{"name"}, "</a></td></tr>\n";
+    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ <a href=\"$link\">",
+                  $SPID, $use->{"name"}, "$SP_</a></td></tr>\n";
   }
   elsif( $use->{"package"} ) {
-    print $handle "<tr><td colspan=\"2\">use <a href=\"../packages/",
-                  $use->{"package"}->{"docfilename"}, "\">", $use->{"name"},
-                  "</a></td></tr>\n";
+    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ",
+              "<a href=\"../packages/", $use->{"package"}->{"docfilename"},
+              "\">$SPID", $use->{"name"}, "$SP_</a></td></tr>\n";
   }
   else {
-    print $handle "<tr><td colspan=\"2\">use ", $use->{"name"}, "</td></tr>\n";
+    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ $SPID",
+                  $use->{"name"}, "$SP_</td></tr>\n";
   }
-  map { print $handle "<tr><td width=\"$iw\"></td><td>", $_, "</td></tr>\n"; }
+  map { print $handle "<tr><td width=\"$iw\"></td><td>$SPDOC$_$SP_</td></tr>\n"; }
                         @{$use->{"doc"}->{"description"}};
 }
 
@@ -2644,15 +2656,16 @@ sub printgenporthtml
 {
   my ($handle, $gp)= @_;
 
-  print $handle "<tr><td align=\"left\"><b>", $gp->{"name"}, "</b></td>\n";
-  print $handle "<td align=\"center\"><i><b>", $gp->{"direction"}, 
-                "</b></i></td>" if $gp->{"direction"};
+  print $handle "<tr$CCO><td align=\"left\"><b>$SPID", $gp->{"name"},
+                "$SP_</b></td>\n";
+  print $handle "<td align=\"center\"><i><b>$SPIO", $gp->{"direction"}, 
+                "$SP_</b></i></td>" if $gp->{"direction"};
   print $handle "<td align=\"left\">", $gp->{"subtype"}, "</td>\n";
   print $handle "<td align=\"left\">:= ", html_esc($gp->{"value"}), "</td>\n"
         if $gp->{"value"};
   print $handle "</tr>\n";
-  map { print $handle "<tr><td></td><td align=\"left\" colspan=\"3\">", $_,
-                      "</td></tr>\n" }
+  map { print $handle "<tr><td></td><td align=\"left\" colspan=\"3\">$SPDOC$_",
+                      "$SP_</td></tr>\n" }
                         @{$gp->{"doc"}->{"description"}};
 }
 
@@ -2718,7 +2731,7 @@ sub printcommonhtml
   my ($handle, $obj)= @_;
   my $ind= "<td width=\"$iw\"></td>";
 
-  map { print $handle "<tr>$ind<td colspan=\"4\">", $_, "</td></tr>\n" }
+  map { print $handle "<tr>$ind<td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n" }
                         @{$obj->{"doc"}->{"description"}};
   if( $obj->{"attributes"} && keys(%{$obj->{"attributes"}}) ) {
     print $handle "<tr>$ind<td colspan=\"4\">Attributes:</td></tr>\n",
@@ -2742,17 +2755,17 @@ sub printattrhtml
   for my $attrname (keys %{$obj->{"attributes"}}) {
     my $aspec= $obj->{"attributes"}->{$attrname};
     my $attr= $aspec->{"attribute"};
-    print $handle "<tr><td><b>", $aspec->{"name"}, "</b></td><td> : ",
-                  ($attr->{"subtype"} || "<i>unknown type</i>"), 
-                  "</td><td> := ", html_esc($aspec->{"value"}), "</td></tr>\n";
+    print $handle "<tr$CCO><td><b>$SPID", $aspec->{"name"},
+        "$SP_</b></td><td> : ", ($attr->{"subtype"} || "<i>unknown type</i>"), 
+              "</td><td> := ", html_esc($aspec->{"value"}), "</td></tr>\n";
     if( $attr->{"doc"}->{"description"} &&
                               @{$attr->{"doc"}->{"description"}} ) {
-      map { print $handle "<tr>$ind<td colspan=\"2\">", $_, "</td></tr>\n" }
+      map { print $handle "<tr>$ind<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
                 @{$attr->{"doc"}->{"description"}};
     }
     if( $aspec->{"doc"}->{"description"} &&
                               @{$aspec->{"doc"}->{"description"}} ) {
-      map { print $handle "<tr>$ind<td colspan=\"2\">", $_, "</td></tr>\n" }
+      map { print $handle "<tr>$ind<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
                 @{$aspec->{"doc"}->{"description"}};
     }
   }
@@ -2768,13 +2781,14 @@ sub printcomphtml
   my ($handle, $comp)= @_;
   my $ind= "<td width=\"$iw\"></td>";
 
-  print $handle "<tr><td colspan=\"5\"><b><a name=\"", $labels{"component"},
-        $comp->{"name"}, "\">", $comp->{"name"}, "</a></b></td></tr>\n";
+  print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"",
+                $labels{"component"}, $comp->{"name"}, "\">$SPID",
+                $comp->{"name"}, "$SP_</a></b></td></tr>\n";
   printcommonhtml($handle, $comp);
   print $handle "<tr>$ind<td colspan=\"4\">",
-                "Default binding: <a href=\"../entities/",
-                $comp->{"binding"}->{"docfilename"}, "\">", 
-                $comp->{"binding"}->{"fullname"}, "</a></td></tr>\n"
+                "Default binding: $SPCO<a href=\"../entities/",
+                $comp->{"binding"}->{"docfilename"}, "\">$SPID", 
+                $comp->{"binding"}->{"fullname"}, "$SP_</a>$SP_</td></tr>\n"
         if $comp->{"binding"};
 }
 
@@ -2790,11 +2804,12 @@ sub printfunchtml
   my $arglist= $func->{"parlist"} ?
                 " (" . html_esc($func->{"parlist"}) . ")" : "";
 
-  print $handle "<tr><td colspan=\"5\"><b><a name=\"", $label, $func->{"name"},
-                "\">", $func->{"name"}, "</a></b>", $arglist,
-                ($func->{"subtype"}? " return " . $func->{"subtype"} : ""),
-                "</td></tr>\n";
-  print $handle "<tr>$ind<td colspan=\"4\"><b>impure</b></td></tr>\n"
+# TODO: argument list with markup
+  print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"$label",
+        $func->{"name"}, "\">$SPID", $func->{"name"}, "$SP_</a></b>", $arglist,
+        ($func->{"subtype"}? " ${SPWD}return$SP_ " . $func->{"subtype"} : ""),
+        "</td></tr>\n";
+  print $handle "<tr$CCO>$ind<td colspan=\"4\"><b>${SPWD}impure$SP_</b></td></tr>\n"
         if $func->{"pure"} && $func->{"pure"} eq "impure";
   printcommonhtml($handle, $func);
 }
@@ -2807,25 +2822,26 @@ sub printtypehtml
 {
   my ($handle, $type)= @_;
 
-  print $handle "<tr><td>", ($type->{"sub"}? "subtype": "type"),
-                "</td><td><b>", $type->{"name"}, "</b></td><td>is</td>\n<td>";
+  print $handle "<tr$CCO><td>$SPDCL", ($type->{"sub"}? "subtype": "type"),
+                "$SP_</td><td><b>$SPID", $type->{"name"}, "$SP_</b></td>",
+                "<td>${SPWD}is$SP_</td>\n<td>";
   if( $type->{"type"} eq "type" ) {
     print $handle html_esc($type->{"subtype"}), "</td></tr>\n";
   }
   elsif( $type->{"type"} eq "record" ) {
-    print $handle "record...</td></tr>\n";
+    print $handle "${SPWD}record$SP_...</td></tr>\n";
   }
   elsif( $type->{"type"} eq "units" ) {
-    print $handle html_esc($type->{"subtype"}), " units ", $type->{"baseunit"},
-                    "</td></tr>\n";
+    print $handle html_esc($type->{"subtype"}), " ${SPWD}units$SP_ $SPID",
+                  $type->{"baseunit"}, "$SP_</td></tr>\n";
   }
   elsif( $type->{"type"} =~ /^protected/i ) {
-    print $handle "protected...</td></tr>\n";
+    print $handle "${SPWD}protected$SP_...</td></tr>\n";
   }
   else {
     print $handle "???</td></tr>\n";
   }
-  map { print $handle "<tr><td></td><td colspan=\"3\">", $_, "</td></tr>\n"; }
+  map { print $handle "<tr><td></td><td colspan=\"3\">$SPDOC$_$SP_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
 }
 
@@ -2841,20 +2857,22 @@ sub printtracehtml
   my $ind= "<td width=\"$iw\"></td>";
 
   if( $trc->{"type"} eq "generate" ) {
-    print $handle "<tr>$ind$ind<td colspan=\"3\"><b>", $trc->{"name"}, 
-        "</b> : ", $trc->{"subtype"}, " ", html_esc($trc->{"parameters"}), 
-        " generate</td></tr>\n";
+    print $handle "<tr$CCO>$ind$ind<td colspan=\"3\"><b>$SPID", $trc->{"name"},
+        "$SP_</b> : $SPWD", $trc->{"subtype"}, "$SP_ ",
+        html_esc($trc->{"parameters"}), " ${SPWD}generate$SP_</td></tr>\n";
   }
   elsif( $trc->{"type"} eq "block" ) {
     my $guard= $trc->{"guard"} ? "( " . html_esc($trc->{"guard"}) . " )" : "";
-    print $handle "<tr>$ind$ind<td colspan=\"3\"><b>", $trc->{"name"}, 
-        "</b> : block ", $guard, "</td></tr>\n";
+    print $handle "<tr$CCO>$ind$ind<td colspan=\"3\"><b>$SPID", $trc->{"name"},
+        "$SP_</b> : ${SPWD}block$SP_ ", $guard, "</td></tr>\n";
   }
   else {
-    print $handle "<tr>$ind$ind<td colspan=\"3\">", $trc->{"type"}, " <b>", 
-                    ($trc->{"name"} || "<i>unnamed</i>"), "</b></td></tr>\n";
+    print $handle "<tr$CCO>$ind$ind<td colspan=\"3\">$SPWD", $trc->{"type"},
+               "$SP_ <b>", 
+               ($trc->{"name"} ? $SPID.$trc->{"name"}.$SP_ : "<i>unnamed</i>"),
+               "</b></td></tr>\n";
   }
-  map { print $handle "<tr>$ind$ind$ind<td colspan=\"2\">", $_, "</td></tr>\n" }
+  map { print $handle "<tr>$ind$ind$ind<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
                         @{$trc->{"doc"}->{"description"}};
 }
 
@@ -2868,11 +2886,11 @@ sub printprochtml
   my $proc= $$path[$#$path];
   my $ind= "<td width=\"$iw\"></td>";
 
-  print $handle "<tr><td colspan=\"5\"><b>", 
-          ($proc->{"name"} || "<i>unnamed</i>"), "</b>", 
+  print $handle "<tr$CCO><td colspan=\"5\"><b>", 
+      ($proc->{"name"} ? $SPID.$proc->{"name"}.$SP_ : "<i>unnamed</i>"), "</b>",
           ($proc->{"sensitivity"}? " (" . $proc->{"sensitivity"} . ")" : ""), 
           "</td></tr>\n";
-  print $handle "<tr>$ind<td colspan=\"4\"><b>postponed</b></td></tr>\n"
+  print $handle "<tr$CCO>$ind<td colspan=\"4\"><b>${SPWD}postponed$SP_</b></td></tr>\n"
         if $proc->{"postponed"};
   printcommonhtml($handle, $proc);
   if( $#$path ) {
@@ -2893,51 +2911,52 @@ sub printinsthtml
   my $inst= $$path[$#$path];
   my $ind= "<td width=\"$iw\"></td>";
 
-  print $handle "<tr><td colspan=\"5\"><b><a name=\"", $labels{"instance"},
-                $inst->{"name"}, "\">", $inst->{"name"}, "</a></b> : ";
+  print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"", $labels{"instance"},
+                $inst->{"name"}, "\">$SPID", $inst->{"name"}, "$SP_</a></b> : ";
   if( $inst->{"subtype"} eq "configuration" ) {
-    print $handle "configuration ";
+    print $handle "${SPWD}configuration$SP_ ";
     if( $inst->{"binding"} ) {
       print $handle "<a href=\"../configurations/",
-                $inst->{"binding"}->{"docfilename"}, "\">", $inst->{"objname"},
-                "</a></td></tr>\n";
+                $inst->{"binding"}->{"docfilename"}, "\">$SPID",
+                $inst->{"objname"}, "$SP_</a></td></tr>\n";
     }
     else {
-      print $handle $inst->{"objname"}, "</td></tr>\n";
+      print $handle $SPID, $inst->{"objname"}, "$SP_</td></tr>\n";
     }
   }
   elsif( $inst->{"subtype"} eq "entity" ) {
-    print $handle "entity ";
+    print $handle "${SPWD}entity$SP_ ";
     if( $inst->{"binding"} ) {
       print $handle "<a href=\"../entities/",
-                $inst->{"binding"}->{"docfilename"}, "\">", $inst->{"objname"},
-                "</a>";
+                $inst->{"binding"}->{"docfilename"}, "\">$SPID",
+                $inst->{"objname"}, "$SP_</a>";
     }
     else {
       print $handle $inst->{"objname"};
     }
     if( $inst->{"bindarch"} ) {
       print $handle " (<a href=\"../architectures/",
-    $inst->{"bindarch"}->{"docfilename"}, "\">", $inst->{"archname"}, "</a>)";
+                    $inst->{"bindarch"}->{"docfilename"}, "\">$SPID",
+                    $inst->{"archname"}, "$SP_</a>)";
     }
     elsif( $inst->{"archname"} ) {
-      print $handle " (", $inst->{"archname"}, ")";
+      print $handle " ($SPID", $inst->{"archname"}, "$SP_)";
     }
     print $handle "</td></tr>\n";
   }
   elsif( $inst->{"component"} ) {
-    print $handle "<a href=\"", $inst->{"component"}->{"doclink"}, "\">",
-                  $inst->{"objname"}, "</a></td></tr>\n";
+    print $handle "<a href=\"", $inst->{"component"}->{"doclink"}, "\">$SPID",
+                  $inst->{"objname"}, "$SP_</a></td></tr>\n";
   }
   else {
-    print $handle $inst->{"objname"}, "</td></tr>\n";
+    print $handle $SPID, $inst->{"objname"}, "$SP_</td></tr>\n";
   }
   printcommonhtml($handle, $inst);
   if( $inst->{"genericmap"} && @{$inst->{"genericmap"}} ) {
     my @gmap= @{$inst->{"genericmap"}};
     print $handle "<tr>$ind<td colspan=\"4\">Generic map:</td></tr>\n",
-                      "<tr>$ind$ind<td colspan=\"3\"><table border=\"0\">\n";
-    map { print $handle "  <tr><td>", $$_[0], "</td><td> => ",
+                  "<tr>$ind$ind<td colspan=\"3\"><table border=\"0\"$CCO>\n";
+    map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
                               html_esc($$_[1]), "</td></tr>\n"; } @gmap;
     print $handle "</table></td></tr>\n";
   }
@@ -2945,32 +2964,33 @@ sub printinsthtml
   if( $inst->{"subtype"} eq "component" &&
       ((my $bind= $inst->{"binding"}) || $inst->{"bindname"}) ) {
     if( $bind ) {
-      print $handle "<tr>$ind<td colspan=\"4\">Binding: <a href=\"",
+      print $handle "<tr>$ind<td colspan=\"4\">Binding: $SPCO<a href=\"",
       ($bind->{"type"} eq "entity" ?  "../entities/" : "../configurations/"),
-          $bind->{"docfilename"}, "\">", $bind->{"fullname"}, "</a>";
+          $bind->{"docfilename"}, "\">$SPID", $bind->{"fullname"},
+          "$SP_</a>";
     }
     else {
-      print $handle "<tr>$ind<td colspan=\"4\">Binding: ",
-                      $inst->{"bindname"};
+      print $handle "<tr>$ind<td colspan=\"4\">Binding: $SPCO$SPID",
+                      $inst->{"bindname"}, "$SP_";
     }
     if( $inst->{"archname"} ) {
       if( $inst->{"bindarch"} ) {
         print $handle " (<a href=\"../architectures/",
-                      $inst->{"bindarch"}->{"docfilename"}, "\">",
-                      $inst->{"archname"}, "</a>)";
+                      $inst->{"bindarch"}->{"docfilename"}, "\">$SPID",
+                      $inst->{"archname"}, "$SP_</a>)";
       }
       else {
-        print $handle " (", $inst->{"archname"}, ")";
+        print $handle " ($SPID", $inst->{"archname"}, "$SP_)";
       }
     }
-    print $handle "</td></tr>\n";
-    map { print $handle "<tr>$ind$ind<td colspan=\"3\">", $_, "</td></tr>\n" }
+    print $handle "$SP_</td></tr>\n";
+    map { print $handle "<tr>$ind$ind<td colspan=\"3\">$SPDOC$_$SP_</td></tr>\n" }
                         @{$inst->{"binddoc"}};
     if( $inst->{"bindgen"} ) {
       my $map= $inst->{"bindgen"}->{"map"};
       print $handle "<tr>$ind$ind<td colspan=\"3\">Generic map:</td></tr>\n",
-                    "<tr>$ind$ind$ind<td colspan=\"2\"><table border=\"0\">\n";
-      map { print $handle "  <tr><td>", $$_[0], "</td><td> => ",
+                "<tr>$ind$ind$ind<td colspan=\"2\"><table border=\"0\"$CCO>\n";
+      map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
                                 html_esc($$_[1]), "</td></tr>\n"; } @$map;
       print $handle "</table></td></tr>\n";
     }
@@ -3070,42 +3090,43 @@ sub printconfightml
   my $span= $maxdepth - $curdepth + 3;
 
   for my $for (@$fors) {
-    print $handle "<tr>$ind<td colspan=\"", $span, "\">for <b>";
+    print $handle "<tr$CCO>$ind<td colspan=\"", $span, "\">${SPID}for$SP_ <b>";
     if( $for->{"subtype"} eq "architecture" ) {
       if( $for->{"object"} && $for->{"object"}->{"type"} eq "architecture" ) {
         print $handle "<a href=\"../architectures/",
-                $for->{"object"}->{"docfilename"}, "\">",
-                $for->{"objname"}, "</a></b></td></tr>\n";
+                $for->{"object"}->{"docfilename"}, "\">$SPID",
+                $for->{"objname"}, "$SP_</a></b></td></tr>\n";
       }
       else {
-        print $handle $for->{"objname"}, "</b></td></tr>\n";
+        print $handle $SPID, $for->{"objname"}, "</b></td></tr>\n";
       }
-      map { print $handle "<tr>$ind$ind1<td colspan=\"", $span-1, "\">",
-                    $_, "</td></tr>\n" }    @{$for->{"doc"}->{"description"}};
+      map { print $handle "<tr>$ind$ind1<td colspan=\"", $span-1, "\">$SPDOC",
+                   "$_$SP_</td></tr>\n" }    @{$for->{"doc"}->{"description"}};
     }
     else {
       my $comp;
       my $use;
       if( @{$for->{"objnames"}}==1 && ($for->{"objnames"}->[0] eq "all" ||
                                 $for->{"objnames"}->[0] eq "others") ) {
-        print $handle $for->{"objnames"}->[0];
+        print $handle $SPID, $for->{"objnames"}->[0], $SP_;
         $comp= $for->{"objects"}->[0]->{"component"}
                 if $for->{"objects"} && @{$for->{"objects"}};
       }
       elsif( $for->{"objects"} && @{$for->{"objects"}} ) {
         print $handle join("</b>, <b>", map("<a href=\"" . $_->{"doclink"} .
-                      "\">" . $_->{"name"} . "</a>", @{$for->{"objects"}}));
+              "\">$SPID" . $_->{"name"} . "$SP_</a>", @{$for->{"objects"}}));
         $comp= $for->{"objects"}->[0]->{"component"};
       }
       else {
-        print $handle join("</b>, <b>", @{$for->{"objnames"}});
+        print $handle $SPID, join("$SP_</b>, <b>$SPID", @{$for->{"objnames"}}),
+                      $SP_;
       }
       if( $comp ) {
-        print $handle "</b> : <a href=\"", $comp->{"doclink"}, "\">",
-                      $for->{"objtype"}, "</a>";
+        print $handle "</b> : <a href=\"", $comp->{"doclink"}, "\">$SPWD",
+                      $for->{"objtype"}, "$SP_</a>";
       }
       else {
-        print $handle "</b> : ", $for->{"objtype"};
+        print $handle "</b> : $SPWD", $for->{"objtype"}, $SP_;
       }
       if( $use= $for->{"use"} ) {
         if( $for->{"binding"} ) {
@@ -3114,32 +3135,32 @@ sub printconfightml
               $for->{"binding"}->{"docfilename"}, "\">", $use->{"name"}, "</a>";
           if( $for->{"bindarch"} ) {
             print $handle " (<a href=\"../architectures/",
-                          $for->{"bindarch"}->{"docfilename"}, "\">",
-                          $for->{"archname"}, "</a>)</td></tr>\n";
+                          $for->{"bindarch"}->{"docfilename"}, "\">$SPID",
+                          $for->{"archname"}, "$SP_</a>)</td>$SP_</tr>\n";
           }
           elsif( $use->{"archname"} ) {
-            print $handle " (", $use->{"archname"}, ")</td></tr>\n";
+           print $handle " ($SPID", $use->{"archname"}, "$SP_)</td>$SP_</tr>\n";
           }
         }
         else {
           print $handle " use ", $use->{"subtype"}, " ", $use->{"name"},
-                ($use->{"archname"}? "(" . $use->{"archname"} . ")" : ""),
-                "</td></tr>\n";
+            ($use->{"archname"}? "($SPID" . $use->{"archname"} . "$SP_)" : ""),
+                "</td>$SP_</tr>\n";
         }
       }
       else {
-        print $handle "</td></tr>\n";
+        print $handle "</td>$SP_</tr>\n";
       }
-      map { print $handle "<tr>$ind$ind1<td colspan=\"", $span-1, "\">",
-                    $_, "</td></tr>\n" }    @{$for->{"doc"}->{"description"}};
-      map { print $handle "<tr>$ind$ind1<td colspan=\"", $span-1, "\">",
-            $_, "</td></tr>\n" }    @{$for->{"use"}->{"doc"}->{"description"}};
+      map { print $handle "<tr>$ind$ind1<td colspan=\"", $span-1, "\">$SPDOC",
+                   "$_$SP_</td></tr>\n" }    @{$for->{"doc"}->{"description"}};
+      map { print $handle "<tr>$ind$ind1<td colspan=\"", $span-1, "\">$SPDOC",
+           "$_$SP_</td></tr>\n" }    @{$for->{"use"}->{"doc"}->{"description"}};
       if( $for->{"bindgen"} ) {
         my $map= $for->{"bindgen"}->{"map"};
         print $handle "<tr>$ind$ind1<td colspan=\"", $span-1,
                 "\">Generic map:</td></tr>\n<tr>$ind$ind1$ind1<td colspan=\"",
-                $span-2, "\"><table border=\"0\">\n";
-        map { print $handle "  <tr><td>", $$_[0], "</td><td> => ",
+                $span-2, "\"><table border=\"0\"$CCO>\n";
+        map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
                                           $$_[1], "</td></tr>\n"; } @$map;
         print $handle "</table></td></tr>\n";
       }
