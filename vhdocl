@@ -66,6 +66,17 @@ sub elem(&@)
 }
 
 
+# Generate a regex which matches one of a list of words.  Wourd boundary
+# matches are put before and after the word match, and the match is made case
+# insensitive.
+# -> List of words (not an array ref, but the actual list)
+# <- Regex
+sub wordregex
+{
+  return "(?:\\b(?i:" . join("|", @_) . ")\\b)";
+}
+
+
 # An auxiliary function for obtaining the canonical form of a file name.
 # Required to work around Cwd::abs_path()'s intolerance towards non-existing
 # files and directories.
@@ -2264,10 +2275,12 @@ sub hier_max_depth
 # classes and <span> tags for VHDL language elements:
 my $SPDOC= "<span class=\"doccom\">";       # documentation comment text
 my $SPID= "<span class=\"identifier\">";    # identifier
+my $SPSTR= "<span class=\"vhdlstr\">";      # quoted (bit) string or bit
 my $SPIO= "<span class=\"vhdlio\">";        # in, out, inout
 my $SPVA= "<span class=\"vhdlvar\">";       # signal, constant, variable, attr.
 my $SPDCL= "<span class=\"vhdldecl\">";     # declarative item
 my $SPWD= "<span class=\"vhdlword\">";      # other VHDL reserved word
+my $SPIE= "<span class=\"vhdlieee\">";      # standard package word
 my $CCO= " class=\"vhdlcode\"";
 my $SPCO= "<span class=\"vhdlcode\">";      # encloses all VHDL code
 my $SP_= "</span>";
@@ -2494,6 +2507,74 @@ sub html_esc
 }
 
 
+# Regular expressions for code to mark up with the CSS classes defined at the
+# start of this section.
+# Strings: \x01 stands for double quotes which are later converted to `&quot;',
+# unlike those enclosing the class names.
+my $MARKQUOT= qr/(?:\b[box])?\x04[^\x04]*\x04|'[^']'/i;
+my $MARKIO= wordregex qw( in out inout buffer linkage );
+my $MARKVAR= wordregex qw( constant signal variable file attribute );
+# "use" should really also be matched by $MARKDECL, but only for package use
+# statements.  We assume these are treated separately and are not piped through
+# markvhdl.
+my $MARKDECL= wordregex qw( entity architecture configuration package body
+function procedure subtype type library component );
+my $MARKWORD= wordregex qw( begin pure impure postponed guarded use if then
+elsif for generate while until loop next case when group exit block process
+array units record with port generic map open null all others range not and
+nand or xor xnor mod rem sla sll sra srl ror rol assert report severity 
+is return to downto in on of after wait bus new alias
+select reject literal register transport inertial unaffected shared disconnect
+access label end );
+my $MARKIEEE= wordregex qw( integer positive natural boolean true false real
+string character time delay_length severity_level note warning error failure
+textio line text side width input output readline read writeline write oread
+owrite hread hwrite endline bit bit_vector ieee std_logic_1164 std_ulogic
+std_ulogic_vector std_logic std_logic_vector x01 x01z ux01 ux01z to_bit
+to_bitvector to_stdulogic to_stdulogicvector to_stdlogicvector rising_edge
+falling_edge is_x numeric_std numeric_bit signed unsigned to_integer to_signed
+to_unsigned shift_left shift_right rotate_left rotate_right resize
+std_logic_arith small_int shl shr ext sext conv_integer conv_unsigned
+conv_signed conv_std_logic_vector std_logic_misc and_reduce or_reduce
+xor_reduce std_logic_unsigned std_logic_signed cond_op cond sh_left sh_right
+align_size math_real math_e math_1_e math_pi math_1_pi math_log_of_2
+math_log_of_10 math_log2_of_e math_log10_of_e math_sqrt2 math_sqrt1_2
+math_sqrt_pi math_deg_to_rad math_rad_to_deg sign ceil floor fmax fmin uniform
+srand rand get_rand_max sqrt cbrt exp log sin cos tan asin acos atan atan2 sinh
+cosh tanh acosh atanh math_complex complex complex_vector complex_polar cbase_1
+cbase_j czero cabs carg cmplx conj csqrt cexp complex_to_polar polar_to_complex
+);
+my $MARKID= qr/$ID/i;
+
+# Convert VHDL code to HTML with syntax markup expressed in CSS classes.
+# -> VHDL-code
+# <- HTML with <span> tags of the appropriate classes
+sub markvhdl
+{
+  my ($code)= @_;
+
+  $code =~ tr/&/\x01/;
+  $code =~ tr/</\x02/;
+  $code =~ tr/>/\x03/;
+  $code =~ tr/"/\x04/;
+  $code =~ s/(?:($MARKQUOT)|($MARKIO)|($MARKVAR)|($MARKDECL)|
+            ($MARKWORD)|($MARKIEEE)|($MARKID))/
+            $1 ? "$SPSTR$1$SP_" :
+            $2 ? "$SPIO$2$SP_" :
+            $3 ? "$SPVA$3$SP_" :
+            $4 ? "$SPDCL$4$SP_" :
+            $5 ? "$SPWD$5$SP_" :
+            $6 ? "$SPIE$6$SP_" :
+            $7 ? "$SPID$7$SP_" :
+            "" /iexog;
+  $code =~ s/\x01/&amp;/g;
+  $code =~ s/\x02/&lt;/g;
+  $code =~ s/\x03/&gt;/g;
+  $code =~ s/\x04/&quot;/g;
+  return $code;
+}
+
+
 # Print detailed description of entity etc.  List items starting with @li are
 # converted to their HTML equivalent
 # -> File handle to print to
@@ -2608,8 +2689,8 @@ sub printlibusehtml
                     "<table border=\"0\" cellpadding=\"$cp\">\n";
   my @sortuses= sort keys %uses;
   for my $lib (sort keys %libs) {
-    print $handle "<tr$CCO><td colspan=\"2\"><b>${SPDCL}library$SP_ $SPID",
-                  $libs{$lib}->{"name"}, "$SP_</b></td></tr>\n";
+    print $handle "<tr$CCO><td colspan=\"2\"><b>${SPDCL}library$SP_ ",
+                  markvhdl($libs{$lib}->{"name"}), "</b></td></tr>\n";
     map { print $handle "<tr><td width=\"$iw\"></td><td>$SPDOC$_$SP_</td></tr>\n"; }
                           @{$libs{$lib}->{"doc"}->{"description"}};
     for my $usename (grep $_ =~ /^$lib\b/, @sortuses) {
@@ -2638,11 +2719,11 @@ sub printusehtml
   elsif( $use->{"package"} ) {
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ",
               "<a href=\"../packages/", $use->{"package"}->{"docfilename"},
-              "\">$SPID", $use->{"name"}, "$SP_</a></td></tr>\n";
+              "\">", markvhdl($use->{"name"}), "</a></td></tr>\n";
   }
   else {
-    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ $SPID",
-                  $use->{"name"}, "$SP_</td></tr>\n";
+    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ",
+                  markvhdl($use->{"name"}), "</td></tr>\n";
   }
   map { print $handle "<tr><td width=\"$iw\"></td><td>$SPDOC$_$SP_</td></tr>\n"; }
                         @{$use->{"doc"}->{"description"}};
@@ -2660,8 +2741,8 @@ sub printgenporthtml
                 "$SP_</b></td>\n";
   print $handle "<td align=\"center\"><i><b>$SPIO", $gp->{"direction"}, 
                 "$SP_</b></i></td>" if $gp->{"direction"};
-  print $handle "<td align=\"left\">", $gp->{"subtype"}, "</td>\n";
-  print $handle "<td align=\"left\">:= ", html_esc($gp->{"value"}), "</td>\n"
+  print $handle "<td align=\"left\">", markvhdl($gp->{"subtype"}), "</td>\n";
+  print $handle "<td align=\"left\">:= ", markvhdl($gp->{"value"}), "</td>\n"
         if $gp->{"value"};
   print $handle "</tr>\n";
   map { print $handle "<tr><td></td><td align=\"left\" colspan=\"3\">$SPDOC$_",
@@ -2757,7 +2838,7 @@ sub printattrhtml
     my $attr= $aspec->{"attribute"};
     print $handle "<tr$CCO><td><b>$SPID", $aspec->{"name"},
         "$SP_</b></td><td> : ", ($attr->{"subtype"} || "<i>unknown type</i>"), 
-              "</td><td> := ", html_esc($aspec->{"value"}), "</td></tr>\n";
+              "</td><td> := ", markvhdl($aspec->{"value"}), "</td></tr>\n";
     if( $attr->{"doc"}->{"description"} &&
                               @{$attr->{"doc"}->{"description"}} ) {
       map { print $handle "<tr>$ind<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
@@ -2802,12 +2883,12 @@ sub printfunchtml
   my $ind= "<td width=\"$iw\"></td>";
   my $label= $labels{$func->{"type"}};
   my $arglist= $func->{"parlist"} ?
-                " (" . html_esc($func->{"parlist"}) . ")" : "";
+                " (" . markvhdl($func->{"parlist"}) . ")" : "";
 
-# TODO: argument list with markup
   print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"$label",
         $func->{"name"}, "\">$SPID", $func->{"name"}, "$SP_</a></b>", $arglist,
-        ($func->{"subtype"}? " ${SPWD}return$SP_ " . $func->{"subtype"} : ""),
+        ($func->{"subtype"}? " ${SPWD}return$SP_ " .
+                                markvhdl($func->{"subtype"}) : ""),
         "</td></tr>\n";
   print $handle "<tr$CCO>$ind<td colspan=\"4\"><b>${SPWD}impure$SP_</b></td></tr>\n"
         if $func->{"pure"} && $func->{"pure"} eq "impure";
@@ -2826,13 +2907,13 @@ sub printtypehtml
                 "$SP_</td><td><b>$SPID", $type->{"name"}, "$SP_</b></td>",
                 "<td>${SPWD}is$SP_</td>\n<td>";
   if( $type->{"type"} eq "type" ) {
-    print $handle html_esc($type->{"subtype"}), "</td></tr>\n";
+    print $handle markvhdl($type->{"subtype"}), "</td></tr>\n";
   }
   elsif( $type->{"type"} eq "record" ) {
     print $handle "${SPWD}record$SP_...</td></tr>\n";
   }
   elsif( $type->{"type"} eq "units" ) {
-    print $handle html_esc($type->{"subtype"}), " ${SPWD}units$SP_ $SPID",
+    print $handle markvhdl($type->{"subtype"}), " ${SPWD}units$SP_ $SPID",
                   $type->{"baseunit"}, "$SP_</td></tr>\n";
   }
   elsif( $type->{"type"} =~ /^protected/i ) {
@@ -2859,10 +2940,10 @@ sub printtracehtml
   if( $trc->{"type"} eq "generate" ) {
     print $handle "<tr$CCO>$ind$ind<td colspan=\"3\"><b>$SPID", $trc->{"name"},
         "$SP_</b> : $SPWD", $trc->{"subtype"}, "$SP_ ",
-        html_esc($trc->{"parameters"}), " ${SPWD}generate$SP_</td></tr>\n";
+        markvhdl($trc->{"parameters"}), " ${SPWD}generate$SP_</td></tr>\n";
   }
   elsif( $trc->{"type"} eq "block" ) {
-    my $guard= $trc->{"guard"} ? "( " . html_esc($trc->{"guard"}) . " )" : "";
+    my $guard= $trc->{"guard"} ? "( " . markvhdl($trc->{"guard"}) . " )" : "";
     print $handle "<tr$CCO>$ind$ind<td colspan=\"3\"><b>$SPID", $trc->{"name"},
         "$SP_</b> : ${SPWD}block$SP_ ", $guard, "</td></tr>\n";
   }
@@ -2888,7 +2969,7 @@ sub printprochtml
 
   print $handle "<tr$CCO><td colspan=\"5\"><b>", 
       ($proc->{"name"} ? $SPID.$proc->{"name"}.$SP_ : "<i>unnamed</i>"), "</b>",
-          ($proc->{"sensitivity"}? " (" . $proc->{"sensitivity"} . ")" : ""), 
+  ($proc->{"sensitivity"}? " (" . markvhdl($proc->{"sensitivity"}) . ")" : ""), 
           "</td></tr>\n";
   print $handle "<tr$CCO>$ind<td colspan=\"4\"><b>${SPWD}postponed$SP_</b></td></tr>\n"
         if $proc->{"postponed"};
@@ -2925,7 +3006,7 @@ sub printinsthtml
     }
   }
   elsif( $inst->{"subtype"} eq "entity" ) {
-    print $handle "${SPWD}entity$SP_ ";
+    print $handle "${SPDCL}entity$SP_ ";
     if( $inst->{"binding"} ) {
       print $handle "<a href=\"../entities/",
                 $inst->{"binding"}->{"docfilename"}, "\">$SPID",
@@ -2957,7 +3038,7 @@ sub printinsthtml
     print $handle "<tr>$ind<td colspan=\"4\">Generic map:</td></tr>\n",
                   "<tr>$ind$ind<td colspan=\"3\"><table border=\"0\"$CCO>\n";
     map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
-                              html_esc($$_[1]), "</td></tr>\n"; } @gmap;
+                              markvhdl($$_[1]), "</td></tr>\n"; } @gmap;
     print $handle "</table></td></tr>\n";
   }
   # Now for explicit binding of component instances
@@ -2991,7 +3072,7 @@ sub printinsthtml
       print $handle "<tr>$ind$ind<td colspan=\"3\">Generic map:</td></tr>\n",
                 "<tr>$ind$ind$ind<td colspan=\"2\"><table border=\"0\"$CCO>\n";
       map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
-                                html_esc($$_[1]), "</td></tr>\n"; } @$map;
+                                markvhdl($$_[1]), "</td></tr>\n"; } @$map;
       print $handle "</table></td></tr>\n";
     }
   }
@@ -3090,7 +3171,7 @@ sub printconfightml
   my $span= $maxdepth - $curdepth + 3;
 
   for my $for (@$fors) {
-    print $handle "<tr$CCO>$ind<td colspan=\"", $span, "\">${SPID}for$SP_ <b>";
+    print $handle "<tr$CCO>$ind<td colspan=\"", $span, "\">${SPWD}for$SP_ <b>";
     if( $for->{"subtype"} eq "architecture" ) {
       if( $for->{"object"} && $for->{"object"}->{"type"} eq "architecture" ) {
         print $handle "<a href=\"../architectures/",
@@ -3098,7 +3179,7 @@ sub printconfightml
                 $for->{"objname"}, "$SP_</a></b></td></tr>\n";
       }
       else {
-        print $handle $SPID, $for->{"objname"}, "</b></td></tr>\n";
+        print $handle $SPID, $for->{"objname"}, "$SP_</b></td></tr>\n";
       }
       map { print $handle "<tr>$ind$ind1<td colspan=\"", $span-1, "\">$SPDOC",
                    "$_$SP_</td></tr>\n" }    @{$for->{"doc"}->{"description"}};
@@ -3108,7 +3189,7 @@ sub printconfightml
       my $use;
       if( @{$for->{"objnames"}}==1 && ($for->{"objnames"}->[0] eq "all" ||
                                 $for->{"objnames"}->[0] eq "others") ) {
-        print $handle $SPID, $for->{"objnames"}->[0], $SP_;
+        print $handle $SPWD, $for->{"objnames"}->[0], $SP_;
         $comp= $for->{"objects"}->[0]->{"component"}
                 if $for->{"objects"} && @{$for->{"objects"}};
       }
@@ -3122,17 +3203,19 @@ sub printconfightml
                       $SP_;
       }
       if( $comp ) {
-        print $handle "</b> : <a href=\"", $comp->{"doclink"}, "\">$SPWD",
+        print $handle "</b> : <a href=\"", $comp->{"doclink"}, "\">$SPID",
                       $for->{"objtype"}, "$SP_</a>";
       }
       else {
-        print $handle "</b> : $SPWD", $for->{"objtype"}, $SP_;
+        print $handle "</b> : $SPID", $for->{"objtype"}, $SP_;
       }
       if( $use= $for->{"use"} ) {
         if( $for->{"binding"} ) {
-          print $handle " use ", $use->{"subtype"}, " <a href=\"../",
+          print $handle " ${SPWD}use$SP_ $SPDCL", $use->{"subtype"},
+                "$SP_ <a href=\"../",
               ($use->{"subtype"} eq "entity"? "entities/" : "configurations/"),
-              $for->{"binding"}->{"docfilename"}, "\">", $use->{"name"}, "</a>";
+                $for->{"binding"}->{"docfilename"}, "\">$SPID", $use->{"name"},
+                "$SP_</a>";
           if( $for->{"bindarch"} ) {
             print $handle " (<a href=\"../architectures/",
                           $for->{"bindarch"}->{"docfilename"}, "\">$SPID",
@@ -3161,7 +3244,7 @@ sub printconfightml
                 "\">Generic map:</td></tr>\n<tr>$ind$ind1$ind1<td colspan=\"",
                 $span-2, "\"><table border=\"0\"$CCO>\n";
         map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
-                                          $$_[1], "</td></tr>\n"; } @$map;
+                                  markvhdl($$_[1]), "</td></tr>\n"; } @$map;
         print $handle "</table></td></tr>\n";
       }
     }
