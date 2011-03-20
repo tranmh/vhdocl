@@ -1162,6 +1162,10 @@ vhdlline:
         @newentries= ( $newchild );
         $newchild= undef;
       }
+      if( @parsestack == 1 ) {
+        push @{$parent->{"childtype"}->{"funcproc"}}, @newentries;
+        push @{$parent->{"childtype"}->{"funcproc"}}, $newchild if $newchild;
+      }
     }
     elsif( $vline =~ s/^((?:postponed)?process|block)\b//i &&
             ($label || lc($1) ne "block") ) {
@@ -2881,6 +2885,30 @@ sub printcomphtml
 }
 
 
+# Print HTML fragment describing all function and procedure declarations of a
+# library unit, in the order in which they appear in the source.
+# -> File handle to print to
+#    Reference to hash representing the top-level declaration (library unit)
+sub printfuncprochtml
+{
+  my ($handle, $obj)= @_;
+  my @funcprocs;
+  my @headwords;
+  my $headline;
+
+  @funcprocs= @{$obj->{"childtype"}->{"funcproc"} || []};
+  return unless @funcprocs;
+  push @headwords, "functions" if $obj->{"childtype"}->{"function"} &&
+                                 @{$obj->{"childtype"}->{"function"}};
+  push @headwords, "procedures" if $obj->{"childtype"}->{"procedure"} &&
+                                  @{$obj->{"childtype"}->{"procedure"}};
+  $headline= ucfirst join " and ", @headwords;
+  print $handle "\n<h2>$headline</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+  map { printfunchtml($handle, $_) } @funcprocs;
+  print $handle "</table>\n\n";
+}
+
+
 # Print HTML fragment describing a function or procedure declaration
 # -> File handle to print to
 #    Reference to hash representing the function/procedure
@@ -2892,7 +2920,8 @@ sub printfunchtml
   my $arglist= $func->{"parlist"} ?
                 " (" . markvhdl($func->{"parlist"}) . ")" : "";
 
-  print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"$label\">$SPTID",
+  print $handle "<tr$CCO><td colspan=\"5\">$SPWD", $func->{"type"},
+                "$SP_ <b><a name=\"$label\">$SPTID",
                 $func->{"name"}, "$SP_</a></b>", $arglist,
                 ($func->{"subtype"}? " ${SPWD}return$SP_ " .
                                 markvhdl($func->{"subtype"}) : ""),
@@ -3130,16 +3159,7 @@ sub architecturehtml
     map { printgenporthtml(*ARCH{IO}, $_) } @consts;
     print ARCH "</table>\n\n";
   }
-  if( my @funcs= @{$arch->{"childtype"}->{"function"} || []} ) {
-    print ARCH "\n<h2>Functions</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
-    map { printfunchtml(*ARCH{IO}, $_) } @funcs;
-    print ARCH "</table>\n\n";
-  }
-  if( my @procs= @{$arch->{"childtype"}->{"procedure"} || []} ) {
-    print ARCH "\n<h2>Procedures</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
-    map { printfunchtml(*ARCH{IO}, $_) } @procs;
-    print ARCH "</table>\n\n";
-  }
+  printfuncprochtml(*ARCH{IO}, $arch);
   if( my @comps= @{$arch->{"childtype"}->{"component"} || []} ) {
     print ARCH "\n<h2>Component declarations</h2>\n\n<table border=\"0\" " .
                 "cellpadding=\"$cp\">\n";
@@ -3333,16 +3353,7 @@ sub packagehtml
       map { printgenporthtml(*PACK{IO}, $_) } @consts;
       print PACK "</table>\n\n";
     }
-    if( my @funcs= @{$pack->{"childtype"}->{"function"} || []} ) {
-      print PACK "\n<h2>Functions</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
-      map { printfunchtml(*PACK{IO}, $_) } @funcs;
-      print PACK "</table>\n\n";
-    }
-    if( my @procs= @{$pack->{"childtype"}->{"procedure"} || []} ) {
-      print PACK "\n<h2>Procedures</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
-      map { printfunchtml(*PACK{IO}, $_) } @procs;
-      print PACK "</table>\n\n";
-    }
+    printfuncprochtml(*PACK{IO}, $pack);
     if( my @comps= @{$pack->{"childtype"}->{"component"} || []} ) {
       print PACK "\n<h2>Component declarations</h2>\n\n<table border=\"0\" " .
                   "cellpadding=\"$cp\">\n";
@@ -3374,16 +3385,7 @@ sub packagehtml
     map { printgenporthtml(*PACK{IO}, $_) } @consts;
     print PACK "</table>\n\n";
   }
-  if( my @funcs= @{$pbody->{"childtype"}->{"function"} || []} ) {
-    print PACK "\n<h2>Functions</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
-    map { printfunchtml(*PACK{IO}, $_) } @funcs;
-    print PACK "</table>\n\n";
-  }
-  if( my @procs= @{$pbody->{"childtype"}->{"procedure"} || []} ) {
-    print PACK "\n<h2>Procedures</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
-    map { printfunchtml(*PACK{IO}, $_) } @procs;
-    print PACK "</table>\n\n";
-  }
+  printfuncprochtml(*PACK{IO}, $pbody);
   printhtmlfooter(*PACK{IO});
   close PACK;
 }
