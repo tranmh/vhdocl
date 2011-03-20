@@ -2275,6 +2275,7 @@ sub hier_max_depth
 # classes and <span> tags for VHDL language elements:
 my $SPDOC= "<span class=\"doccom\">";       # documentation comment text
 my $SPID= "<span class=\"identifier\">";    # identifier
+my $SPTID= "<span class=\"thisid\">";       # identifier of this declaration
 my $SPSTR= "<span class=\"vhdlstr\">";      # quoted (bit) string or bit
 my $SPIO= "<span class=\"vhdlio\">";        # in, out, inout
 my $SPVA= "<span class=\"vhdlvar\">";       # signal, constant, variable, attr.
@@ -2283,6 +2284,7 @@ my $SPWD= "<span class=\"vhdlword\">";      # other VHDL reserved word
 my $SPIE= "<span class=\"vhdlieee\">";      # standard package word
 my $CCO= " class=\"vhdlcode\"";
 my $SPCO= "<span class=\"vhdlcode\">";      # encloses all VHDL code
+my $SPNC= "<span class=\"nocode\">";        # non-code within class vhdlcode
 my $SP_= "</span>";
 
 # Try to create output directories if they do not yet exist, and localise the
@@ -2674,8 +2676,9 @@ sub printlibusehtml
 {
   my ($handle, $obj)= @_;
   my (%libs, %uses);        # use hashes to make libs/packages unique
+  my $searchIDtag= quotemeta($SPID);
 
-# TODO: don't we habe these lists from parsing?
+# TODO: don't we have these lists from parsing?
   for (@{$obj->{"file"}->{"children"}}, @{$obj->{"children"}}) {
     if( $_->{"type"} eq "library" ) {
       $libs{lc($_->{"name"})}= $_;
@@ -2689,8 +2692,10 @@ sub printlibusehtml
                     "<table border=\"0\" cellpadding=\"$cp\">\n";
   my @sortuses= sort keys %uses;
   for my $lib (sort keys %libs) {
+    my $markedname= markvhdl($libs{$lib}->{"name"});
+    $markedname =~ s/$searchIDtag/$SPTID/g;
     print $handle "<tr$CCO><td colspan=\"2\"><b>${SPDCL}library$SP_ ",
-                  markvhdl($libs{$lib}->{"name"}), "</b></td></tr>\n";
+                  $markedname, "</b></td></tr>\n";
     map { print $handle "<tr><td width=\"$iw\"></td><td>$SPDOC$_$SP_</td></tr>\n"; }
                           @{$libs{$lib}->{"doc"}->{"description"}};
     for my $usename (grep $_ =~ /^$lib\b/, @sortuses) {
@@ -2712,18 +2717,22 @@ sub printusehtml
 {
   my ($handle, $use)= @_;
 
+  my $markedname= markvhdl($use->{"name"});
+  my $searchIDtag= quotemeta($SPID);
+  $markedname =~ s/$searchIDtag/$SPTID/g;
+
   if( $use->{"object"} && (my $link= $use->{"object"}->{"doclink"}) ) {
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ <a href=\"$link\">",
-                  $SPID, $use->{"name"}, "$SP_</a></td></tr>\n";
+                  $markedname, "</a></td></tr>\n";
   }
   elsif( $use->{"package"} ) {
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ",
               "<a href=\"../packages/", $use->{"package"}->{"docfilename"},
-              "\">", markvhdl($use->{"name"}), "</a></td></tr>\n";
+              "\">", $markedname, "</a></td></tr>\n";
   }
   else {
-    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ",
-                  markvhdl($use->{"name"}), "</td></tr>\n";
+    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ", $markedname,
+                  "</td></tr>\n";
   }
   map { print $handle "<tr><td width=\"$iw\"></td><td>$SPDOC$_$SP_</td></tr>\n"; }
                         @{$use->{"doc"}->{"description"}};
@@ -2737,7 +2746,7 @@ sub printgenporthtml
 {
   my ($handle, $gp)= @_;
 
-  print $handle "<tr$CCO><td align=\"left\"><b>$SPID", $gp->{"name"},
+  print $handle "<tr$CCO><td align=\"left\"><b>$SPTID", $gp->{"name"},
                 "$SP_</b></td>\n";
   print $handle "<td align=\"center\"><i><b>$SPIO", $gp->{"direction"}, 
                 "$SP_</b></i></td>" if $gp->{"direction"};
@@ -2837,8 +2846,9 @@ sub printattrhtml
     my $aspec= $obj->{"attributes"}->{$attrname};
     my $attr= $aspec->{"attribute"};
     print $handle "<tr$CCO><td><b>$SPID", $aspec->{"name"},
-        "$SP_</b></td><td> : ", ($attr->{"subtype"} || "<i>unknown type</i>"), 
-              "</td><td> := ", markvhdl($aspec->{"value"}), "</td></tr>\n";
+                "$SP_</b></td><td> : ",
+                ($attr->{"subtype"} || "<i>${SPNC}unknown type$SP_</i>"), 
+                "</td><td> := ", markvhdl($aspec->{"value"}), "</td></tr>\n";
     if( $attr->{"doc"}->{"description"} &&
                               @{$attr->{"doc"}->{"description"}} ) {
       map { print $handle "<tr>$ind<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
@@ -2863,7 +2873,7 @@ sub printcomphtml
   my $ind= "<td width=\"$iw\"></td>";
 
   print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"",
-                $labels{"component"}, $comp->{"name"}, "\">$SPID",
+                $labels{"component"}, $comp->{"name"}, "\">$SPTID",
                 $comp->{"name"}, "$SP_</a></b></td></tr>\n";
   printcommonhtml($handle, $comp);
   print $handle "<tr>$ind<td colspan=\"4\">",
@@ -2881,13 +2891,13 @@ sub printfunchtml
 {
   my ($handle, $func)= @_;
   my $ind= "<td width=\"$iw\"></td>";
-  my $label= $labels{$func->{"type"}};
+  my $label= $labels{$func->{"type"}} . $func->{"name"};
   my $arglist= $func->{"parlist"} ?
                 " (" . markvhdl($func->{"parlist"}) . ")" : "";
 
-  print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"$label",
-        $func->{"name"}, "\">$SPID", $func->{"name"}, "$SP_</a></b>", $arglist,
-        ($func->{"subtype"}? " ${SPWD}return$SP_ " .
+  print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"$label\">$SPTID",
+                $func->{"name"}, "$SP_</a></b>", $arglist,
+                ($func->{"subtype"}? " ${SPWD}return$SP_ " .
                                 markvhdl($func->{"subtype"}) : ""),
         "</td></tr>\n";
   print $handle "<tr$CCO>$ind<td colspan=\"4\"><b>${SPWD}impure$SP_</b></td></tr>\n"
@@ -2904,7 +2914,7 @@ sub printtypehtml
   my ($handle, $type)= @_;
 
   print $handle "<tr$CCO><td>$SPDCL", ($type->{"sub"}? "subtype": "type"),
-                "$SP_</td><td><b>$SPID", $type->{"name"}, "$SP_</b></td>",
+                "$SP_</td><td><b>$SPTID", $type->{"name"}, "$SP_</b></td>",
                 "<td>${SPWD}is$SP_</td>\n<td>";
   if( $type->{"type"} eq "type" ) {
     print $handle markvhdl($type->{"subtype"}), "</td></tr>\n";
@@ -2949,8 +2959,8 @@ sub printtracehtml
   }
   else {
     print $handle "<tr$CCO>$ind$ind<td colspan=\"3\">$SPWD", $trc->{"type"},
-               "$SP_ <b>", 
-               ($trc->{"name"} ? $SPID.$trc->{"name"}.$SP_ : "<i>unnamed</i>"),
+               "$SP_ <b>", ($trc->{"name"} ? $SPID.$trc->{"name"}.$SP_ :
+                                            "<i>${SPNC}unnamed$SP_</i>"),
                "</b></td></tr>\n";
   }
   map { print $handle "<tr>$ind$ind$ind<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
@@ -2967,8 +2977,8 @@ sub printprochtml
   my $proc= $$path[$#$path];
   my $ind= "<td width=\"$iw\"></td>";
 
-  print $handle "<tr$CCO><td colspan=\"5\"><b>", 
-      ($proc->{"name"} ? $SPID.$proc->{"name"}.$SP_ : "<i>unnamed</i>"), "</b>",
+  print $handle "<tr$CCO><td colspan=\"5\"><b>", ($proc->{"name"} ?
+            $SPTID.$proc->{"name"}.$SP_ : "<i>${SPNC}unnamed$SP_</i>"), "</b>",
   ($proc->{"sensitivity"}? " (" . markvhdl($proc->{"sensitivity"}) . ")" : ""), 
           "</td></tr>\n";
   print $handle "<tr$CCO>$ind<td colspan=\"4\"><b>${SPWD}postponed$SP_</b></td></tr>\n"
@@ -2993,7 +3003,7 @@ sub printinsthtml
   my $ind= "<td width=\"$iw\"></td>";
 
   print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"", $labels{"instance"},
-                $inst->{"name"}, "\">$SPID", $inst->{"name"}, "$SP_</a></b> : ";
+              $inst->{"name"}, "\">$SPTID", $inst->{"name"}, "$SP_</a></b> : ";
   if( $inst->{"subtype"} eq "configuration" ) {
     print $handle "${SPWD}configuration$SP_ ";
     if( $inst->{"binding"} ) {
