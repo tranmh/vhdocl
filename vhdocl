@@ -760,11 +760,10 @@ sub preprocessline
   my ($new, $ahead)= @_;
 
   $new =~ s/^\s*//;
-  $new =~ s/^($MANY)--(?:|[^+*].*|\+\+.*|\*\*.*)$/$1/o;
-  if( $new =~ /^($MANY)--([+*])(.*)$/o ) {
-    $new= $1;
-    ($ahead ? $keepaheaddoc : $keepdoccom) = $2 eq "+" unless $config{"compat"};
-    ($ahead ? $aheaddoccom : $doccomment) .= $3 . "\n";
+  $new =~ s/^($MANY)--(.*)$/$1/o;
+  if( $2 && $2 =~ /^([+*])([^+*].*|)$/ ) {
+    ($ahead ? $keepaheaddoc : $keepdoccom) = $1 eq "+" unless $config{"compat"};
+    ($ahead ? $aheaddoccom : $doccomment) .= $2 . "\n";
   }
   chomp $new;
   $vline .= " " . $new;
@@ -851,11 +850,10 @@ sub readportlist
       my $new= <$vhandle>;
       return unless defined($new);
       $new =~ s/^\s*//;
-      $new =~ s/^($MANY)--(?:|[^+*].*|\+\+.*|\*\*.*)$/$1/o;
-      if( $new =~ /^($MANY)--([+*])(.*)$/o ) {
-        $new= $1;
-        $keepdoccom= $2 eq "+" unless $config{"compat"};
-        $doccomment .= $3 . "\n";
+      $new =~ s/^($MANY)--(.*)$/$1/o;
+      if( $2 && $2 =~ /^([+*])([^+*].*|)$/ ) {
+        $keepdoccom= $1 eq "+" unless $config{"compat"};
+        $doccomment .= $2 . "\n";
       }
       chomp $new;
       $vline .= " " . $new;
@@ -2678,7 +2676,6 @@ sub printlibusehtml
   my (%libs, %uses);        # use hashes to make libs/packages unique
   my $searchIDtag= quotemeta($SPID);
 
-# TODO: don't we have these lists from parsing?
   for (@{$obj->{"file"}->{"children"}}, @{$obj->{"children"}}) {
     if( $_->{"type"} eq "library" ) {
       $libs{lc($_->{"name"})}= $_;
