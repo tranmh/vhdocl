@@ -2277,6 +2277,7 @@ sub hier_max_depth
 
 # classes and <span> tags for VHDL language elements:
 my $SPDOC= "<span class=\"doccom\">";       # documentation comment text
+my $SPDO= "<span class=\"vhdlcom\">";       # other comment text
 my $SPID= "<span class=\"identifier\">";    # identifier
 my $SPTID= "<span class=\"thisid\">";       # identifier of this declaration
 my $SPSTR= "<span class=\"vhdlstr\">";      # quoted (bit) string or bit
@@ -3409,25 +3410,29 @@ sub sourcehtml
     return;
   }
   printhtmlheader(\$header, $file->{"name"});
-  $header =~ s!(?=</head>)!<<EOF!ie;
-    <script type="text/javascript" src="../style/$requisites{synjava1}"></script>
-    <script type="text/javascript" src="../style/$requisites{synjava2}"></script>
-    <link type="text/css" rel="stylesheet" href="../style/$requisites{synstyle1}">
-    <link type="text/css" rel="stylesheet" href="../style/$requisites{synstyle2}">
-    <script type="text/javascript">SyntaxHighlighter.all();</script>
-EOF
   print SRCHTML $header;
   print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
                                 $file->{"link"}, "\">Link to file</a></p>\n";
-  print SRCHTML "<pre class=\"brush: vhdl;\">\n";
+  print SRCHTML "<pre$CCO>\n";
   while( <VHDL> )
   {
-    s/&/&amp;/g;
-    s/"/&quot;/g;
-    s/</&lt;/g;
-    s/>/&gt;/g;
-    print SRCHTML $_;
+    my $comment= "";
+    chomp;
+    if( s/^($MANY)--(.*$)/$1/o ) {
+        $comment= $2;
+        $comment =~ s/&/&amp;/g;
+        $comment =~ s/"/&quot;/g;
+        $comment =~ s/</&lt;/g;
+        $comment =~ s/>/&gt;/g;
+        if( $comment =~ /^([+*])([^+*].*|)$/ ) {
+            $comment= "$SPDOC--$comment$SP_";
+        }
+        else {
+            $comment= "$SPDO--$comment$SP_";
+        }
+    }
+    print SRCHTML markvhdl($_), $comment, "\n";
   }
   print SRCHTML "</pre>\n";
   printhtmlfooter(*SRCHTML{IO});
