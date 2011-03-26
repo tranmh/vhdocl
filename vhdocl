@@ -2678,7 +2678,6 @@ sub printlibusehtml
 {
   my ($handle, $obj)= @_;
   my (%libs, %uses);        # use hashes to make libs/packages unique
-  my $searchIDtag= quotemeta($SPID);
 
   for (@{$obj->{"file"}->{"children"}}, @{$obj->{"children"}}) {
     if( $_->{"type"} eq "library" ) {
@@ -2694,7 +2693,6 @@ sub printlibusehtml
   my @sortuses= sort keys %uses;
   for my $lib (sort keys %libs) {
     my $markedname= markvhdl($libs{$lib}->{"name"});
-    $markedname =~ s/$searchIDtag/$SPTID/g;
     print $handle "<tr$CCO><td colspan=\"2\"><b>${SPDCL}library$SP_ ",
                   $markedname, "</b></td></tr>\n";
     map { print $handle "<tr><td width=\"$iw\"></td><td>$SPDOC$_$SP_</td></tr>\n"; }
@@ -2717,10 +2715,7 @@ sub printlibusehtml
 sub printusehtml
 {
   my ($handle, $use)= @_;
-
   my $markedname= markvhdl($use->{"name"});
-  my $searchIDtag= quotemeta($SPID);
-  $markedname =~ s/$searchIDtag/$SPTID/g;
 
   if( $use->{"object"} && (my $link= $use->{"object"}->{"doclink"}) ) {
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ <a href=\"$link\">",
