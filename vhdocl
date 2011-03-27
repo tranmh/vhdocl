@@ -3418,8 +3418,8 @@ sub sourcehtml
   while( <VHDL> )
   {
     my $comment= "";
-    chomp;
-    if( s/^($MANY)--(.*$)/$1/o ) {
+    s/\s+$//;
+    if( s/^($MANY)--(.*)$/$1/o ) {
         $comment= $2;
         $comment =~ s/&/&amp;/g;
         $comment =~ s/"/&quot;/g;
