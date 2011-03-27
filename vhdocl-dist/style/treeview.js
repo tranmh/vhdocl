@@ -87,14 +87,35 @@
     while(tree_node.nodeName.toLowerCase() != "dd") {
       tree_node = tree_node.parentNode;
     }
-    if( tree_node.className == "treeMenu_opened" ) {
-      tree_node.className = "treeMenu_closed";
-      treeMenu_closeOrOpenAll(tree_node, true);
-    }
-    else {
+    if( treeMenu_anyClosed(tree_node) ) {
       tree_node.className = "treeMenu_opened";
       treeMenu_closeOrOpenAll(tree_node, false);
     }
+    else {
+      tree_node.className = "treeMenu_closed";
+      treeMenu_closeOrOpenAll(tree_node, true);
+    }
+  }
+
+  /*
+   * Find out if a node or any sub-node is closed
+   * 
+   * node: Reference to tree node
+   */
+  function treeMenu_anyClosed(node) {
+
+    if( node.className == "treeMenu_closed" ) {
+        return true;
+    }
+
+    var items = node.getElementsByTagName("dd");
+
+    for(var i = 0; i < items.length; i++) {
+        if( items[i].className == "treeMenu_closed" ) {
+            return true;
+        }
+    }
+    return false;
   }
 
   /*

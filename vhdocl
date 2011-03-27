@@ -3694,11 +3694,10 @@ EOF
         if $haveconfs;
   print INST <<EOF;
 
-<p>Click on <img src="style/$requisites{nodeimg}"> to open one level, on <img
-src="style/$requisites{subtrimg}"> to open all levels (only for
-configurations).</p>
-
-<p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);"><b>Open all</b></span> /
+<p>Click on <img src="style/$requisites{nodeimg}"> to open or close one level,
+on <img src="style/$requisites{subtrimg}"> to open or close all levels (only
+for configurations).
+<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);"><b>Open all</b></span> /
 <span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);"><b>Close all</b></span></p>
 
 <dl id="treeview">
@@ -3750,10 +3749,9 @@ EOF
         if $haveconfs;
   print HIER <<EOF;
 
-<p>Click on <img src="style/$requisites{nodeimg}"> to open one level, on <img
-src="style/$requisites{subtrimg}"> to open all levels.</p>
-
-<p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);"><b>Open all</b></span> /
+<p>Click on <img src="style/$requisites{nodeimg}"> to open or close one level,
+on <img src="style/$requisites{subtrimg}"> to open or close all levels.
+<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);"><b>Open all</b></span> /
 <span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);"><b>Close all</b></span></p>
 
 <dl id="treeview">
