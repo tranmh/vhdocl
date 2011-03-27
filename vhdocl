@@ -35,7 +35,8 @@ my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "title" => "" );
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
-    "nodeimg" => "node.png", "leafimg" => "leaf.png",
+    "nodeimg" => "node.png", "subtrimg" => "subtree.png",
+    "leafimg" => "leaf.png",
     "synstyle1" => "shCore.css", "synstyle2" => "shThemeDefault.css",
     "synimg1" => "wrapping.png", "synimg2" => "help.png",
     "synimg3" => "printer.png", "synimg4" => "page_white_code.png",
@@ -3649,7 +3650,7 @@ EOF
     return;
   }
   print $handle <<EOF;
-<dd><table border="0"><tr><td><img src="style/$requisites{nodeimg}">&nbsp;</td>
+<dd><table border="0"><tr><td><img src="style/$requisites{nodeimg}"><img src="style/$requisites{subtrimg}">&nbsp;</td>
     <td>$nodehtml</td></tr></table> <dl>
 EOF
   unshift @$trace, $real;
@@ -3692,6 +3693,10 @@ EOF
   print INST "\n<p>Configurations are given in brackets and in <i>italics</i>.</p>\n\n"
         if $haveconfs;
   print INST <<EOF;
+
+<p>Click on <img src="style/$requisites{nodeimg}"> to open one level, on <img
+src="style/$requisites{subtrimg}"> to open all levels (only for
+configurations).</p>
 
 <p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);"><b>Open all</b></span> /
 <span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);"><b>Close all</b></span></p>
@@ -3744,6 +3749,9 @@ EOF
   print HIER "\n<p>Configurations are given in brackets and in <i>italics</i>.</p>\n\n"
         if $haveconfs;
   print HIER <<EOF;
+
+<p>Click on <img src="style/$requisites{nodeimg}"> to open one level, on <img
+src="style/$requisites{subtrimg}"> to open all levels.</p>
 
 <p><span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);"><b>Open all</b></span> /
 <span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);"><b>Close all</b></span></p>

@@ -33,17 +33,20 @@
       /* install click handler on bullet image */
       var images = items[i].getElementsByTagName("img"); 
       if( images.length > 0 ) {
-        images[0].onclick = treeMenu_handleClick;
+        images[0].onclick = treeMenu_toggle1Level;
+      }
+      if( images.length > 1 ) {
+        images[1].onclick = treeMenu_toggleRecursive;
       }
     }
   }
-  
+
   /*
-   * Click handler which opens or closes tree nodes.
+   * Click handler which opens or closes one level of tree nodes.
    *
    * event: event object from browser
    */
-  function treeMenu_handleClick(event) {
+  function treeMenu_toggle1Level(event) {
     var tree_node;
     if(event == null) {         // Workaround for IE
       event = window.event;
@@ -62,6 +65,35 @@
     }
     else {
       tree_node.className = "treeMenu_opened";
+    }
+  }
+
+  /*
+   * Click handler which opens or closes subnodes recursively.
+   *
+   * event: event object from browser
+   */
+  function treeMenu_toggleRecursive(event) {
+    var tree_node;
+    if(event == null) {         // Workaround for IE
+      event = window.event;
+      tree_node = event.srcElement;
+      event.cancelBubble = true;
+    }
+    else {
+      event.stopPropagation();
+      tree_node = event.currentTarget;
+    }
+    while(tree_node.nodeName.toLowerCase() != "dd") {
+      tree_node = tree_node.parentNode;
+    }
+    if( tree_node.className == "treeMenu_opened" ) {
+      tree_node.className = "treeMenu_closed";
+      treeMenu_closeOrOpenAll(tree_node, true);
+    }
+    else {
+      tree_node.className = "treeMenu_opened";
+      treeMenu_closeOrOpenAll(tree_node, false);
     }
   }
 
