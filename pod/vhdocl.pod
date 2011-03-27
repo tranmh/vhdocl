@@ -518,6 +518,58 @@ Minh Cuong Tran).  The source file itself is hyperlinked, so you can edit it by
 clicking on the link if you have the file associations of  your browser set
 accordingly.
 
+When parts of the source are quoted in the documentation pages, VHDocL
+surrounds them by tags belonging to classes that allow markup by a user CSS
+file.  (This is not currently done to the source HTML files because that would
+require processing the source files a second time and increase VHDocL's runtime
+accordingly.)  The following CSS classes are available:
+
+=over
+
+=item B<doccom>
+
+Text from documentation comments.
+
+=item B<vhdlcode>
+
+Encloses all code quotes, allowing for example to set a monospace font.
+
+=item B<thisid>
+
+Identifier of the declarative item being documented.
+
+=item B<vhdlieee>
+
+Identifier from standard package.
+
+=item B<identifier>
+
+Other identifier.
+
+=item B<vhdlio>
+
+I/O direction indicator such as C<in>, C<out> and C<inout>.
+
+=item B<vhdlvar>
+
+VHDL declaration keyword C<variable>, C<signal>, C<constant>, C<attribute> or
+similar.
+
+=item B<vhdldecl>
+
+Other VHDL declaration keyword.
+
+=item B<vhdlword>
+
+Other VHDL reserved word.
+
+=item B<nocode>
+
+Non-code words inside quoted code, such as "unnamed" notice for nameless
+processes.
+
+=back
+
 
 =head1 BUGS AND LIMITATIONS
 
