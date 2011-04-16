@@ -251,7 +251,9 @@ my @options= (
 [ "", "leftlogo", "/", "leftlogo" ],
 [ "", "rightlogo", "/", "rightlogo" ],
 [ "", "title", "*", "title" ],
-[ "", "toplink", "/", "toplink" ] );
+[ "", "toplink", "/", "toplink" ],
+[ "", "javasyntax", "?", "javasyntax" ],
+);
 
 
 # Parse command line argument arrray.
@@ -3441,6 +3443,54 @@ sub sourcehtml
 }
 
 
+# Generate the HTML page for a source file.  This function generates HTML code
+# which uses the JavaScript SyntaxHighlighter tool.
+# -> Reference to hash representing the VHDL file
+sub sourcehtml_sh
+{
+  my ($file)= @_;
+  my $srcfname= $file->{"name"};
+  my $outfname= File::Spec->catfile($config{"outputdir"}, "sources",
+                                    $file->{"docfilename"});
+  my $header;
+
+  if( !open(VHDL, $srcfname) ) {
+    limitfileerr("Cannot open source file $srcfname for generating source HTML file", \$sourcehtmlerr);
+    return;
+  }
+  if( !open(SRCHTML, ">$outfname") ) {
+    limitfileerr("Cannot create output file $outfname", \$sourcehtmlerr);
+    close VHDL;
+    return;
+  }
+  printhtmlheader(\$header, $file->{"name"});
+  $header =~ s!(?=</head>)!<<EOF!ie;
+    <script type="text/javascript" src="../style/$requisites{synjava1}"></script>
+    <script type="text/javascript" src="../style/$requisites{synjava2}"></script>
+    <link type="text/css" rel="stylesheet" href="../style/$requisites{synstyle1}">
+    <link type="text/css" rel="stylesheet" href="../style/$requisites{synstyle2}">
+    <script type="text/javascript">SyntaxHighlighter.all();</script>
+EOF
+  print SRCHTML $header;
+  print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
+  print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
+                                $file->{"link"}, "\">Link to file</a></p>\n";
+  print SRCHTML "<pre class=\"brush: vhdl;\">\n";
+  while( <VHDL> )
+  {
+    s/&/&amp;/g;
+    s/"/&quot;/g;
+    s/</&lt;/g;
+    s/>/&gt;/g;
+    print SRCHTML $_;
+  }
+  print SRCHTML "</pre>\n";
+  printhtmlfooter(*SRCHTML{IO});
+  close SRCHTML;
+  close VHDL;
+}
+
+
 # Generate the HTML page listing entities, architectures and configurations
 # -> Reference to array of hash references representing entities
 #    Reference to array of hash references representing architectures not
@@ -4326,7 +4376,12 @@ for my $pack (@packages, @orphanedpbodies) {
 }
 
 for my $file (@vhdlfiles) {
-  sourcehtml($file);
+  if( $config{"javasyntax"} ) {
+    sourcehtml_sh($file);
+  }
+  else {
+    sourcehtml($file);
+  }
 }
 
 benchmark("to generate HTML") if $config{"benchmark"};
