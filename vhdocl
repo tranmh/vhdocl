@@ -2301,7 +2301,6 @@ sub prepareoutput
 {
   my $dir= $config{"absoutputdir"};
   my $datadir;
-  my $item;
 
   eval { File::Path::make_path( $dir ); };
   croak "Cannot create output directory `$dir' - $@" if $@;
@@ -2339,8 +2338,9 @@ sub prepareoutput
     }
     else {
       my $copyerr= 0;
-      for $item (values %requisites) {
-        $copyerr ||= ! copyfile(File::Spec->catfile($styledatadir, $item),
+      while( my ($key, $file)= each(%requisites) ) {
+        next if !$config{"javasyntax"} && $key =~ /^syn/;
+        $copyerr ||= ! copyfile(File::Spec->catfile($styledatadir, $file),
                                     $styledir);
       }
       if( $copyerr && !$config{"quiet"} ) {
@@ -2355,7 +2355,7 @@ indicate its location.  Cannot copy style files.  Continuing regardless.
 EOF
   }
   # Now copy all style files not given as URLs
-  for $item ("stylesheet", "leftlogo", "rightlogo") {
+  for my $item ("stylesheet", "leftlogo", "rightlogo") {
     if( $config{$item} ) {
       $config{$item."url"}= $config{$item} =~ /^\w+:\/\//;
       if( !$config{$item."url"} ) {
