@@ -3375,7 +3375,13 @@ sub configurationhtml
 
 my $packhtmlerr= 0;
 
-# Write the HTML documentation for a package or orphaned package body
+# Write the HTML documentation for a package or orphaned package body.  The
+# documentation of functions and procedures in a package and the corresponding
+# package body are concatenated and printed in the documentation of the package
+# only.  To this end, the duplicate functions/procedures are removed from the
+# package body hash, and their the documentation in the package is modified.
+# If no declarations specific to the package body remain to be documented, the
+# section about the package body is left out.
 # -> Reference to hash representing package or package body
 sub packagehtml
 {
@@ -3390,6 +3396,37 @@ sub packagehtml
   }
   printhtmlheader(*PACK{IO}, $pack->{"fullname"});
   if( $pack->{"type"} eq "package" ) {
+    $pbody= $pack->{"packagebody"};
+    if( $pbody ) {
+      my ($pbfuncs, $pbprocs, $pbfuncprocs);
+      for my $f (@{$pbody->{"childtype"}->{"function"}}) {
+        my $el= elem { packsubeq($_, $f) } @{$pack->{"childtype"}->{"function"}};
+        if( $el ) {
+          push @{$el->{"doc"}->{"description"}},
+                    @{$f->{"doc"}->{"description"} || []};
+        }
+        else {
+          push @$pbfuncs, $f
+        }
+      }
+      for my $p (@{$pbody->{"childtype"}->{"procedure"}}) {
+        my $el= elem { packsubeq($_, $p) } @{$pack->{"childtype"}->{"procedure"}};
+        if( $el ) {
+          push @{$el->{"doc"}->{"description"}},
+                    @{$p->{"doc"}->{"description"} || []};
+        }
+        else {
+          push @$pbprocs, $p;
+        }
+      }
+      # Can't just concatenate ->{"function"} and ->{"procedure"} because we
+      # want to preserve order
+      for my $f (@{$pbody->{"childtype"}->{"funcproc"}}) {
+        push @$pbfuncprocs, $f if elem { $_ == $f } (@$pbfuncs, @$pbprocs);
+      }
+      @{$pbody->{"childtype"}}{qw(function procedure funcproc)}=
+                                      ($pbfuncs, $pbprocs, $pbfuncprocs);
+    }
     print PACK "<h1>Package ", $pack->{"fullname"}, "</h1>\n\n";
     printobjhtml(*PACK{IO}, $pack);
     printlibusehtml(*PACK{IO}, $pack);
@@ -3411,7 +3448,6 @@ sub packagehtml
       map { printcomphtml(*PACK{IO}, $_) } @comps;
       print PACK "</table>\n\n";
     }
-    $pbody= $pack->{"packagebody"};
     unless( $pbody ) {
       printhtmlfooter(*PACK{IO});
       close PACK;
@@ -3443,32 +3479,7 @@ sub packagehtml
     map { printgenporthtml(*PACK{IO}, $_) } @consts;
     print PACK "</table>\n\n";
   }
-  if( $pack ) {
-    my ($funcs, $procs, $funcprocs)=
-                    @{$pbody->{"childtype"}}{qw(function procedure funcproc)};
-    my ($pbfuncs, $pbprocs, $pbfuncprocs);
-    for my $f (@{$pbody->{"childtype"}->{"function"}}) {
-      push @$pbfuncs, $f
-        unless elem { packsubeq($_, $f) } @{$pack->{"childtype"}->{"function"}};
-    }
-    for my $p (@{$pbody->{"childtype"}->{"procedure"}}) {
-      push @$pbprocs, $p unless
-            elem { packsubeq($_, $p) } @{$pack->{"childtype"}->{"procedure"}};
-    }
-    # Can't just concatenate ->{"function"} and ->{"procedure"} because we want
-    # to preserve order
-    for my $f (@{$pbody->{"childtype"}->{"funcproc"}}) {
-      push @$pbfuncprocs, $f if elem { $_ == $f } (@$pbfuncs, @$pbprocs);
-    }
-    @{$pbody->{"childtype"}}{qw(function procedure funcproc)}=
-                                    ($pbfuncs, $pbprocs, $pbfuncprocs);
-    printfuncprochtml(*PACK{IO}, $pbody);
-    @{$pbody->{"childtype"}}{qw(function procedure funcproc)}=
-                                    ($funcs, $procs, $funcprocs);
-  }
-  else {
-    printfuncprochtml(*PACK{IO}, $pbody);
-  }
+  printfuncprochtml(*PACK{IO}, $pbody);
   printhtmlfooter(*PACK{IO});
   close PACK;
 }
