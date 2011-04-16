@@ -3401,6 +3401,7 @@ sub sourcehtml
   my $outfname= File::Spec->catfile($config{"outputdir"}, "sources",
                                     $file->{"docfilename"});
   my $header;
+  my $markedcode;
 
   if( !open(VHDL, $srcfname) ) {
     limitfileerr("Cannot open source file $srcfname for generating source HTML file", \$sourcehtmlerr);
@@ -3412,11 +3413,17 @@ sub sourcehtml
     return;
   }
   printhtmlheader(\$header, $file->{"name"});
+  $header =~ s!(?<=</title>)!<<EOF!ie;
+
+    <style type="text/css"><!--
+    *.shaded { background-color:#f8f8f8; }
+    --></style>
+EOF
   print SRCHTML $header;
   print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
                                 $file->{"link"}, "\">Link to file</a></p>\n";
-  print SRCHTML "<pre$CCO>\n";
+  my $shadeline= 1;
   while( <VHDL> )
   {
     my $comment= "";
@@ -3434,9 +3441,20 @@ sub sourcehtml
             $comment= "$SPDO--$comment$SP_";
         }
     }
-    print SRCHTML markvhdl($_), $comment, "\n";
+    my $line= markvhdl($_) . $comment . "\n";
+    if( $shadeline ) {
+      $line= "<div class=\"shaded\">$line</div>";
+    }
+    $shadeline= ! $shadeline;
+    $markedcode .= $line;
   }
-  print SRCHTML "</pre>\n";
+  print SRCHTML "<table border=\"0\" cellpadding=\"0\"><tr><td><pre>\n";
+  my $nrwidth= length($.);
+  for my $nr (1..$.) {
+    printf SRCHTML "%${nrwidth}d\n", $nr;
+  }
+  print SRCHTML "</pre></td><td width=\"15\"></td><td>\n";
+  print SRCHTML "<pre$CCO>\n$markedcode</pre>\n</td></tr></table>\n";
   printhtmlfooter(*SRCHTML{IO});
   close SRCHTML;
   close VHDL;
