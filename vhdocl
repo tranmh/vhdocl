@@ -158,6 +158,31 @@ sub fileext
 }
 
 
+# Compare two code snippets.  White space is compressed to one space character
+# between words and completely removed elsewhere.  The contents of strings are
+# not treated specially, so if two snippets differ only by the amount of white
+# space in strings, they will erroneously compare as equal.
+# -> Strings to compare
+# <- 0 if equivalent
+sub codecmp
+{
+  my ($a, $b)= @_;
+
+  return 0 if $a eq $b;
+  $a =~ s/\s+/ /g;
+  $a =~ s/^ //;
+  $a =~ s/ $//;
+  $a =~ s/ (?=\W)//g;
+  $a =~ s/(?<=\W) //g;
+  $b =~ s/\s+/ /g;
+  $b =~ s/^ //;
+  $b =~ s/ $//;
+  $b =~ s/ (?=\W)//g;
+  $b =~ s/(?<=\W) //g;
+  return $a cmp $b;
+}
+
+
 # Copy a file.  Uses File::Copy->copy() but prevents croaking.
 # -> Source file name
 #    Destination file name or target directory
@@ -984,8 +1009,8 @@ sub readcommalist
 # type, the type of loop or generate, or type of a variable or constant),
 # "objname" (entity or component of an architecture or instantiation) and
 # "architecture" (of an instance).  If documentation comments (--*) relating to
-# a declarative item are found, they are parsed with parsedoccom(), an the
-# resulting array reference becomes the value of the item's "doc" entry.
+# a declarative item are found, they are parsed with parsedoccom(), and the
+# resulting array reference is stored in the item's "doc" entry.
 sub parsefile
 {
   my ($file)= @_;
@@ -1447,6 +1472,36 @@ done:
         if $errflag;
 }
 
+}
+
+
+# Compare the hash representations of two functions or procedures for finding
+# equivalent declarations in a package and its package body.  The types of the
+# two declarations (function or procedure) are not compared and are assumed to
+# be equal.
+# -> Two references to hashes representing declarative items
+# <- 1 if equal, 0 otherwise
+sub packsubeq
+{
+  my ($a, $b)= @_;
+
+  return 0 if lc($a->{"name"}) ne lc($b->{"name"});
+  if( $a->{"type"} eq "function" ) {
+    return 0 if $a->{"pure"} ne $b->{"pure"} ||
+                codecmp($a->{"subtype"}, $b->{"subtype"});
+  }
+  return 0 if @{$a->{"parameters"}} != @{$b->{"parameters"}};
+  for my $ind (0..$#{$a->{"parameters"}}) {
+    my $pa= $a->{"parameters"}->[$ind];
+    my $pb= $b->{"parameters"}->[$ind];
+    return 0 if lc($pa->{"name"}) ne lc($pb->{"name"}) ||
+                $pa->{"subtype"} ne $pb->{"subtype"} ||
+                $pa->{"direction"} ne $pb->{"direction"} ||
+                codecmp($pa->{"type"}, $pb->{"type"}) ||
+                defined($pa->{"value"}) != defined($pb->{"value"}) ||
+          (defined($pa->{"value"}) && codecmp($pa->{"value"}, $pb->{"value"}));
+  }
+  return 1;
 }
 
 
@@ -3366,6 +3421,13 @@ sub packagehtml
   }
   else {
     $pbody= $pack;
+    $pack= undef;
+  }
+  unless( elem { $_->{"type"} =~ /^(?:type|subtype|record|units|protected|
+   protectedbody|constant|function|procedure)$/ix } @{$pbody->{"children"}} ) {
+    printhtmlfooter(*PACK{IO});
+    close PACK;
+    return;
   }
   print PACK "<h1>Package body ", $pbody->{"fullname"}, "</h1>\n\n";
   printobjhtml(*PACK{IO}, $pbody);
@@ -3381,7 +3443,32 @@ sub packagehtml
     map { printgenporthtml(*PACK{IO}, $_) } @consts;
     print PACK "</table>\n\n";
   }
-  printfuncprochtml(*PACK{IO}, $pbody);
+  if( $pack ) {
+    my ($funcs, $procs, $funcprocs)=
+                    @{$pbody->{"childtype"}}{qw(function procedure funcproc)};
+    my ($pbfuncs, $pbprocs, $pbfuncprocs);
+    for my $f (@{$pbody->{"childtype"}->{"function"}}) {
+      push @$pbfuncs, $f
+        unless elem { packsubeq($_, $f) } @{$pack->{"childtype"}->{"function"}};
+    }
+    for my $p (@{$pbody->{"childtype"}->{"procedure"}}) {
+      push @$pbprocs, $p unless
+            elem { packsubeq($_, $p) } @{$pack->{"childtype"}->{"procedure"}};
+    }
+    # Can't just concatenate ->{"function"} and ->{"procedure"} because we want
+    # to preserve order
+    for my $f (@{$pbody->{"childtype"}->{"funcproc"}}) {
+      push @$pbfuncprocs, $f if elem { $_ == $f } (@$pbfuncs, @$pbprocs);
+    }
+    @{$pbody->{"childtype"}}{qw(function procedure funcproc)}=
+                                    ($pbfuncs, $pbprocs, $pbfuncprocs);
+    printfuncprochtml(*PACK{IO}, $pbody);
+    @{$pbody->{"childtype"}}{qw(function procedure funcproc)}=
+                                    ($funcs, $procs, $funcprocs);
+  }
+  else {
+    printfuncprochtml(*PACK{IO}, $pbody);
+  }
   printhtmlfooter(*PACK{IO});
   close PACK;
 }
