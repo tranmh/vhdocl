@@ -2580,12 +2580,11 @@ sub html_esc
 my $MARKQUOT= qr/(?:\b[box])?\x04[^\x04]*\x04|'[^']'/i;
 my $MARKIO= wordregex qw( in out inout buffer linkage );
 my $MARKVAR= wordregex qw( constant signal variable file attribute );
-# "use" should really also be matched by $MARKDECL, but only for package use
-# statements.  We assume these are treated separately and are not piped through
-# markvhdl.
+# "use" is now included in $MARKDECL, even though this is only really correct
+# for package use statements.
 my $MARKDECL= wordregex qw( entity architecture configuration package body
-function procedure subtype type library component );
-my $MARKWORD= wordregex qw( begin pure impure postponed guarded use if then
+function procedure subtype type library component use );
+my $MARKWORD= wordregex qw( begin pure impure postponed guarded if then
 elsif for generate while until loop next case when group exit block process
 array units record with port generic map open null all others range not and
 nand or xor xnor mod rem sla sll sra srl ror rol assert report severity 
@@ -2977,7 +2976,7 @@ sub printfunchtml
   my $arglist= $func->{"parlist"} ?
                 " (" . markvhdl($func->{"parlist"}) . ")" : "";
 
-  print $handle "<tr$CCO><td colspan=\"5\">$SPWD", $func->{"type"},
+  print $handle "<tr$CCO><td colspan=\"5\">$SPDCL", $func->{"type"},
                 "$SP_ <b><a name=\"$label\">$SPTID",
                 $func->{"name"}, "$SP_</a></b>", $arglist,
                 ($func->{"subtype"}? " ${SPWD}return$SP_ " .
