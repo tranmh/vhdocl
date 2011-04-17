@@ -1,0 +1,36 @@
+*.doccom {
+    color:navy;
+}
+*.vhdlcom {
+    color:black;
+}
+*.identifier {
+    color:blue;
+}
+*.thisid {
+    color:fuchsia;
+}
+*.vhdlstr {
+    color:lime;
+}
+*.vhdlio {
+    color:green;
+}
+*.vhdlvar {
+    color:lime;
+}
+*.vhdldecl {
+    color:red;
+}
+*.vhdlword {
+    color:purple;
+}
+*.vhdlieee {
+    color:olive;
+}
+*.vhdlcode {
+    font-family:monospace;
+}
+*.nocode {
+    color:yellow;
+}
