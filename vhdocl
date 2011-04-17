@@ -36,7 +36,7 @@ my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "nodeimg" => "node.png", "subtrimg" => "subtree.png",
-    "leafimg" => "leaf.png",
+    "leafimg" => "leaf.png", "basestyle" => "vhdocl.css",
     "synstyle1" => "shCore.css", "synstyle2" => "shThemeDefault.css",
     "synimg1" => "wrapping.png", "synimg2" => "help.png",
     "synimg3" => "printer.png", "synimg4" => "page_white_code.png",
@@ -276,7 +276,9 @@ my @options= (
 [ "", "leftlogo", "/", "leftlogo" ],
 [ "", "rightlogo", "/", "rightlogo" ],
 [ "", "title", "*", "title" ],
-[ "", "toplink", "/", "toplink" ] );
+[ "", "toplink", "/", "toplink" ],
+[ "", "javasyntax", "?", "javasyntax" ],
+);
 
 
 # Parse command line argument arrray.
@@ -2332,6 +2334,7 @@ sub hier_max_depth
 
 # classes and <span> tags for VHDL language elements:
 my $SPDOC= "<span class=\"doccom\">";       # documentation comment text
+my $SPDO= "<span class=\"vhdlcom\">";       # other comment text
 my $SPID= "<span class=\"identifier\">";    # identifier
 my $SPTID= "<span class=\"thisid\">";       # identifier of this declaration
 my $SPSTR= "<span class=\"vhdlstr\">";      # quoted (bit) string or bit
@@ -2353,7 +2356,6 @@ sub prepareoutput
 {
   my $dir= $config{"absoutputdir"};
   my $datadir;
-  my $item;
 
   eval { File::Path::make_path( $dir ); };
   croak "Cannot create output directory `$dir' - $@" if $@;
@@ -2391,8 +2393,9 @@ sub prepareoutput
     }
     else {
       my $copyerr= 0;
-      for $item (values %requisites) {
-        $copyerr ||= ! copyfile(File::Spec->catfile($styledatadir, $item),
+      while( my ($key, $file)= each(%requisites) ) {
+        next if !$config{"javasyntax"} && $key =~ /^syn/;
+        $copyerr ||= ! copyfile(File::Spec->catfile($styledatadir, $file),
                                     $styledir);
       }
       if( $copyerr && !$config{"quiet"} ) {
@@ -2407,7 +2410,7 @@ indicate its location.  Cannot copy style files.  Continuing regardless.
 EOF
   }
   # Now copy all style files not given as URLs
-  for $item ("stylesheet", "leftlogo", "rightlogo") {
+  for my $item ("stylesheet", "leftlogo", "rightlogo") {
     if( $config{$item} ) {
       $config{$item."url"}= $config{$item} =~ /^\w+:\/\//;
       if( !$config{$item."url"} ) {
@@ -2471,10 +2474,13 @@ sub printhtmlheader
 
   $doctitle= length($config{"title"})?
                 "\n<center>" . $config{"title"} . "</center><hr>\n" : "";
-  $top= $config{"stylesheeturl"}? "" : $prepre;
-  $stylesheet= $config{"stylesheet"}? 
-                "<link rel=\"stylesheet\" type=\"text/css\" href=\"" . $top .
-                $config{"stylesheet"} . "\">" : "";
+  $stylesheet= "<link rel=\"stylesheet\" type=\"text/css\" " .
+               "href=\"${prepre}style/" .  $requisites{"basestyle"} . "\">";
+  if( $config{"stylesheet"} ) {
+    $top= $config{"stylesheeturl"}? "" : $prepre;
+    $stylesheet .= "\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"" .
+                   $top . $config{"stylesheet"} . "\">";
+  }
   $top= $config{"leftlogourl"}? "" : $prepre;
   $leftlogo= $config{"leftlogo"}?
                 "<img style=\"vertical-align:middle\" src=\"" . $top .
@@ -3496,6 +3502,69 @@ sub sourcehtml
   my $outfname= File::Spec->catfile($config{"outputdir"}, "sources",
                                     $file->{"docfilename"});
   my $header;
+  my $markedcode;
+
+  if( !open(VHDL, $srcfname) ) {
+    limitfileerr("Cannot open source file $srcfname for generating source HTML file", \$sourcehtmlerr);
+    return;
+  }
+  if( !open(SRCHTML, ">$outfname") ) {
+    limitfileerr("Cannot create output file $outfname", \$sourcehtmlerr);
+    close VHDL;
+    return;
+  }
+  printhtmlheader(*SRCHTML{IO}, $file->{"name"});
+  print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
+  print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
+                                $file->{"link"}, "\">Link to file</a></p>\n";
+  my $shadeline= 1;
+  while( <VHDL> )
+  {
+    my $comment= "";
+    s/\s+$//;
+    if( s/^($MANY)--(.*)$/$1/o ) {
+        $comment= $2;
+        $comment =~ s/&/&amp;/g;
+        $comment =~ s/"/&quot;/g;
+        $comment =~ s/</&lt;/g;
+        $comment =~ s/>/&gt;/g;
+        if( $comment =~ /^([+*])([^+*].*|)$/ ) {
+            $comment= "$SPDOC--$comment$SP_";
+        }
+        else {
+            $comment= "$SPDO--$comment$SP_";
+        }
+    }
+    my $line= markvhdl($_) . $comment . "\n";
+    if( $shadeline ) {
+      $line= "<div class=\"shaded\">$line</div>";
+    }
+    $shadeline= ! $shadeline;
+    $markedcode .= $line;
+  }
+  print SRCHTML "<table border=\"0\" cellpadding=\"0\"><tr><td><pre>\n";
+  my $nrwidth= length($.);
+  for my $nr (1..$.) {
+    printf SRCHTML "%${nrwidth}d\n", $nr;
+  }
+  print SRCHTML "</pre></td><td width=\"15\"></td><td>\n";
+  print SRCHTML "<pre$CCO>\n$markedcode</pre>\n</td></tr></table>\n";
+  printhtmlfooter(*SRCHTML{IO});
+  close SRCHTML;
+  close VHDL;
+}
+
+
+# Generate the HTML page for a source file.  This function generates HTML code
+# which uses the JavaScript SyntaxHighlighter tool.
+# -> Reference to hash representing the VHDL file
+sub sourcehtml_sh
+{
+  my ($file)= @_;
+  my $srcfname= $file->{"name"};
+  my $outfname= File::Spec->catfile($config{"outputdir"}, "sources",
+                                    $file->{"docfilename"});
+  my $header;
 
   if( !open(VHDL, $srcfname) ) {
     limitfileerr("Cannot open source file $srcfname for generating source HTML file", \$sourcehtmlerr);
@@ -4419,7 +4488,12 @@ for my $pack (@packages, @orphanedpbodies) {
 }
 
 for my $file (@vhdlfiles) {
-  sourcehtml($file);
+  if( $config{"javasyntax"} ) {
+    sourcehtml_sh($file);
+  }
+  else {
+    sourcehtml($file);
+  }
 }
 
 benchmark("to generate HTML") if $config{"benchmark"};

@@ -78,6 +78,15 @@ exit.  No processing will be done if this option is encountered.
 
 Indentation of nested lists in the HTML output.  Default: 50 pixels.
 
+=item B<--javasyntax>
+
+Use JavaScript SyntaxHighlighter by Alex Gorbatchev for source HTML pages
+instead of marking the syntax with CSS classes.  This will save some CPU time
+generating these pages, but since VHDocL is usually limited by disk I/O, this
+is not considered serious.  This option will likely be removed in the future,
+so let me know if you think you need it.  (See L</BUGS AND LIMITATIONS> below
+for contact information.)
+
 =item B<--leftlogo>=I<image>
 
 File name or URL of an image to put in the top left of every HTML page
@@ -513,16 +522,15 @@ contains the declarations of types, constants, functions, procedures and
 components.
 
 Source files are converted to HTML files with syntax highlighting and line
-numbering (thanks to SyntaxHighlighter by Alex Gorbatchev and the VHDL style by
-Minh Cuong Tran).  The source file itself is hyperlinked, so you can edit it by
-clicking on the link if you have the file associations of  your browser set
-accordingly.
+numbering.  This used to be done via SyntaxHighlighter by Alex Gorbatchev and
+the VHDL style by Minh Cuong Tran, but is now achieved by CSS classes the
+appearance of which can be overridden in the user CSS file.  The source file
+itself is hyperlinked, so you can edit it by clicking on the link if you have
+the file associations of  your browser set accordingly.
 
-When parts of the source are quoted in the documentation pages, VHDocL
-surrounds them by tags belonging to classes that allow markup by a user CSS
-file.  (This is not currently done to the source HTML files because that would
-require processing the source files a second time and increase VHDocL's runtime
-accordingly.)  The following CSS classes are available:
+When parts of the source are quoted in the documentation pages, they are also
+marked by tags with classes that allow markup by a user CSS file.  The
+following CSS classes are available:
 
 =over
 
@@ -565,7 +573,7 @@ Other VHDL reserved word.
 
 =item B<nocode>
 
-Non-code words inside quoted code, such as "unnamed" notice for nameless
+Non-code words inside quoted code, such as the "unnamed" notice for nameless
 processes.
 
 =back
@@ -601,8 +609,8 @@ formulation will defeat the spambots.)
 
 =head1 COPYRIGHT
 
-VHDocL is (c) 2007-10 Volker Schatz, with enhancements by Minh Cuong Tran.  It
-is free software and may be redistributed and/or modified under the terms of
+VHDocL is (c) 2007-2011 Volker Schatz, with enhancements by Minh Cuong Tran.
+It is free software and may be redistributed and/or modified under the terms of
 the GNU General Public License, version 3 or later.
 
 =cut
