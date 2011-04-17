@@ -34,3 +34,6 @@
 *.nocode {
     color:yellow;
 }
+*.shaded {
+    background-color:#f8f8f8;
+}

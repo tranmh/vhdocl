@@ -3415,14 +3415,7 @@ sub sourcehtml
     close VHDL;
     return;
   }
-  printhtmlheader(\$header, $file->{"name"});
-  $header =~ s!(?<=</title>)!<<EOF!ie;
-
-    <style type="text/css"><!--
-    *.shaded { background-color:#f8f8f8; }
-    --></style>
-EOF
-  print SRCHTML $header;
+  printhtmlheader(*SRCHTML{IO}, $file->{"name"});
   print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
                                 $file->{"link"}, "\">Link to file</a></p>\n";
