@@ -3469,18 +3469,21 @@ sub packagehtml
       close PACK;
       return;
     }
-    print PACK "\n\n<hr>\n\n";
   }
   else {
     $pbody= $pack;
     $pack= undef;
   }
-  unless( elem { $_->{"type"} =~ /^(?:type|subtype|record|units|protected|
-   protectedbody|constant|function|procedure)$/ix } @{$pbody->{"children"}} ) {
+  # Only document package body if it contains further declarations
+  unless( elem( sub { $_->{"type"} =~ /^(?:type|subtype|record|units|protected|
+                            protectedbody)$/ix }, @{$pbody->{"children"}}) ||
+            @{$pbody->{"childtype"}->{"funcproc"} || []} ||
+            @{$pbody->{"childtype"}->{"constant"} || []} ) {
     printhtmlfooter(*PACK{IO});
     close PACK;
     return;
   }
+  print PACK "\n\n<hr>\n\n";
   print PACK "<h1>Package body ", $pbody->{"fullname"}, "</h1>\n\n";
   printobjhtml(*PACK{IO}, $pbody);
   printlibusehtml(*PACK{IO}, $pbody);
