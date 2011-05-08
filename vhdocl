@@ -3403,7 +3403,7 @@ sub packagehtml
   if( $pack->{"type"} eq "package" ) {
     $pbody= $pack->{"packagebody"};
     if( $pbody ) {
-      my ($pbfuncs, $pbprocs, $pbfuncprocs);
+      my ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts);
       for my $f (@{$pbody->{"childtype"}->{"function"}}) {
         my $el= elem { packsubeq($_, $f) } @{$pack->{"childtype"}->{"function"}};
         if( $el ) {
@@ -3429,8 +3429,19 @@ sub packagehtml
       for my $f (@{$pbody->{"childtype"}->{"funcproc"}}) {
         push @$pbfuncprocs, $f if elem { $_ == $f } (@$pbfuncs, @$pbprocs);
       }
-      @{$pbody->{"childtype"}}{qw(function procedure funcproc)}=
-                                      ($pbfuncs, $pbprocs, $pbfuncprocs);
+      for my $c (@{$pbody->{"childtype"}->{"constant"}}) {
+        my $el= elem { lc($c->{"name"}) eq lc($_->{"name"}) }
+                        @{$pack->{"childtype"}->{"constant"}};
+        if( $el ) {
+          push @{$el->{"doc"}->{"description"}},
+                    @{$c->{"doc"}->{"description"} || []};
+        }
+        else {
+          push @$pbconsts, $c;
+        }
+      }
+      @{$pbody->{"childtype"}}{qw(function procedure funcproc constant)}=
+                                 ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts);
     }
     print PACK "<h1>Package ", $pack->{"fullname"}, "</h1>\n\n";
     printobjhtml(*PACK{IO}, $pack);
