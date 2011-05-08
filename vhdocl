@@ -2336,6 +2336,7 @@ sub hier_max_depth
 my $SPDOC= "<span class=\"doccom\">";       # documentation comment text
 my $SPDO= "<span class=\"vhdlcom\">";       # other comment text
 my $SPID= "<span class=\"identifier\">";    # identifier
+my $SPTYID= "<span class=\"typeid\">";      # type identifier
 my $SPTID= "<span class=\"thisid\">";       # identifier of this declaration
 my $SPSTR= "<span class=\"vhdlstr\">";      # quoted (bit) string or bit
 my $SPIO= "<span class=\"vhdlio\">";        # in, out, inout
@@ -2343,6 +2344,7 @@ my $SPVA= "<span class=\"vhdlvar\">";       # signal, constant, variable, attr.
 my $SPDCL= "<span class=\"vhdldecl\">";     # declarative item
 my $SPWD= "<span class=\"vhdlword\">";      # other VHDL reserved word
 my $SPIE= "<span class=\"vhdlieee\">";      # standard package word
+my $SPIET= "<span class=\"vhdlieee typeid\">"; # standard package type
 my $CCO= " class=\"vhdlcode\"";
 my $SPCO= "<span class=\"vhdlcode\">";      # encloses all VHDL code
 my $SPNC= "<span class=\"nocode\">";        # non-code within class vhdlcode
@@ -2590,29 +2592,32 @@ nand or xor xnor mod rem sla sll sra srl ror rol assert report severity
 is return to downto in on of after wait bus new alias
 select reject literal register transport inertial unaffected shared disconnect
 access label end );
-my @IEEEWORDS= qw( integer positive natural boolean true false real
-string character time delay_length severity_level note warning error failure
-textio line text side width input output readline read writeline write oread
-owrite hread hwrite endline bit bit_vector ieee std_logic_1164 std_ulogic
-std_ulogic_vector std_logic std_logic_vector x01 x01z ux01 ux01z to_bit
-to_bitvector to_stdulogic to_stdulogicvector to_stdlogicvector rising_edge
-falling_edge is_x numeric_std numeric_bit signed unsigned to_integer to_signed
-to_unsigned shift_left shift_right rotate_left rotate_right resize
-std_logic_arith small_int shl shr ext sext conv_integer conv_unsigned
+my @IEEEWORDS= qw( true false note warning error failure now foreign
+read_mode write_mode append_mode open_ok status_error name_error mode_error
+textio input output readline read writeline write oread owrite hread hwrite
+endline bit bit_vector ieee std_logic_1164 to_bit to_bitvector to_stdulogic
+to_stdulogicvector to_stdlogicvector rising_edge falling_edge is_x numeric_std
+numeric_bit to_integer to_signed to_unsigned shift_left shift_right rotate_left
+rotate_right resize std_logic_arith shl shr ext sext conv_integer conv_unsigned
 conv_signed conv_std_logic_vector std_logic_misc and_reduce or_reduce
 xor_reduce std_logic_unsigned std_logic_signed cond_op cond sh_left sh_right
 align_size math_real math_e math_1_e math_pi math_1_pi math_log_of_2
 math_log_of_10 math_log2_of_e math_log10_of_e math_sqrt2 math_sqrt1_2
 math_sqrt_pi math_deg_to_rad math_rad_to_deg sign ceil floor fmax fmin uniform
 srand rand get_rand_max sqrt cbrt exp log sin cos tan asin acos atan atan2 sinh
-cosh tanh acosh atanh math_complex complex complex_vector complex_polar cbase_1
-cbase_j czero cabs carg cmplx conj csqrt cexp complex_to_polar polar_to_complex
+cosh tanh acosh atanh math_complex cbase_1 cbase_j czero cabs carg cmplx conj
+csqrt cexp complex_to_polar polar_to_complex
 );
-my %MARKHASH= ( map( { $_ => $SPIO; } @IOWORDS),
-                map( { $_ => $SPVA; } @VARWORDS),
-                map( { $_ => $SPDCL; } @DECLWORDS),
-                map( { $_ => $SPWD; } @OTHERWORDS),
-                map( { $_ => $SPIE; } @IEEEWORDS) );
+my @IEEETYPES= qw( integer positive natural boolean real string character time
+delay_length severity_level file_open_kind file_open_status line text side
+width std_ulogic std_ulogic_vector std_logic std_logic_vector x01 x01z ux01
+ux01z small_int signed unsigned complex complex_vector complex_polar );
+my %SPANCLASS= ( map( { $_ => $SPIO; } @IOWORDS),
+                 map( { $_ => $SPVA; } @VARWORDS),
+                 map( { $_ => $SPDCL; } @DECLWORDS),
+                 map( { $_ => $SPWD; } @OTHERWORDS),
+                 map( { $_ => $SPIE; } @IEEEWORDS),
+                 map( { $_ => $SPIET; } @IEEETYPES) );
 
 # Convert VHDL code to HTML with syntax markup expressed in CSS classes.
 # -> VHDL-code
@@ -2621,12 +2626,9 @@ sub markvhdl
 {
   my ($code)= @_;
 
-  $code =~ tr/&/\x01/;
-  $code =~ tr/</\x02/;
-  $code =~ tr/>/\x03/;
-  $code =~ tr/"/\x04/;
+  $code =~ tr/&<>"/\x01\x02\x03\x04/;
   $code =~ s/($MARKQUOT)|($ID)/
-            $1 ? "$SPSTR$1$SP_" : ($MARKHASH{$2} || $SPID) . $2 . $SP_ /iexog;
+            $1 ? "$SPSTR$1$SP_" : ($SPANCLASS{$2} || $SPID) . $2 . $SP_ /iexog;
   $code =~ s/\x01/&amp;/g;
   $code =~ s/\x02/&lt;/g;
   $code =~ s/\x03/&gt;/g;
@@ -4048,6 +4050,7 @@ my @architectures;
 my @configurations;
 my @packages;
 my @packagebodies;
+my @usertypes;
 my $duplicate= 0;
 
 # Build entity, architecture, configuration and package lists
@@ -4084,7 +4087,20 @@ for my $lib (keys(%libraries)) {
   push @configurations, @confs;
   push @packages, @packs;
   push @packagebodies, @pbods;
+  push @usertypes, map $_->{"name"},
+        map( (@{$_->{"childtype"}->{"type"} || []},
+              @{$_->{"childtype"}->{"subtype"} || []},
+              @{$_->{"childtype"}->{"record"} || []},
+              @{$_->{"childtype"}->{"units"} || []},
+              @{$_->{"childtype"}->{"protected"} || []},
+              @{$_->{"childtype"}->{"protectedbody"} || []}),
+            (@archs, @packs, @pbods));
 }
+
+if( @usertypes ) {
+  @SPANCLASS{@usertypes}= ($SPTYID) x @usertypes;
+}
+@usertypes= ();
 
 print STDERR "Warning: Duplicate declarations were discarded.\n" if $duplicate;
 
