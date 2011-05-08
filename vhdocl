@@ -2573,25 +2573,24 @@ sub html_esc
 }
 
 
-# Regular expressions for code to mark up with the CSS classes defined at the
-# start of this section.
-# Strings: \x01 stands for double quotes which are later converted to `&quot;',
+# Strings: \x04 stands for double quotes which are later converted to `&quot;',
 # unlike those enclosing the class names.
 my $MARKQUOT= qr/(?:\b[box])?\x04[^\x04]*\x04|'[^']'/i;
-my $MARKIO= wordregex qw( in out inout buffer linkage );
-my $MARKVAR= wordregex qw( constant signal variable file attribute );
-# "use" is now included in $MARKDECL, even though this is only really correct
+# Lists of words belonging to CSS classes:
+my @IOWORDS= qw( in out inout buffer linkage );
+my @VARWORDS= qw( constant signal variable file attribute );
+# "use" is now included in @DECLWORDS, even though this is only really correct
 # for package use statements.
-my $MARKDECL= wordregex qw( entity architecture configuration package body
+my @DECLWORDS= qw( entity architecture configuration package body
 function procedure subtype type library component use );
-my $MARKWORD= wordregex qw( begin pure impure postponed guarded if then
+my @OTHERWORDS= qw( begin pure impure postponed guarded if then
 elsif for generate while until loop next case when group exit block process
 array units record with port generic map open null all others range not and
 nand or xor xnor mod rem sla sll sra srl ror rol assert report severity 
 is return to downto in on of after wait bus new alias
 select reject literal register transport inertial unaffected shared disconnect
 access label end );
-my $MARKIEEE= wordregex qw( integer positive natural boolean true false real
+my @IEEEWORDS= qw( integer positive natural boolean true false real
 string character time delay_length severity_level note warning error failure
 textio line text side width input output readline read writeline write oread
 owrite hread hwrite endline bit bit_vector ieee std_logic_1164 std_ulogic
@@ -2609,7 +2608,11 @@ srand rand get_rand_max sqrt cbrt exp log sin cos tan asin acos atan atan2 sinh
 cosh tanh acosh atanh math_complex complex complex_vector complex_polar cbase_1
 cbase_j czero cabs carg cmplx conj csqrt cexp complex_to_polar polar_to_complex
 );
-my $MARKID= qr/$ID/i;
+my %MARKHASH= ( map( { $_ => $SPIO; } @IOWORDS),
+                map( { $_ => $SPVA; } @VARWORDS),
+                map( { $_ => $SPDCL; } @DECLWORDS),
+                map( { $_ => $SPWD; } @OTHERWORDS),
+                map( { $_ => $SPIE; } @IEEEWORDS) );
 
 # Convert VHDL code to HTML with syntax markup expressed in CSS classes.
 # -> VHDL-code
@@ -2622,16 +2625,8 @@ sub markvhdl
   $code =~ tr/</\x02/;
   $code =~ tr/>/\x03/;
   $code =~ tr/"/\x04/;
-  $code =~ s/(?:($MARKQUOT)|($MARKIO)|($MARKVAR)|($MARKDECL)|
-            ($MARKWORD)|($MARKIEEE)|($MARKID))/
-            $1 ? "$SPSTR$1$SP_" :
-            $2 ? "$SPIO$2$SP_" :
-            $3 ? "$SPVA$3$SP_" :
-            $4 ? "$SPDCL$4$SP_" :
-            $5 ? "$SPWD$5$SP_" :
-            $6 ? "$SPIE$6$SP_" :
-            $7 ? "$SPID$7$SP_" :
-            "" /iexog;
+  $code =~ s/($MARKQUOT)|($ID)/
+            $1 ? "$SPSTR$1$SP_" : ($MARKHASH{$2} || $SPID) . $2 . $SP_ /iexog;
   $code =~ s/\x01/&amp;/g;
   $code =~ s/\x02/&lt;/g;
   $code =~ s/\x03/&gt;/g;
