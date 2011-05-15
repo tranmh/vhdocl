@@ -550,9 +550,7 @@ Identifier from standard package.
 
 Identifier of a declarative item documented by VHDocL.  Applies to entities,
 architectures, packages, configurations, functions, procedures, components,
-instances, ports, generics, constants and attributes.
-
-Most likely this will be treated equally as B<identifier>.
+and instances.  In most cases, the style file will treat this as B<identifier>.
 
 =item B<identifier>
 

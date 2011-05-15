@@ -2800,7 +2800,7 @@ sub printgenporthtml
 {
   my ($handle, $gp)= @_;
 
-  print $handle "<tr$CCO><td align=\"left\"><b>$SPDID", $gp->{"name"},
+  print $handle "<tr$CCO><td align=\"left\"><b>$SPID", $gp->{"name"},
                 "$SP_</b></td>\n";
   print $handle "<td align=\"center\"><i><b>$SPIO", $gp->{"direction"}, 
                 "$SP_</b></i></td>" if $gp->{"direction"};
@@ -2886,7 +2886,7 @@ sub printcommonhtml
 }
 
 
-# Print HTML table describing an object's attributes and their descriptions
+# Print HTML table listing an object's attributes and their descriptions
 # -> File handle to print to
 #    Reference to hash describing the object
 sub printattrhtml
@@ -4092,16 +4092,11 @@ for my $lib (keys(%libraries)) {
         map( ($_, @{$_->{"childtype"}->{"function"} || []},
                   @{$_->{"childtype"}->{"procedure"} || []},
                   @{$_->{"childtype"}->{"component"} || []},
-                  @{$_->{"childtype"}->{"attribute"} || []},
-                  @{$_->{"childtype"}->{"constant"} || []},
                   @{$_->{"allinstances"}} ),
             (@archs, @packs, @pbods) );
   push @userdeclids, map lc($_->{"name"}), grep $_->{"name"},
                     map @{$_->{"allprocesses"}}, @archs;
-  push @userdeclids, map lc($_->{"name"}),
-        map( ($_, @{$_->{"childtype"}->{"generic"} || []},
-                  @{$_->{"childtype"}->{"port"} || []}), @ents );
-  push @userdeclids, map lc($_->{"name"}), @confs;
+  push @userdeclids, map lc($_->{"name"}), (@ents, @confs);
   push @usertypes, map lc($_->{"name"}),
         map( (@{$_->{"childtype"}->{"type"} || []},
               @{$_->{"childtype"}->{"subtype"} || []},
