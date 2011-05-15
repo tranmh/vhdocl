@@ -7,7 +7,7 @@
 *.identifier {
     color:blue;
 }
-*.thisid {
+*.declid {
     color:fuchsia;
 }
 *.vhdlstr {

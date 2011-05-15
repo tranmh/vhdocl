@@ -523,14 +523,14 @@ components.
 
 Source files are converted to HTML files with syntax highlighting and line
 numbering.  This used to be done via SyntaxHighlighter by Alex Gorbatchev and
-the VHDL style by Minh Cuong Tran, but is now achieved by CSS classes the
-appearance of which can be overridden in the user CSS file.  The source file
-itself is hyperlinked, so you can edit it by clicking on the link if you have
-the file associations of  your browser set accordingly.
+the VHDL style by Minh Cuong Tran, but now VHDocL itself inserts tags with CSS
+classes.  Their appearance is determined by a default CSS file and can be
+overridden in the user CSS file.  (The same applies to source code quoted in
+the documentation pages.)  The source file itself is hyperlinked from the
+source pages, so you can edit it by clicking on the link if you have the file
+associations of your browser set accordingly.
 
-When parts of the source are quoted in the documentation pages, they are also
-marked by tags with classes that allow markup by a user CSS file.  The
-following CSS classes are available:
+The following CSS classes are available for syntax markup:
 
 =over
 
@@ -542,13 +542,17 @@ Text from documentation comments.
 
 Encloses all code quotes, allowing for example to set a monospace font.
 
-=item B<thisid>
-
-Identifier of the declarative item being documented.
-
 =item B<vhdlieee>
 
 Identifier from standard package.
+
+=item B<declid>
+
+Identifier of a declarative item documented by VHDocL.  Applies to entities,
+architectures, packages, configurations, functions, procedures, components,
+instances, ports, generics, constants and attributes.
+
+Most likely this will be treated equally as B<identifier>.
 
 =item B<identifier>
 
@@ -574,7 +578,7 @@ Other VHDL reserved word.
 =item B<nocode>
 
 Non-code words inside quoted code, such as the "unnamed" notice for nameless
-processes.
+processes.  Not used in source pages.
 
 =back
 

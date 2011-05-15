@@ -2337,7 +2337,7 @@ my $SPDOC= "<span class=\"doccom\">";       # documentation comment text
 my $SPDO= "<span class=\"vhdlcom\">";       # other comment text
 my $SPID= "<span class=\"identifier\">";    # identifier
 my $SPTYID= "<span class=\"typeid\">";      # type identifier
-my $SPTID= "<span class=\"thisid\">";       # identifier of this declaration
+my $SPDID= "<span class=\"declid\">";       # identifier of this declaration
 my $SPSTR= "<span class=\"vhdlstr\">";      # quoted (bit) string or bit
 my $SPIO= "<span class=\"vhdlio\">";        # in, out, inout
 my $SPVA= "<span class=\"vhdlvar\">";       # signal, constant, variable, attr.
@@ -2589,7 +2589,7 @@ my @OTHERWORDS= qw( begin pure impure postponed guarded if then
 elsif for generate while until loop next case when group exit block process
 array units record with port generic map open null all others range not and
 nand or xor xnor mod rem sla sll sra srl ror rol assert report severity 
-is return to downto in on of after wait bus new alias
+is return to downto on of after wait bus new alias
 select reject literal register transport inertial unaffected shared disconnect
 access label end );
 my @IEEEWORDS= qw( true false note warning error failure now foreign
@@ -2628,7 +2628,7 @@ sub markvhdl
 
   $code =~ tr/&<>"/\x01\x02\x03\x04/;
   $code =~ s/($MARKQUOT)|($ID)/
-            $1 ? "$SPSTR$1$SP_" : ($SPANCLASS{$2} || $SPID) . $2 . $SP_ /iexog;
+        $1 ? "$SPSTR$1$SP_" : ($SPANCLASS{lc($2)} || $SPID) . $2 . $SP_ /iexog;
   $code =~ s/\x01/&amp;/g;
   $code =~ s/\x02/&lt;/g;
   $code =~ s/\x03/&gt;/g;
@@ -2800,7 +2800,7 @@ sub printgenporthtml
 {
   my ($handle, $gp)= @_;
 
-  print $handle "<tr$CCO><td align=\"left\"><b>$SPTID", $gp->{"name"},
+  print $handle "<tr$CCO><td align=\"left\"><b>$SPDID", $gp->{"name"},
                 "$SP_</b></td>\n";
   print $handle "<td align=\"center\"><i><b>$SPIO", $gp->{"direction"}, 
                 "$SP_</b></i></td>" if $gp->{"direction"};
@@ -2927,7 +2927,7 @@ sub printcomphtml
   my $ind= "<td width=\"$iw\"></td>";
 
   print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"",
-                $labels{"component"}, $comp->{"name"}, "\">$SPTID",
+                $labels{"component"}, $comp->{"name"}, "\">$SPDID",
                 $comp->{"name"}, "$SP_</a></b></td></tr>\n";
   printcommonhtml($handle, $comp);
   print $handle "<tr>$ind<td colspan=\"4\">",
@@ -2974,7 +2974,7 @@ sub printfunchtml
                 " (" . markvhdl($func->{"parlist"}) . ")" : "";
 
   print $handle "<tr$CCO><td colspan=\"5\">$SPDCL", $func->{"type"},
-                "$SP_ <b><a name=\"$label\">$SPTID",
+                "$SP_ <b><a name=\"$label\">$SPDID",
                 $func->{"name"}, "$SP_</a></b>", $arglist,
                 ($func->{"subtype"}? " ${SPWD}return$SP_ " .
                                 markvhdl($func->{"subtype"}) : ""),
@@ -2993,7 +2993,7 @@ sub printtypehtml
   my ($handle, $type)= @_;
 
   print $handle "<tr$CCO><td>$SPDCL", ($type->{"sub"}? "subtype": "type"),
-                "$SP_</td><td><b>$SPTID", $type->{"name"}, "$SP_</b></td>",
+                "$SP_</td><td><b>$SPTYID", $type->{"name"}, "$SP_</b></td>",
                 "<td>${SPWD}is$SP_</td>\n<td>";
   if( $type->{"type"} eq "type" ) {
     print $handle markvhdl($type->{"subtype"}), "</td></tr>\n";
@@ -3057,7 +3057,7 @@ sub printprochtml
   my $ind= "<td width=\"$iw\"></td>";
 
   print $handle "<tr$CCO><td colspan=\"5\"><b>", ($proc->{"name"} ?
-            $SPTID.$proc->{"name"}.$SP_ : "<i>${SPNC}unnamed$SP_</i>"), "</b>",
+            $SPDID.$proc->{"name"}.$SP_ : "<i>${SPNC}unnamed$SP_</i>"), "</b>",
   ($proc->{"sensitivity"}? " (" . markvhdl($proc->{"sensitivity"}) . ")" : ""), 
           "</td></tr>\n";
   print $handle "<tr$CCO>$ind<td colspan=\"4\"><b>${SPWD}postponed$SP_</b></td></tr>\n"
@@ -3082,7 +3082,7 @@ sub printinsthtml
   my $ind= "<td width=\"$iw\"></td>";
 
   print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"", $labels{"instance"},
-              $inst->{"name"}, "\">$SPTID", $inst->{"name"}, "$SP_</a></b> : ";
+              $inst->{"name"}, "\">$SPDID", $inst->{"name"}, "$SP_</a></b> : ";
   if( $inst->{"subtype"} eq "configuration" ) {
     print $handle "${SPWD}configuration$SP_ ";
     if( $inst->{"binding"} ) {
@@ -4051,6 +4051,7 @@ my @configurations;
 my @packages;
 my @packagebodies;
 my @usertypes;
+my @userdeclids;
 my $duplicate= 0;
 
 # Build entity, architecture, configuration and package lists
@@ -4087,7 +4088,21 @@ for my $lib (keys(%libraries)) {
   push @configurations, @confs;
   push @packages, @packs;
   push @packagebodies, @pbods;
-  push @usertypes, map $_->{"name"},
+  push @userdeclids, map lc($_->{"name"}),
+        map( ($_, @{$_->{"childtype"}->{"function"} || []},
+                  @{$_->{"childtype"}->{"procedure"} || []},
+                  @{$_->{"childtype"}->{"component"} || []},
+                  @{$_->{"childtype"}->{"attribute"} || []},
+                  @{$_->{"childtype"}->{"constant"} || []},
+                  @{$_->{"allinstances"}} ),
+            (@archs, @packs, @pbods) );
+  push @userdeclids, map lc($_->{"name"}), grep $_->{"name"},
+                    map @{$_->{"allprocesses"}}, @archs;
+  push @userdeclids, map lc($_->{"name"}),
+        map( ($_, @{$_->{"childtype"}->{"generic"} || []},
+                  @{$_->{"childtype"}->{"port"} || []}), @ents );
+  push @userdeclids, map lc($_->{"name"}), @confs;
+  push @usertypes, map lc($_->{"name"}),
         map( (@{$_->{"childtype"}->{"type"} || []},
               @{$_->{"childtype"}->{"subtype"} || []},
               @{$_->{"childtype"}->{"record"} || []},
@@ -4097,9 +4112,9 @@ for my $lib (keys(%libraries)) {
             (@archs, @packs, @pbods));
 }
 
-if( @usertypes ) {
-  @SPANCLASS{@usertypes}= ($SPTYID) x @usertypes;
-}
+@SPANCLASS{@userdeclids}= ($SPDID) x @userdeclids;
+@userdeclids= ();
+@SPANCLASS{@usertypes}= ($SPTYID) x @usertypes;
 @usertypes= ();
 
 print STDERR "Warning: Duplicate declarations were discarded.\n" if $duplicate;
