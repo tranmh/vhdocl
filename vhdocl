@@ -78,6 +78,23 @@ sub wordregex
 }
 
 
+# Reverse a hash to a hash of arrays.  The values of the result hash are
+# references to arrays containing all keys of the original hash having the same
+# value (which becomes the corresponding key in the new hash).
+# -> Original hash
+# <- Resulting hash of arrays
+sub revhash(\%)
+{
+  my ($orighash)= @_;
+  my %result;
+
+  for my $key (keys %$orighash) {
+      push @{$result{$$orighash{$key}}}, $key;
+  }
+  return ( %result );
+}
+
+
 # An auxiliary function for obtaining the canonical form of a file name.
 # Required to work around Cwd::abs_path()'s intolerance towards non-existing
 # files and directories.
@@ -2637,6 +2654,33 @@ sub markvhdl
 }
 
 
+# Create a JavaScript file in the style folder which performs VHDL syntax
+# markup.
+# (->) %SPANCLASS
+sub makemarkupjs
+{
+  my $jsfname= File::Spec->catfile($config{"outputdir"}, "style",
+                                    $config{"prefix"} . "vhdlmarkup.js");
+  my %markwords= revhash %SPANCLASS;
+
+  if( !open(JS, ">$jsfname") ) {
+    print STDERR "Cannot create file $jsfname for VHDL source markup - $!\n";
+    return;
+  }
+  print JS <<EOF;
+function markup () {
+    var vhdlpre= document.getElementById('vhdlcode');
+EOF
+  for my $spanclass (keys %markwords) {
+      print JS "    vhdlpre.innerHTML= vhdlpre.innerHTML.replace(/\\b(",
+                join("|", @{$markwords{$spanclass}}),
+                ")\\b/ig, '$spanclass\$1$SP_');\n";
+  }
+  print JS "}\n";
+  close JS;
+}
+
+
 # Print detailed description of entity etc.  List items starting with @li are
 # converted to their HTML equivalent
 # -> File handle to print to
@@ -3568,7 +3612,7 @@ sub sourcehtml
 # Generate the HTML page for a source file.  This function generates HTML code
 # which uses the JavaScript SyntaxHighlighter tool.
 # -> Reference to hash representing the VHDL file
-sub sourcehtml_sh
+sub sourcehtml_js
 {
   my ($file)= @_;
   my $srcfname= $file->{"name"};
@@ -3587,17 +3631,14 @@ sub sourcehtml_sh
   }
   printhtmlheader(\$header, $file->{"name"});
   $header =~ s!(?=</head>)!<<EOF!ie;
-    <script type="text/javascript" src="../style/$requisites{synjava1}"></script>
-    <script type="text/javascript" src="../style/$requisites{synjava2}"></script>
-    <link type="text/css" rel="stylesheet" href="../style/$requisites{synstyle1}">
-    <link type="text/css" rel="stylesheet" href="../style/$requisites{synstyle2}">
-    <script type="text/javascript">SyntaxHighlighter.all();</script>
+    <script type="text/javascript" src="../style/$config{prefix}vhdlmarkup.js"></script>
 EOF
+  $header =~ s/<body/<body onload="markup();"/i;
   print SRCHTML $header;
   print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
                                 $file->{"link"}, "\">Link to file</a></p>\n";
-  print SRCHTML "<pre class=\"brush: vhdl;\">\n";
+  print SRCHTML "<pre id=\"vhdlcode\" class=\"vhdlcode\">\n";
   while( <VHDL> )
   {
     s/&/&amp;/g;
@@ -4521,9 +4562,12 @@ for my $pack (@packages, @orphanedpbodies) {
   packagehtml($pack);
 }
 
+if( $config{"javasyntax"} ) {
+  makemarkupjs();
+}
 for my $file (@vhdlfiles) {
   if( $config{"javasyntax"} ) {
-    sourcehtml_sh($file);
+    sourcehtml_js($file);
   }
   else {
     sourcehtml($file);
