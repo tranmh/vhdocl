@@ -2654,33 +2654,6 @@ sub markvhdl
 }
 
 
-# Create a JavaScript file in the style folder which performs VHDL syntax
-# markup.
-# (->) %SPANCLASS
-sub makemarkupjs
-{
-  my $jsfname= File::Spec->catfile($config{"outputdir"}, "style",
-                                    $config{"prefix"} . "vhdlmarkup.js");
-  my %markwords= revhash %SPANCLASS;
-
-  if( !open(JS, ">$jsfname") ) {
-    print STDERR "Cannot create file $jsfname for VHDL source markup - $!\n";
-    return;
-  }
-  print JS <<EOF;
-function markup () {
-    var vhdlpre= document.getElementById('vhdlcode');
-EOF
-  for my $spanclass (keys %markwords) {
-      print JS "    vhdlpre.innerHTML= vhdlpre.innerHTML.replace(/\\b(",
-                join("|", @{$markwords{$spanclass}}),
-                ")\\b/ig, '$spanclass\$1$SP_');\n";
-  }
-  print JS "}\n";
-  close JS;
-}
-
-
 # Print detailed description of entity etc.  List items starting with @li are
 # converted to their HTML equivalent
 # -> File handle to print to
@@ -3609,6 +3582,67 @@ sub sourcehtml
 }
 
 
+# Create a JavaScript file in the style folder which performs VHDL syntax
+# markup.
+# (->) %SPANCLASS
+sub makemarkupjs
+{
+  my $jsfname= File::Spec->catfile($config{"outputdir"}, "style",
+                                    $config{"prefix"} . "vhdlmarkup.js");
+  my %markwords= revhash %SPANCLASS;
+
+  if( !open(JS, ">$jsfname") ) {
+    print STDERR "Cannot create file $jsfname for VHDL source markup - $!\n";
+    return;
+  }
+  print JS <<EOF;
+window.onload = function() {
+    var lnumpre= document.getElementById('linenumbers');
+    var vhdlpre= document.getElementById('vhdlcode');
+    var lines= vhdlpre.innerHTML.split(/\\r?\\n/);
+    if( lines[lines.length-1] == "" ) {
+        lines.pop();
+    }
+    for( var linenr= 1; linenr <= lines.length; ++linenr ) {
+        lnumpre.innerHTML += linenr + "\\n";
+    }
+    vhdlpre.innerHTML= "";
+    var shadeline= 1;
+    var comregex= /^([^"']*?(?:(?:"[^"]*"|'[^']'|')[^"']*?)*?)--(.*)\$/;
+    for( var linenr= 0; linenr < lines.length; ++linenr ) {
+        var line= lines[linenr];
+        var comment= "";
+        var comsplit= comregex.exec(line);
+        if( comsplit ) {
+            if( comsplit[2].search( /^[*+]/ ) >= 0 ) {
+                comment= '$SPDOC--' + comsplit[2] + "$SP_";
+            }
+            else {
+                comment= '$SPDO--' + comsplit[2] + "$SP_";
+            }
+            line= comsplit[1];
+        }
+        line= line.replace( /((?:\b[box])?"[^"]*"|'[^']')/i, '$SPSTR\$1$SP_' );
+EOF
+  for my $spanclass (keys %markwords) {
+    print JS "        line= line.replace(/\\b(",
+              join("|", @{$markwords{$spanclass}}),
+              ")\\b/ig, '$spanclass\$1$SP_');\n";
+  }
+  print JS <<EOF;
+        line= line + comment + "\\n";
+        if( shadeline ) {
+            line= "<div class=\\"shaded\\">" + line + "</div>";
+        }
+        shadeline= ! shadeline;
+        vhdlpre.innerHTML += line;
+    }
+}
+EOF
+  close JS;
+}
+
+
 # Generate the HTML page for a source file.  This function generates HTML code
 # which uses the JavaScript SyntaxHighlighter tool.
 # -> Reference to hash representing the VHDL file
@@ -3633,21 +3667,21 @@ sub sourcehtml_js
   $header =~ s!(?=</head>)!<<EOF!ie;
     <script type="text/javascript" src="../style/$config{prefix}vhdlmarkup.js"></script>
 EOF
-  $header =~ s/<body/<body onload="markup();"/i;
   print SRCHTML $header;
   print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
                                 $file->{"link"}, "\">Link to file</a></p>\n";
-  print SRCHTML "<pre id=\"vhdlcode\" class=\"vhdlcode\">\n";
+  print SRCHTML "<table><tr><td><pre id=\"linenumbers\">\n";
+  print SRCHTML "</pre></td><td><pre id=\"vhdlcode\" class=\"vhdlcode\">\n";
   while( <VHDL> )
   {
     s/&/&amp;/g;
-    s/"/&quot;/g;
+# Don't replace " by entity to facilitate regex string matching in JavaScript.
     s/</&lt;/g;
     s/>/&gt;/g;
     print SRCHTML $_;
   }
-  print SRCHTML "</pre>\n";
+  print SRCHTML "</pre></td></tr></table>\n";
   printhtmlfooter(*SRCHTML{IO});
   close SRCHTML;
   close VHDL;
