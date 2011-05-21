@@ -3603,8 +3603,9 @@ window.onload = function() {
     if( lines[lines.length-1] == "" ) {
         lines.pop();
     }
+    var slfrom= -String(lines.length).length;
     for( var linenr= 1; linenr <= lines.length; ++linenr ) {
-        lnumpre.innerHTML += linenr + "\\n";
+        lnumpre.innerHTML += String("00000000" + linenr).slice(slfrom) + "\\n";
     }
     vhdlpre.innerHTML= "";
     var shadeline= 1;
