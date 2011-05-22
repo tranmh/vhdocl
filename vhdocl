@@ -3610,6 +3610,16 @@ window.onload = function() {
     vhdlpre.innerHTML= "";
     var shadeline= 1;
     var comregex= /^([^"']*?(?:(?:"[^"]*"|'[^']'|')[^"']*?)*?)--(.*)\$/;
+EOF
+  for my $spanclass (keys %markwords) {
+    my $regexname= $spanclass;
+    $regexname =~ s/^<span class="/re_/i;
+    $regexname =~ s/">$//;
+    $regexname =~ s/\s/_/g;
+    print JS "    var $regexname= /\\b(", join("|", @{$markwords{$spanclass}}),
+             ")\\b/ig;\n"
+  }
+  print JS <<EOF;
     for( var linenr= 0; linenr < lines.length; ++linenr ) {
         var line= lines[linenr];
         var comment= "";
@@ -3626,9 +3636,11 @@ window.onload = function() {
         line= line.replace( /((?:\b[box])?"[^"]*"|'[^']')/i, '$SPSTR\$1$SP_' );
 EOF
   for my $spanclass (keys %markwords) {
-    print JS "        line= line.replace(/\\b(",
-              join("|", @{$markwords{$spanclass}}),
-              ")\\b/ig, '$spanclass\$1$SP_');\n";
+    my $regexname= $spanclass;
+    $regexname =~ s/^<span class="/re_/i;
+    $regexname =~ s/">$//;
+    $regexname =~ s/\s/_/g;
+    print JS "        line= line.replace($regexname, '$spanclass\$1$SP_');\n";
   }
   print JS <<EOF;
         line= line + comment + "\\n";
