@@ -3590,6 +3590,7 @@ sub makemarkupjs
   my $jsfname= File::Spec->catfile($config{"outputdir"}, "style",
                                     $config{"prefix"} . "vhdlmarkup.js");
   my %markwords= revhash %SPANCLASS;
+  my %markrenames;
 
   if( !open(JS, ">$jsfname") ) {
     print STDERR "Cannot create file $jsfname for VHDL source markup - $!\n";
@@ -3610,14 +3611,17 @@ window.onload = function() {
     vhdlpre.innerHTML= "";
     var shadeline= 1;
     var comregex= /^([^"']*?(?:(?:"[^"]*"|'[^']'|')[^"']*?)*?)--(.*)\$/;
+    var idregex= /&?\\b[a-zA-Z](?:\\w*[a-zA-Z0-9])?\\b/g;
+    var re_entity= /^&/;
 EOF
   for my $spanclass (keys %markwords) {
     my $regexname= $spanclass;
     $regexname =~ s/^<span class="/re_/i;
     $regexname =~ s/">$//;
     $regexname =~ s/\s/_/g;
-    print JS "    var $regexname= /\\b(", join("|", @{$markwords{$spanclass}}),
-             ")\\b/ig;\n"
+    $markrenames{$spanclass}= $regexname;
+    print JS "    var $regexname= /^(?:", join("|", @{$markwords{$spanclass}}),
+             ")\$/i;\n"
   }
   print JS <<EOF;
     for( var linenr= 0; linenr < lines.length; ++linenr ) {
@@ -3637,15 +3641,35 @@ EOF
         line= line.replace( /((?:\\b[box])?"[^"]*"|'[^']')/ig, '\\x04' );
         var parts= line.split( '\\x04' );
         for( var ind= 0; ind< parts.length; ++ind ) {
+            var ids= parts[ind].match(idregex);
+            var markedpart= parts[ind].replace(idregex, '\\x04');
+            var gaps= markedpart.split( '\\x04' );
+            if( ids ) {
+                parts[ind]= "";
+                for( var ind2= 0; ind2< ids.length; ++ind2 ) {
+                    var markclass= "";
+                    var markclose= "$SP_";
+                    if( re_entity.exec(ids[ind2]) ) {
+                        markclose= "";
+                    }
+                    else
 EOF
   for my $spanclass (keys %markwords) {
-    my $regexname= $spanclass;
-    $regexname =~ s/^<span class="/re_/i;
-    $regexname =~ s/">$//;
-    $regexname =~ s/\s/_/g;
-    print JS "            parts[ind]= parts[ind].replace($regexname, '$spanclass\$1$SP_');\n";
+    my $regexname= $markrenames{$spanclass};
+    print JS <<EOF;
+                    if( $regexname.exec(ids[ind2]) ) {
+                        markclass= '$spanclass';
+                    }
+                    else
+EOF
   }
   print JS <<EOF;
+                    {   markclass= '$SPID';
+                    }
+                    parts[ind] += gaps[ind2] + markclass + ids[ind2] + markclose;
+                }
+                parts[ind] += gaps[gaps.length - 1];
+            }
         }
         line= "";
         if( quoted ) {
