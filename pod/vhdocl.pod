@@ -55,6 +55,7 @@ will simply ignore what it does not recognise.
 
 Print how much time B<vhdocl> took for parsing each file and for subsequent
 processing.  Only really useful to the author for identifying hot spots.
+Requires the Perl module Time::HiRes.
 
 =item B<-c> I<pixels>, B<--cellpadding>=I<pixels>
 

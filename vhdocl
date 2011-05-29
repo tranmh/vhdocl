@@ -631,8 +631,8 @@ The most important command-line options are:
     -o, --outputdir     Output directory (default: "doc")
     -p, --prefix        Prefix for all HTML files
     -l, --library       Library to which the following source files belong
-    -c, --cellpadding   Cell padding in pixels for HTML tables
-    -i, --indentation   Indentation in pixels for HTML tables
+    -q, --quiet         Reduce verbosity of progress reporting
+    --stylesheet=stylefile.css  CSS style file to reference
 Long options may be abbreviated.
 
 VHDocL's manual is contained in the file vhdocl.pod in its distribution package
