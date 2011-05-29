@@ -25,6 +25,13 @@ use File::Copy;
 use Digest::MD5;
 use Cwd 'abs_path';
 
+# Obtaining the modules:
+# Cwd and File::Spec from http://search.cpan.org/~smueller/PathTools/
+# File::Path from http://search.cpan.org/~dland/File-Path/
+# Digest::MD5 from http://search.cpan.org/~gaas/Digest-MD5/
+# File::Copy from Perl distribution
+# Time::HiRes (for --benchmark) from http://search.cpan.org/~zefram/Time-HiRes/
+
 my $version= "0.2.0";
 
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
