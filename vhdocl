@@ -24,7 +24,6 @@ use File::Path;
 use File::Copy;
 use Digest::MD5;
 use Cwd 'abs_path';
-use Time::HiRes;
 
 my $version= "0.2.0";
 
@@ -3991,7 +3990,7 @@ my @vhdlfiles= @{parseargv(\@ARGV)};
 if( $config{"benchmark"} ) {
   eval { require Time::HiRes; };
   if( $@ ) {
-    print STDERR "Module Time::HiRes is required for --benchmark.  Aborting.\n";
+    print STDERR "Module Time::HiRes not found, which is required for --benchmark.  Aborting.\n";
     exit 1;
   }
 }
