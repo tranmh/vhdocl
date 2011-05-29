@@ -38,7 +38,7 @@ my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "compat" => 0, "cwd" => "", 
   "parsedebug" => 0, "quiet" => 0, "cellpadding" => 3, "indentation" => 50, 
   "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
-  "title" => "" );
+  "title" => "", "footer" => "" );
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "nodeimg" => "node.png", "subtrimg" => "subtree.png",
@@ -282,6 +282,7 @@ my @options= (
 [ "", "leftlogo", "/", "leftlogo" ],
 [ "", "rightlogo", "/", "rightlogo" ],
 [ "", "title", "*", "title" ],
+[ "", "footer", "*", "footer" ],
 [ "", "toplink", "/", "toplink" ],
 [ "", "javasyntax", "?", "javasyntax" ],
 );
@@ -2556,6 +2557,7 @@ sub printhtmlfooter
   print $handle "\n<hr>\n" unless $nobar;
   print $handle <<EOF
 
+$config{"footer"}
 Generated on $mday $mon $year $hour:$min:$sec with <a
 href="http://www.volkerschatz.com/hardware/vhdocl.html">VHDocL</a>
 V$version
