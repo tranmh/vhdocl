@@ -3600,17 +3600,18 @@ sub makemarkupjs
 window.onload = function() {
     var lnumpre= document.getElementById('linenumbers');
     var vhdlpre= document.getElementById('vhdlcode');
-    var lines= vhdlpre.innerHTML.split(/\\r?\\n/);
-    if( lines[lines.length-1] == "" ) {
-        lines.pop();
+    var nlines;
+    {
+        var newlpos= vhdlpre.innerHTML.match(/\\n/g);
+        nlines= newlpos.length;
+        if( vhdlpre.innerHTML.charAt(vhdlpre.innerHTML.length - 1) != "\\n" ) {
+            ++nlines;
+        }
     }
-    var slfrom= -String(lines.length).length;
-    for( var linenr= 1; linenr <= lines.length; ++linenr ) {
-        lnumpre.innerHTML += String("00000000" + linenr).slice(slfrom) + "\\n";
+    var slfrom= -String(nlines).length;
+    for( var linenr= 1; linenr <= nlines; ++linenr ) {
+        lnumpre.innerHTML += String("00000000" + linenr).slice(slfrom) + " \\n";
     }
-    vhdlpre.innerHTML= "";
-    var shadeline= 1;
-    var comregex= /^([^"']*?(?:(?:"[^"]*"|'[^']'|')[^"']*?)*?)--(.*)\$/;
     var idregex= /&?\\b[a-zA-Z](?:\\w*[a-zA-Z0-9])?\\b/g;
     var re_entity= /^&/;
 EOF
@@ -3624,67 +3625,61 @@ EOF
              ")\$/i;\n"
   }
   print JS <<EOF;
-    for( var linenr= 0; linenr < lines.length; ++linenr ) {
-        var line= lines[linenr];
-        var comment= "";
-        var comsplit= comregex.exec(line);
-        if( comsplit ) {
-            if( comsplit[2].search( /^[*+]/ ) >= 0 ) {
-                comment= '$SPDOC--' + comsplit[2] + "$SP_";
+    var html= vhdlpre.innerHTML;
+    var re_quotcom= /((?:\\b[box])?"[^"]*"|'[^']'|--[^\\r\\n]*)/ig;
+    var quotcoms= html.match(re_quotcom);
+    if( quotcoms ) {
+        html= html.replace(re_quotcom, "\\x01");
+    }
+    var ids= html.match(idregex);
+    if( ids ) {
+        html= html.replace(idregex, "\\x02");
+        var gaps= html.split( "\\x02" );
+        html= "";
+        for( var ind= 0; ind< ids.length; ++ind ) {
+            var markclass= "";
+            var markclose= "$SP_";
+            if( re_entity.exec(ids[ind]) ) {
+                markclose= "";
             }
-            else {
-                comment= '$SPDO--' + comsplit[2] + "$SP_";
-            }
-            line= comsplit[1];
-        }
-        var quoted= line.match( /((?:\\b[box])?"[^"]*"|'[^']')/ig );
-        line= line.replace( /((?:\\b[box])?"[^"]*"|'[^']')/ig, '\\x04' );
-        var parts= line.split( '\\x04' );
-        for( var ind= 0; ind< parts.length; ++ind ) {
-            var ids= parts[ind].match(idregex);
-            var markedpart= parts[ind].replace(idregex, '\\x04');
-            var gaps= markedpart.split( '\\x04' );
-            if( ids ) {
-                parts[ind]= "";
-                for( var ind2= 0; ind2< ids.length; ++ind2 ) {
-                    var markclass= "";
-                    var markclose= "$SP_";
-                    if( re_entity.exec(ids[ind2]) ) {
-                        markclose= "";
-                    }
-                    else
+            else
 EOF
   for my $spanclass (keys %markwords) {
     my $regexname= $markrenames{$spanclass};
     print JS <<EOF;
-                    if( $regexname.exec(ids[ind2]) ) {
-                        markclass= '$spanclass';
-                    }
-                    else
+            if( $regexname.exec(ids[ind]) ) {
+                markclass= '$spanclass';
+            }
+            else
 EOF
   }
   print JS <<EOF;
-                    {   markclass= '$SPID';
-                    }
-                    parts[ind] += gaps[ind2] + markclass + ids[ind2] + markclose;
-                }
-                parts[ind] += gaps[gaps.length - 1];
+            {   markclass= '$SPID';
             }
+            html += gaps[ind] + markclass + ids[ind] + markclose;
         }
-        line= "";
-        if( quoted ) {
-            for( var ind= 0; ind< quoted.length; ++ind ) {
-                line += parts[ind] + '$SPSTR' + quoted[ind] + '$SP_';
-            }
-        }
-        line += parts[parts.length - 1];
-        line += comment + "\\n";
-        if( shadeline ) {
-            line= "<div class=\\"shaded\\">" + line + "</div>";
-        }
-        shadeline= ! shadeline;
-        vhdlpre.innerHTML += line;
+        html += gaps[gaps.length - 1];
     }
+    if( quotcoms ) {
+        var nonquotcoms= html.split("\\x01");
+        html= "";
+        var re_spantag= /<span class="[^"]+">|<\\/span>/gi;
+        for( var ind= 0; ind < quotcoms.length; ++ind ) {
+            quotcoms[ind].replace(re_spantag, "");
+            var markclass= '$SPSTR';
+            if( quotcoms[ind].charAt(0) == "-" ) {
+                markclass= quotcoms[ind].charAt(2) == "*"? '$SPDOC' : '$SPDO';
+            }
+            html += nonquotcoms[ind] + markclass + quotcoms[ind] + "$SP_";
+        }
+        html += nonquotcoms[nonquotcoms.length - 1];
+    }
+    html= '<div class="shaded">' +
+          html.replace(/\\n([^\\n]*\\n)/g, '\\n</div>\$1<div class="shaded">');
+    if( nlines & 1 == 1 ) {
+        html += '</div>';
+    }
+    vhdlpre.innerHTML= html;
 }
 EOF
   close JS;
