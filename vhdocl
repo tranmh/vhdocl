@@ -84,6 +84,23 @@ sub wordregex
 }
 
 
+# Reverse a hash to a hash of arrays.  The values of the result hash are
+# references to arrays containing all keys of the original hash having the same
+# value (which becomes the corresponding key in the new hash).
+# -> Original hash
+# <- Resulting hash of arrays
+sub revhash(\%)
+{
+  my ($orighash)= @_;
+  my %result;
+
+  for my $key (keys %$orighash) {
+      push @{$result{$$orighash{$key}}}, $key;
+  }
+  return ( %result );
+}
+
+
 # An auxiliary function for obtaining the canonical form of a file name.
 # Required to work around Cwd::abs_path()'s intolerance towards non-existing
 # files and directories.
@@ -3563,7 +3580,7 @@ sub sourcehtml
   print SRCHTML "<table border=\"0\" cellpadding=\"0\"><tr><td><pre>\n";
   my $nrwidth= length($.);
   for my $nr (1..$.) {
-    printf SRCHTML "%${nrwidth}d\n", $nr;
+    printf SRCHTML "%${nrwidth}d \n", $nr;
   }
   print SRCHTML "</pre></td><td width=\"15\"></td><td>\n";
   print SRCHTML "<pre$CCO>\n$markedcode</pre>\n</td></tr></table>\n";
@@ -3573,10 +3590,114 @@ sub sourcehtml
 }
 
 
+# Create a JavaScript file in the style folder which performs VHDL syntax
+# markup.
+# (->) %SPANCLASS
+sub makemarkupjs
+{
+  my $jsfname= File::Spec->catfile($config{"outputdir"}, "style",
+                                    $config{"prefix"} . "vhdlmarkup.js");
+  my %markwords= revhash %SPANCLASS;
+  my %markrenames;
+
+  if( !open(JS, ">$jsfname") ) {
+    print STDERR "Cannot create file $jsfname for VHDL source markup - $!\n";
+    return;
+  }
+  print JS <<EOF;
+window.onload = function() {
+    var lnumpre= document.getElementById('linenumbers');
+    var vhdlpre= document.getElementById('vhdlcode');
+    var nlines;
+    {
+        var newlpos= vhdlpre.innerHTML.match(/\\n/g);
+        nlines= newlpos.length;
+        if( vhdlpre.innerHTML.charAt(vhdlpre.innerHTML.length - 1) != "\\n" ) {
+            ++nlines;
+        }
+    }
+    var slfrom= -String(nlines).length;
+    for( var linenr= 1; linenr <= nlines; ++linenr ) {
+        lnumpre.innerHTML += String("        " + linenr).slice(slfrom) + " \\n";
+    }
+    var idregex= /&?\\b[a-zA-Z](?:\\w*[a-zA-Z0-9])?\\b/g;
+    var re_entity= /^&/;
+EOF
+  for my $spanclass (keys %markwords) {
+    my $regexname= $spanclass;
+    $regexname =~ s/^<span class="/re_/i;
+    $regexname =~ s/">$//;
+    $regexname =~ s/\s/_/g;
+    $markrenames{$spanclass}= $regexname;
+    print JS "    var $regexname= /^(?:", join("|", @{$markwords{$spanclass}}),
+             ")\$/i;\n"
+  }
+  print JS <<EOF;
+    var html= vhdlpre.innerHTML;
+    var re_quotcom= /((?:\\b[box])?"[^"]*"|'[^']'|--[^\\r\\n]*)/ig;
+    var quotcoms= html.match(re_quotcom);
+    if( quotcoms ) {
+        html= html.replace(re_quotcom, "\\x01");
+    }
+    var ids= html.match(idregex);
+    if( ids ) {
+        html= html.replace(idregex, "\\x02");
+        var gaps= html.split( "\\x02" );
+        html= "";
+        for( var ind= 0; ind< ids.length; ++ind ) {
+            var markclass= "";
+            var markclose= "$SP_";
+            if( re_entity.exec(ids[ind]) ) {
+                markclose= "";
+            }
+            else
+EOF
+  for my $spanclass (keys %markwords) {
+    my $regexname= $markrenames{$spanclass};
+    print JS <<EOF;
+            if( $regexname.exec(ids[ind]) ) {
+                markclass= '$spanclass';
+            }
+            else
+EOF
+  }
+  print JS <<EOF;
+            {   markclass= '$SPID';
+            }
+            html += gaps[ind] + markclass + ids[ind] + markclose;
+        }
+        html += gaps[gaps.length - 1];
+    }
+    if( quotcoms ) {
+        var nonquotcoms= html.split("\\x01");
+        html= "";
+        var re_spantag= /<span class="[^"]+">|<\\/span>/gi;
+        for( var ind= 0; ind < quotcoms.length; ++ind ) {
+            quotcoms[ind].replace(re_spantag, "");
+            var markclass= '$SPSTR';
+            if( quotcoms[ind].charAt(0) == "-" ) {
+                markclass= quotcoms[ind].charAt(2) == "*"? '$SPDOC' : '$SPDO';
+            }
+            html += nonquotcoms[ind] + markclass + quotcoms[ind] + "$SP_";
+        }
+        html += nonquotcoms[nonquotcoms.length - 1];
+    }
+    html= '<div class="shaded">' +
+          html.replace(/\\n([^\\n]*\\n)/g, '\\n</div>\$1<div class="shaded">');
+    if( nlines & 1 == 1 ) {
+        html += '</div>';
+    }
+    vhdlpre.innerHTML= html;
+}
+EOF
+  close JS;
+}
+
+
 # Generate the HTML page for a source file.  This function generates HTML code
 # which uses the JavaScript SyntaxHighlighter tool.
 # -> Reference to hash representing the VHDL file
-sub sourcehtml_sh
+sub sourcehtml_js
 {
   my ($file)= @_;
   my $srcfname= $file->{"name"};
@@ -3595,26 +3716,23 @@ sub sourcehtml_sh
   }
   printhtmlheader(\$header, $file->{"name"});
   $header =~ s!(?=</head>)!<<EOF!ie;
-    <script type="text/javascript" src="../style/$requisites{synjava1}"></script>
-    <script type="text/javascript" src="../style/$requisites{synjava2}"></script>
-    <link type="text/css" rel="stylesheet" href="../style/$requisites{synstyle1}">
-    <link type="text/css" rel="stylesheet" href="../style/$requisites{synstyle2}">
-    <script type="text/javascript">SyntaxHighlighter.all();</script>
+    <script type="text/javascript" src="../style/$config{prefix}vhdlmarkup.js"></script>
 EOF
   print SRCHTML $header;
   print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
                                 $file->{"link"}, "\">Link to file</a></p>\n";
-  print SRCHTML "<pre class=\"brush: vhdl;\">\n";
+  print SRCHTML "<table><tr><td><pre id=\"linenumbers\">\n";
+  print SRCHTML "</pre></td><td><pre id=\"vhdlcode\" class=\"vhdlcode\">\n";
   while( <VHDL> )
   {
     s/&/&amp;/g;
-    s/"/&quot;/g;
+# Don't replace " by entity to facilitate regex string matching in JavaScript.
     s/</&lt;/g;
     s/>/&gt;/g;
     print SRCHTML $_;
   }
-  print SRCHTML "</pre>\n";
+  print SRCHTML "</pre></td></tr></table>\n";
   printhtmlfooter(*SRCHTML{IO});
   close SRCHTML;
   close VHDL;
@@ -4529,9 +4647,12 @@ for my $pack (@packages, @orphanedpbodies) {
   packagehtml($pack);
 }
 
+if( $config{"javasyntax"} ) {
+  makemarkupjs();
+}
 for my $file (@vhdlfiles) {
   if( $config{"javasyntax"} ) {
-    sourcehtml_sh($file);
+    sourcehtml_js($file);
   }
   else {
     sourcehtml($file);
