@@ -3572,7 +3572,7 @@ sub sourcehtml
   print SRCHTML "<table border=\"0\" cellpadding=\"0\"><tr><td><pre>\n";
   my $nrwidth= length($.);
   for my $nr (1..$.) {
-    printf SRCHTML "%${nrwidth}d\n", $nr;
+    printf SRCHTML "%${nrwidth}d \n", $nr;
   }
   print SRCHTML "</pre></td><td width=\"15\"></td><td>\n";
   print SRCHTML "<pre$CCO>\n$markedcode</pre>\n</td></tr></table>\n";
@@ -3610,7 +3610,7 @@ window.onload = function() {
     }
     var slfrom= -String(nlines).length;
     for( var linenr= 1; linenr <= nlines; ++linenr ) {
-        lnumpre.innerHTML += String("00000000" + linenr).slice(slfrom) + " \\n";
+        lnumpre.innerHTML += String("        " + linenr).slice(slfrom) + " \\n";
     }
     var idregex= /&?\\b[a-zA-Z](?:\\w*[a-zA-Z0-9])?\\b/g;
     var re_entity= /^&/;
