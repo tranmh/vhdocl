@@ -2631,8 +2631,10 @@ csqrt cexp complex_to_polar polar_to_complex
 );
 my @IEEETYPES= qw( integer positive natural boolean real string character time
 delay_length severity_level file_open_kind file_open_status line text side
-width std_ulogic std_ulogic_vector std_logic std_logic_vector x01 x01z ux01
+std_ulogic std_ulogic_vector std_logic std_logic_vector x01 x01z ux01
 ux01z small_int signed unsigned complex complex_vector complex_polar );
+# "width" is a type defined in textio, but has been removed, a it may often be
+# used as a constant/variable name.
 my %SPANCLASS= ( map( { $_ => $SPIO; } @IOWORDS),
                  map( { $_ => $SPVA; } @VARWORDS),
                  map( { $_ => $SPDCL; } @DECLWORDS),

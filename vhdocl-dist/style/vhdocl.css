@@ -2,28 +2,28 @@
     color:navy;
 }
 *.vhdlcom {
-    color:black;
+    color:navy;
 }
 *.identifier {
     color:blue;
 }
 *.declid {
-    color:fuchsia;
+    color:blue;
 }
 *.vhdlstr {
-    color:lime;
-}
-*.vhdlio {
     color:green;
 }
+*.vhdlio {
+    color:maroon;
+}
 *.vhdlvar {
-    color:lime;
+    color:maroon;
 }
 *.vhdldecl {
-    color:red;
+    color:maroon;
 }
 *.vhdlword {
-    color:purple;
+    color:maroon;
 }
 *.vhdlieee {
     color:olive;
