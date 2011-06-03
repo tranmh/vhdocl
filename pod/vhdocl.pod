@@ -89,12 +89,11 @@ Indentation of nested lists in the HTML output.  Default: 50 pixels.
 
 =item B<--javasyntax>
 
-Use JavaScript SyntaxHighlighter by Alex Gorbatchev for source HTML pages
-instead of marking the syntax with CSS classes.  This will save some CPU time
-generating these pages, but since VHDocL is usually limited by disk I/O, this
-is not considered serious.  This option will likely be removed in the future,
-so let me know if you think you need it.  (See L</BUGS AND LIMITATIONS> below
-for contact information.)
+Generate JavaScript for syntax highlighting of source HTML pages instead of
+generating marked-up pages directly.  This will save some CPU time and avoid
+reading the source files a second time and is therefore likely to be faster for
+large designs.  On the downside, there will be a delay loading the HTML pages
+of large source files as the browser processes them.
 
 =item B<--leftlogo>=I<image>
 
@@ -532,9 +531,8 @@ contains the declarations of types, constants, functions, procedures and
 components.
 
 Source files are converted to HTML files with syntax highlighting and line
-numbering.  This used to be done via SyntaxHighlighter by Alex Gorbatchev and
-the VHDL style by Minh Cuong Tran, but now VHDocL itself inserts tags with CSS
-classes.  Their appearance is determined by a default CSS file and can be
+numbering.  This is done by assigning CSS classes to words and expressions in
+the code.  Their appearance is determined by a default CSS file and can be
 overridden in the user CSS file.  (The same applies to source code quoted in
 the documentation pages.)  The source file itself is hyperlinked from the
 source pages, so you can edit it by clicking on the link if you have the file
@@ -544,17 +542,32 @@ The following CSS classes are available for syntax markup:
 
 =over
 
-=item B<doccom>
-
-Text from documentation comments.
-
 =item B<vhdlcode>
 
 Encloses all code quotes, allowing for example to set a monospace font.
 
+=item B<nocode>
+
+Non-code words inside quoted code, such as the "unnamed" notice for nameless
+processes.  Not used in source pages.
+
+=item B<doccom>
+
+VHDocL documentation comments.
+
+=item B<vhdlcom>
+
+Other comments.
+
 =item B<vhdlieee>
 
-Identifier from standard package.
+Identifier from IEEE standard package.
+
+=item B<typeid>
+
+Type identifier.  Standard IEEE types belong to both this class and
+B<vhdlieee>.  The C<!important> directive can be used in the CSS style file to
+choose which its appearance will be.
 
 =item B<declid>
 
@@ -573,22 +586,26 @@ I/O direction indicator such as C<in>, C<out> and C<inout>.
 =item B<vhdlvar>
 
 VHDL declaration keyword C<variable>, C<signal>, C<constant>, C<attribute> or
-similar.
+C<file>.
 
 =item B<vhdldecl>
 
-Other VHDL declaration keyword.
+VHDL keyword denoting a declaration documented by VHDocL.
 
 =item B<vhdlword>
 
 Other VHDL reserved word.
 
-=item B<nocode>
+=item B<vhdlstr>
 
-Non-code words inside quoted code, such as the "unnamed" notice for nameless
-processes.  Not used in source pages.
+Quoted VHDL (bit) string or character or bit.
 
 =back
+
+The assignment of classes is based solely on word recognition, and as a
+consequence is not perfect.  For example, the word C<in> occurring in
+C<for...generate> statements will be misidentified as belonging to the
+B<vhdlio> class.
 
 
 =head1 BUGS AND LIMITATIONS
