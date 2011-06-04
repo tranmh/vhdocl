@@ -90,10 +90,9 @@ Indentation of nested lists in the HTML output.  Default: 50 pixels.
 =item B<--javasyntax>
 
 Generate JavaScript for syntax highlighting of source HTML pages instead of
-generating marked-up pages directly.  This will save some CPU time and avoid
-reading the source files a second time and is therefore likely to be faster for
-large designs.  On the downside, there will be a delay loading the HTML pages
-of large source files as the browser processes them.
+generating marked-up pages directly.  This will save some CPU time and may
+therefore be faster for large designs.  On the downside, there will be a delay
+loading the HTML pages of large source files as the browser processes them.
 
 =item B<--leftlogo>=I<image>
 

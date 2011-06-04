@@ -10,6 +10,9 @@
 *.declid {
     color:blue;
 }
+*.typeid {
+    color:blue;
+}
 *.vhdlstr {
     color:green;
 }
@@ -26,7 +29,7 @@
     color:maroon;
 }
 *.vhdlieee {
-    color:olive;
+    color:olive !important;
 }
 *.vhdlcode {
     font-family:monospace;
