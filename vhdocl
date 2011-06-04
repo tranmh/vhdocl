@@ -1988,6 +1988,7 @@ sub resolve_configuration
                                           $libname);
         $for->{"binding"}= $use->{"object"};
         if( $use->{"subtype"} eq "entity" && $for->{"binding"} ) {
+          $for->{"bindname"}= $for->{"binding"}->{"fullname"};
           if( $use->{"archname"} ) {
             $for->{"archname"}= $use->{"archname"};
             ($for->{"bindarch"})= ($use->{"architecture"})=
@@ -4463,6 +4464,7 @@ bindcompinst:
       $inst->{"binding"}= find_selname($use->{"name"},
                               $use->{"subtype"}, $arch->{"libname"});
       if( $inst->{"binding"} ) {
+        $inst->{"bindname"}= $inst->{"binding"}->{"fullname"};
         if( $use->{"archname"} ) {
           $inst->{"archname"}= $use->{"archname"};
           $inst->{"bindarch"}= elem { $_->{"name"} eq $use->{"archname"} }
