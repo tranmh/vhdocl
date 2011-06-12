@@ -2380,7 +2380,7 @@ sub prepareoutput
   my $dir= $config{"absoutputdir"};
   my $datadir;
 
-  eval { File::Path::make_path( $dir ); };
+  eval { File::Path::mkpath( $dir ); };
   croak "Cannot create output directory `$dir' - $@" if $@;
   for my $d ("entities", "architectures", "configurations", "packages",
             "sources", "style")
