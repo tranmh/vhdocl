@@ -60,7 +60,7 @@ else {
     $htmldir= "$destdir/share/doc/vhdocl";
 }
 
-print "Installing to $destdir, data directory $datadir...\n";
+print $noop? "Pretending to install" : "Installing", " to $destdir, data directory $datadir...\n";
 
 print "Creating install directories...\n";
 File::Path::make_path($exedir, $datadir, "$datadir/style", $htmldir) unless $noop;
@@ -90,7 +90,7 @@ if( !$noop ) {
     }
 }
 
-print "Done.\n";
+print $noop? "Rerun without -n to install to these directories.\n" : "Done.\n";
 
 if( $datadir ne "/usr/local/share/vhdocl" && $datadir ne "/usr/share/vhdocl" ) {
     print "Remember to define the environment variable VHDOCL_DATADIR as `$datadir'.\n";
