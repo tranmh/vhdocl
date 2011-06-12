@@ -63,8 +63,8 @@ else {
 print $noop? "Pretending to install" : "Installing", " to $destdir, data directory $datadir...\n";
 
 print "Creating install directories...\n";
-File::Path::make_path($exedir, $datadir, "$datadir/style", $htmldir) unless $noop;
-File::Path::make_path($mandir) if $mandir && !$noop;
+File::Path::mkpath($exedir, $datadir, "$datadir/style", $htmldir, {}) unless $noop;
+File::Path::mkpath($mandir, {}) if $mandir && !$noop;
 
 print "Installing executables to $exedir...\n";
 install("vhdocl", "$exedir/vhdocl", 0755) unless $noop;
