@@ -35,7 +35,7 @@ use Cwd 'abs_path';
 my $version= "0.2.0";
 
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
-  "compat" => 0, "cwd" => "", 
+  "compat" => 0, "cwd" => "", "psl" => 0,
   "parsedebug" => 0, "quiet" => 0, "cellpadding" => 3, "indentation" => 50, 
   "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
   "title" => "", "footer" => "" );
@@ -285,6 +285,7 @@ my @options= (
 [ "f", "configfile", "<", 0 ],
 [ "p", "prefix", "w", "prefix" ],
 [ "l", "library", "w", "curlib" ],
+[ "", "psl", "?", "psl" ],
 [ "", "parsedebug", "?", "parsedebug" ],
 [ "", "benchmark", "?", "benchmark" ],
 [ "q", "quiet", "?", "quiet" ],
@@ -777,6 +778,19 @@ if( $@ ) {      # fallback for older Perls
 my $COMMAENTRY= qr/[^,()"']*(?:(?:$PAREN|$QUOTA)[^,()"']*)*/o;
 # Same for semicolon-separated list:
 my $SEMIENTRY= qr/[^;()"']*(?:(?:$PAREN|$QUOTA)[^;()"']*)*/o;
+
+# Regexes for reading PSL statements:
+# Possibly nested brace expression:
+my $PSLBRACE;
+# This needs Perl 5.10:
+eval { $PSLBRACE= qr/({[^{}"']*(?:(?:(?-1)|$QUOTA)[^{}"']*)*})/o; };
+if( $@ ) {      # fallback for older Perls
+  use re 'eval';
+  $PSLBRACE= qr/{[^{}"']*(?:(?:(??{$PSLBRACE})|$QUOTA)[^{}"']*)*}/o;
+  print "" if "foo" =~ /$PSLBRACE/;
+};
+# PSL statement:
+my $PSL= qr/[^;{}"']*(?:(?:$PSLBRACE|$QUOTA)[^;{}"']*)*/o;
 
 
 {   # Start of scope of parsing variables
@@ -1368,6 +1382,41 @@ vhdlline:
       }
       else {
         goto skipnext;
+      }
+    }
+    elsif( $config{"psl"} && $vline =~ s/^(property|sequence|endpoint|assert|
+         assume|assume_guarantee|restrict|restrict_guarantee|cover)\b//ix ) {
+      my $subtype= lc($1);
+      my $psl;
+      while( 13 ) {
+        if( $vline =~ s/^($PSL;)//o ) {
+          $psl= $1;
+          last;
+        }
+        getnextline(0) or last vhdlline;
+      }
+      @newentries= ( { "type", "psl", "subtype", $subtype, "name", $label } );
+      if( $subtype =~ /^(?:assert|assume_guarantee|restrict_guarantee|cover)$/
+          && $psl =~ s/\breport\s+($MSTUFF)\s*;$//io ) {
+        $newentries[0]->{"report"}= $1;
+      }
+      $psl =~ s/^\s+//;
+      $psl =~ s/\s+$//;
+      if( $subtype =~ /^(?:property|sequence|endpoint)$/ ) {
+        $psl =~ s/^($ID)\b\s*(\([^)]*\)\s*)?\bis\b\s*//io or next vhdlline;
+        $newentries[0]->{"name"}= $1;
+        my $parlist= $2 || "";
+        $parlist =~ s/^\(\s*//;
+        $parlist =~ s/\s*\)\s*//;
+        $newentries[0]->{"parlist"}= $parlist;
+        $newentries[0]->{"value"}= $psl;
+      }
+      elsif( $subtype =~ /^(?:assert|assume|assume_guarantee)$/ ) {
+        $newentries[0]->{"property"}= $psl;
+      }
+      else #  elsif( $subtype =~ /^(?:restrict|restrict_guarantee|cover)$/ )
+      {
+        $newentries[0]->{"sequence"}= $psl;
       }
     }
     # Instantiations
