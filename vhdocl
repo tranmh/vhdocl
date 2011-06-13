@@ -2408,11 +2408,13 @@ my $SPDO= "<span class=\"vhdlcom\">";       # other comment text
 my $SPID= "<span class=\"identifier\">";    # identifier
 my $SPTYID= "<span class=\"typeid\">";      # type identifier
 my $SPDID= "<span class=\"declid\">";       # identifier of this declaration
+my $SPPID= "<span class=\"pslid\">";        # PSL identifier
 my $SPSTR= "<span class=\"vhdlstr\">";      # quoted (bit) string or bit
 my $SPIO= "<span class=\"vhdlio\">";        # in, out, inout
 my $SPVA= "<span class=\"vhdlvar\">";       # signal, constant, variable, attr.
 my $SPDCL= "<span class=\"vhdldecl\">";     # declarative item
 my $SPWD= "<span class=\"vhdlword\">";      # other VHDL reserved word
+my $SPPSL= "<span class=\"pslword\">";      # PSL reserved word
 my $SPIE= "<span class=\"vhdlieee\">";      # standard package word
 my $SPIET= "<span class=\"vhdlieee typeid\">"; # standard package type
 my $CCO= " class=\"vhdlcode\"";
@@ -2685,6 +2687,15 @@ std_ulogic std_ulogic_vector std_logic std_logic_vector x01 x01z ux01
 ux01z small_int signed unsigned complex complex_vector complex_polar );
 # "width" is a type defined in textio, but has been removed, a it may often be
 # used as a constant/variable name.
+my @PSLWORDS= qw( abort always assume assume_guarantee before clock const
+countones cover default endpoint eventually fairness fell forall inf inherit
+isunknown never next next_a next_e next_event next_event_a next_event_e onehot
+onehot0 property prev restrict restrict_guarantee rose sequence stable strong
+union until vmode vprop vunit within );
+# Note: assert, boolean, report have been left out, as they conflict with other
+# classes.  Keywords ending with underscores are not caught by /$ID/ and are
+# for now also left out.  Single- and two-character keywords are for now
+# ignored too.
 my %SPANCLASS= ( map( { $_ => $SPIO; } @IOWORDS),
                  map( { $_ => $SPVA; } @VARWORDS),
                  map( { $_ => $SPDCL; } @DECLWORDS),
@@ -4226,6 +4237,7 @@ my @packages;
 my @packagebodies;
 my @usertypes;
 my @userdeclids;
+my @pslids;
 my $duplicate= 0;
 
 # Build entity, architecture, configuration and package lists
@@ -4271,6 +4283,9 @@ for my $lib (keys(%libraries)) {
   push @userdeclids, map lc($_->{"name"}), grep $_->{"name"},
                     map @{$_->{"allprocesses"}}, @archs;
   push @userdeclids, map lc($_->{"name"}), (@ents, @confs);
+  push @pslids, map lc($_->{"name"}), grep $_->{"name"},
+                map @{$_->{"childtype"}->{"psl"} || []}, (@archs, @packs)
+    if $config{"psl"};
   push @usertypes, map lc($_->{"name"}),
         map( (@{$_->{"childtype"}->{"type"} || []},
               @{$_->{"childtype"}->{"subtype"} || []},
@@ -4285,6 +4300,11 @@ for my $lib (keys(%libraries)) {
 @userdeclids= ();
 @SPANCLASS{@usertypes}= ($SPTYID) x @usertypes;
 @usertypes= ();
+if( $config{"psl"} ) {
+  @SPANCLASS{@PSLWORDS}= ($SPPSL) x @PSLWORDS;
+  @SPANCLASS{@pslids}= ($SPPID) x @pslids;
+  @pslids= ();
+}
 
 print STDERR "Warning: Duplicate declarations were discarded.\n" if $duplicate;
 
