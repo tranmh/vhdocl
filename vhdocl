@@ -3257,6 +3257,57 @@ sub printinsthtml
 }
 
 
+# -> File handle to print to
+#    Reference to hash representing the top-level declaration (library unit)
+sub printpslhtml
+{
+  my ($handle, $obj)= @_;
+  my @psldefs;
+  my @psldirs;
+  my $ind= "<td width=\"$iw\"></td>";
+
+  return unless @{$obj->{"childtype"}->{"psl"} || []};
+  use Data::Dumper;
+  print Dumper($obj->{"childtype"}->{"psl"});
+  for (@{$obj->{"childtype"}->{"psl"}}) {
+    if( $_->{"subtype"} =~ /^(?:property|sequence|endpoint)$/ ) {
+        push @psldefs, $_;
+    }
+    else {
+        push @psldirs, $_;
+    }
+  }
+  if( @psldefs ) {
+    print $handle "\n<h2>PSL definitions</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+    for my $def (@psldefs) {
+      print $handle "<tr$CCO><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ",
+                    "$SPPID$def->{name}$SP_ ";
+      print $handle markvhdl($def->{"parlist"}),
+                    "</td></tr>\n<tr$CCO>$ind<td colspan=\"4\">"
+          if $def->{"parlist"};
+      print $handle "${SPWD}is$SP_ ", markvhdl($def->{"value"}), "</td></tr>\n";
+      printcommonhtml($handle, $def);
+    }
+    print $handle "</table>\n\n";
+  }
+  if( @psldirs ) {
+    print $handle "\n<h2>PSL directives</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+    for my $dir (@psldirs) {
+      print $handle "<tr$CCO><td>";
+      print $handle "$SPPID$dir->{name}$SP_ : " if $dir->{"name"};
+      print $handle "</td><td colspan=\"4\">$SPPSL$dir->{subtype}$SP_ ",
+                    markvhdl($dir->{"property"} || $dir->{"sequence"}),
+                    "</td></tr>\n";
+      print $handle "<tr$CCO>$ind<td colspan=\"4\">${SPWD}report$SP_ ",
+                    markvhdl($dir->{"report"}), "</td></tr>\n"
+          if $dir->{"report"};
+      printcommonhtml($handle, $dir);
+    }
+    print $handle "</table>\n\n";
+  }
+}
+
+
 my $archhtmlerr= 0;
 
 # Write the HTML documentation for an architecture
@@ -3303,6 +3354,7 @@ sub architecturehtml
     map { printcomphtml(*ARCH{IO}, $_) } @comps;
     print ARCH "</table>\n\n";
   }
+  printpslhtml(*ARCH{IO}, $arch);
   if( my @procs= trace_all($arch, "type", "process") ) {
     print ARCH "\n<h2>Processes</h2>\n\n<table border=\"0\" " .
                 "cellpadding=\"$cp\">\n";
@@ -3545,6 +3597,7 @@ sub packagehtml
       map { printcomphtml(*PACK{IO}, $_) } @comps;
       print PACK "</table>\n\n";
     }
+    printpslhtml(*PACK{IO}, $pack);
     unless( $pbody ) {
       printhtmlfooter(*PACK{IO});
       close PACK;
