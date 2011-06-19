@@ -845,9 +845,9 @@ sub skipstatement
   while( defined($vline) ) {
     if( $vline =~ /;/ ) {
       chomp $vline;
-      $vline =~ s/^($MANY)(--.*)$/$1/;
+      $vline =~ s/^($MANY)(--.*)$/$1/o;
       $comment= $2;
-      if( $vline =~ s/^(?:|$STUFF);// ) {
+      if( $vline =~ s/^(?:|$STUFF);//o ) {
         $vline .= $comment if $vline !~ /^\s*$/ && defined($comment);
         return;
       }
@@ -906,7 +906,7 @@ sub readportlist
   while( 13 ) {
     $port= "";
     while( 13 ) {
-      $vline =~ s/^($SEMIENTRY)//o or print "no match: $vline\n";
+      $vline =~ s/^($SEMIENTRY)//o;
       $port .= $1;
       last if $vline =~ /^[;)]/;
       my $new= <$vhandle>;
