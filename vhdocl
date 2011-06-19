@@ -35,17 +35,13 @@ use Cwd 'abs_path';
 my $version= "0.2.0";
 
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
-  "compat" => 0, "cwd" => "", "psl" => 0,
-  "parsedebug" => 0, "quiet" => 0, "cellpadding" => 3, "indentation" => 50, 
+  "compat" => 0, "cwd" => "", "psl" => 0, "parsedebug" => 0, "quiet" => 0, 
   "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
   "title" => "", "footer" => "" );
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "nodeimg" => "node.png", "subtrimg" => "subtree.png",
     "leafimg" => "leaf.png", "basestyle" => "vhdocl.css" );
-
-my $cp;
-my $iw;
 
 
 ##############################################################################
@@ -2422,6 +2418,10 @@ my $SPCO= "<span class=\"vhdlcode\">";      # encloses all VHDL code
 my $SPNC= "<span class=\"nocode\">";        # non-code within class vhdlcode
 my $SP_= "</span>";
 
+# other tags that allow CSS customisation:
+my $TDI= "<td class=\"vhdoclind\" width=\"50\"></td>";  # indentation in tables
+my $STDTAB= "<table class=\"vhdocltab\" border=\"0\" cellpadding=\"3\">";   # major layout table
+
 # Try to create output directories if they do not yet exist, and localise the
 # file name of style sheet and logos relative to the output directory if
 # applicable.  The function dies if it cannot create the directories.
@@ -2523,8 +2523,23 @@ EOF
     printhtmlfooter(*INDEX{IO}, 1);
     close INDEX;
   }
-  $cp= $config{"cellpadding"};
-  $iw= $config{"indentation"};
+  if( $config{"cellpadding"} ) {
+    $STDTAB= "<table class=\"vhdocltab\" border=\"0\" cellpadding=\"" .
+             $config{"cellpadding"} .  "\">";
+    print STDERR <<EOF;
+Warning: The option -c / --cellpadding is deprecated and may be removed.
+Instead, use the --stylefile option with a file containing something like:
+table.vhdocltab td { padding:3px; }
+EOF
+  }
+  if( $config{"indentation"} ) {
+    $TDI= "<td class=\"vhdoclind\" width=\"" . $config{"indentation"} . "\"></td>";
+    print STDERR <<EOF;
+Warning: The option -i / --indentation is deprecated and may be removed.
+Instead, use the --stylefile option with a file containing something like:
+*.vhdoclind { width:50px; }
+EOF
+  }
 }
 
 
@@ -2830,14 +2845,13 @@ sub printlibusehtml
     }
   }
   return unless keys(%libs) || keys(%uses);
-  print $handle "\n<h2>Libraries and global use clauses</h2>\n\n",
-                    "<table border=\"0\" cellpadding=\"$cp\">\n";
+  print $handle "\n<h2>Libraries and global use clauses</h2>\n\n$STDTAB\n";
   my @sortuses= sort keys %uses;
   for my $lib (sort keys %libs) {
     my $markedname= markvhdl($libs{$lib}->{"name"});
     print $handle "<tr$CCO><td colspan=\"2\"><b>${SPDCL}library$SP_ ",
                   $markedname, "</b></td></tr>\n";
-    map { print $handle "<tr><td width=\"$iw\"></td><td>$SPDOC$_$SP_</td></tr>\n"; }
+    map { print $handle "<tr>$TDI<td>$SPDOC$_$SP_</td></tr>\n"; }
                           @{$libs{$lib}->{"doc"}->{"description"}};
     for my $usename (grep $_ =~ /^$lib\b/, @sortuses) {
       printusehtml($handle, $uses{$usename});
@@ -2872,7 +2886,7 @@ sub printusehtml
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ", $markedname,
                   "</td></tr>\n";
   }
-  map { print $handle "<tr><td width=\"$iw\"></td><td>$SPDOC$_$SP_</td></tr>\n"; }
+  map { print $handle "<tr>$TDI<td>$SPDOC$_$SP_</td></tr>\n"; }
                         @{$use->{"doc"}->{"description"}};
 }
 
@@ -2917,18 +2931,17 @@ sub entityhtml
   printobjhtml(*ENT{IO}, $ent);
   printlibusehtml(*ENT{IO}, $ent);
   if( my @gens= @{$ent->{"childtype"}->{"generic"} || []} ) {
-    print ENT "\n<h2>Generics</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+    print ENT "\n<h2>Generics</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*ENT{IO}, $_) } @gens;
     print ENT "</table>\n\n";
   }
   if( my @ports= @{$ent->{"childtype"}->{"port"} || []} ) {
-    print ENT "\n<h2>Ports</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+    print ENT "\n<h2>Ports</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*ENT{IO}, $_) } @ports;
     print ENT "</table>\n\n";
   }
   if( @{$ent->{"architectures"}} ) {
-    print ENT "\n<h2>Architectures</h2>\n\n",
-                "<table border=\"0\" cellpadding=\"$cp\">\n";
+    print ENT "\n<h2>Architectures</h2>\n\n$STDTAB\n";
     map { print ENT "<tr><td><a href=\"../architectures/",
             $_->{"docfilename"}, "\">", $_->{"name"}, "</a></td></tr>\n"; }
             @{$ent->{"architectures"}};
@@ -2938,8 +2951,7 @@ sub entityhtml
     print ENT "\n<h2>No architectures found</h2>\n\n";
   }
   if( @{$ent->{"configurations"}} ) {
-    print ENT "\n<h2>Configurations</h2>\n\n",
-                "<table border=\"0\" cellpadding=\"$cp\">\n";
+    print ENT "\n<h2>Configurations</h2>\n\n$STDTAB\n";
     map { print ENT "<tr><td><a href=\"../configurations/",
             $_->{"docfilename"}, "\">", $_->{"name"}, "</a></td></tr>\n"; }
             @{$ent->{"configurations"}};
@@ -2957,13 +2969,12 @@ sub entityhtml
 sub printcommonhtml
 {
   my ($handle, $obj)= @_;
-  my $ind= "<td width=\"$iw\"></td>";
 
-  map { print $handle "<tr>$ind<td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n" }
+  map { print $handle "<tr>$TDI<td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n" }
                         @{$obj->{"doc"}->{"description"}};
   if( $obj->{"attributes"} && keys(%{$obj->{"attributes"}}) ) {
-    print $handle "<tr>$ind<td colspan=\"4\">Attributes:</td></tr>\n",
-                  "<tr>$ind$ind<td colspan=\"3\">";
+    print $handle "<tr>$TDI<td colspan=\"4\">Attributes:</td></tr>\n",
+                  "<tr>$TDI$TDI<td colspan=\"3\">";
     printattrhtml($handle, $obj);
     print $handle "</td></tr>\n";
   }
@@ -2976,10 +2987,9 @@ sub printcommonhtml
 sub printattrhtml
 {
   my ($handle, $obj)= @_;
-  my $ind= "<td width=\"$iw\"></td>";
 
   return unless $obj->{"attributes"} && keys(%{$obj->{"attributes"}});
-  print $handle "<table border=\"0\" cellpadding=\"$cp\">\n";
+  print $handle "$STDTAB\n";
   for my $attrname (keys %{$obj->{"attributes"}}) {
     my $aspec= $obj->{"attributes"}->{$attrname};
     my $attr= $aspec->{"attribute"};
@@ -2989,12 +2999,12 @@ sub printattrhtml
                 "</td><td> := ", markvhdl($aspec->{"value"}), "</td></tr>\n";
     if( $attr->{"doc"}->{"description"} &&
                               @{$attr->{"doc"}->{"description"}} ) {
-      map { print $handle "<tr>$ind<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
+      map { print $handle "<tr>$TDI<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
                 @{$attr->{"doc"}->{"description"}};
     }
     if( $aspec->{"doc"}->{"description"} &&
                               @{$aspec->{"doc"}->{"description"}} ) {
-      map { print $handle "<tr>$ind<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
+      map { print $handle "<tr>$TDI<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
                 @{$aspec->{"doc"}->{"description"}};
     }
   }
@@ -3008,13 +3018,12 @@ sub printattrhtml
 sub printcomphtml
 {
   my ($handle, $comp)= @_;
-  my $ind= "<td width=\"$iw\"></td>";
 
   print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"",
                 $labels{"component"}, $comp->{"name"}, "\">$SPDID",
                 $comp->{"name"}, "$SP_</a></b></td></tr>\n";
   printcommonhtml($handle, $comp);
-  print $handle "<tr>$ind<td colspan=\"4\">",
+  print $handle "<tr>$TDI<td colspan=\"4\">",
                 "Default binding: $SPCO<a href=\"../entities/",
                 $comp->{"binding"}->{"docfilename"}, "\">$SPID", 
                 $comp->{"binding"}->{"fullname"}, "$SP_</a>$SP_</td></tr>\n"
@@ -3040,7 +3049,7 @@ sub printfuncprochtml
   push @headwords, "procedures" if $obj->{"childtype"}->{"procedure"} &&
                                   @{$obj->{"childtype"}->{"procedure"}};
   $headline= ucfirst join " and ", @headwords;
-  print $handle "\n<h2>$headline</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+  print $handle "\n<h2>$headline</h2>\n\n$STDTAB\n";
   map { printfunchtml($handle, $_) } @funcprocs;
   print $handle "</table>\n\n";
 }
@@ -3052,7 +3061,6 @@ sub printfuncprochtml
 sub printfunchtml
 {
   my ($handle, $func)= @_;
-  my $ind= "<td width=\"$iw\"></td>";
   my $label= $labels{$func->{"type"}} . $func->{"name"};
   my $arglist= $func->{"parlist"} ?
                 " (" . markvhdl($func->{"parlist"}) . ")" : "";
@@ -3063,7 +3071,7 @@ sub printfunchtml
                 ($func->{"subtype"}? " ${SPWD}return$SP_ " .
                                 markvhdl($func->{"subtype"}) : ""),
         "</td></tr>\n";
-  print $handle "<tr$CCO>$ind<td colspan=\"4\"><b>${SPWD}impure$SP_</b></td></tr>\n"
+  print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}impure$SP_</b></td></tr>\n"
         if $func->{"pure"} && $func->{"pure"} eq "impure";
   printcommonhtml($handle, $func);
 }
@@ -3108,25 +3116,24 @@ sub printtypehtml
 sub printtracehtml
 {
   my ($handle, $trc)= @_;
-  my $ind= "<td width=\"$iw\"></td>";
 
   if( $trc->{"type"} eq "generate" ) {
-    print $handle "<tr$CCO>$ind$ind<td colspan=\"3\"><b>$SPID", $trc->{"name"},
+    print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID", $trc->{"name"},
         "$SP_</b> : $SPWD", $trc->{"subtype"}, "$SP_ ",
         markvhdl($trc->{"parameters"}), " ${SPWD}generate$SP_</td></tr>\n";
   }
   elsif( $trc->{"type"} eq "block" ) {
     my $guard= $trc->{"guard"} ? "( " . markvhdl($trc->{"guard"}) . " )" : "";
-    print $handle "<tr$CCO>$ind$ind<td colspan=\"3\"><b>$SPID", $trc->{"name"},
+    print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID", $trc->{"name"},
         "$SP_</b> : ${SPWD}block$SP_ ", $guard, "</td></tr>\n";
   }
   else {
-    print $handle "<tr$CCO>$ind$ind<td colspan=\"3\">$SPWD", $trc->{"type"},
+    print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\">$SPWD", $trc->{"type"},
                "$SP_ <b>", ($trc->{"name"} ? $SPID.$trc->{"name"}.$SP_ :
                                             "<i>${SPNC}unnamed$SP_</i>"),
                "</b></td></tr>\n";
   }
-  map { print $handle "<tr>$ind$ind$ind<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
+  map { print $handle "<tr>$TDI$TDI$TDI<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
                         @{$trc->{"doc"}->{"description"}};
 }
 
@@ -3138,17 +3145,16 @@ sub printprochtml
 {
   my ($handle, $path)= @_;
   my $proc= $$path[$#$path];
-  my $ind= "<td width=\"$iw\"></td>";
 
   print $handle "<tr$CCO><td colspan=\"5\"><b>", ($proc->{"name"} ?
             $SPDID.$proc->{"name"}.$SP_ : "<i>${SPNC}unnamed$SP_</i>"), "</b>",
   ($proc->{"sensitivity"}? " (" . markvhdl($proc->{"sensitivity"}) . ")" : ""), 
           "</td></tr>\n";
-  print $handle "<tr$CCO>$ind<td colspan=\"4\"><b>${SPWD}postponed$SP_</b></td></tr>\n"
+  print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}postponed$SP_</b></td></tr>\n"
         if $proc->{"postponed"};
   printcommonhtml($handle, $proc);
   if( $#$path ) {
-    print $handle "<tr>$ind<td colspan=\"4\">This process is inside the " .
+    print $handle "<tr>$TDI<td colspan=\"4\">This process is inside the " .
                 "following construct", ($#$path>1? "s":""), ":</td></tr>\n";
     map printtracehtml($handle, $_), @$path[0..$#$path-1];
   }
@@ -3163,7 +3169,6 @@ sub printinsthtml
 {
   my ($handle, $path)= @_;
   my $inst= $$path[$#$path];
-  my $ind= "<td width=\"$iw\"></td>";
 
   print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"", $labels{"instance"},
               $inst->{"name"}, "\">$SPDID", $inst->{"name"}, "$SP_</a></b> : ";
@@ -3208,8 +3213,8 @@ sub printinsthtml
   printcommonhtml($handle, $inst);
   if( $inst->{"genericmap"} && @{$inst->{"genericmap"}} ) {
     my @gmap= @{$inst->{"genericmap"}};
-    print $handle "<tr>$ind<td colspan=\"4\">Generic map:</td></tr>\n",
-                  "<tr>$ind$ind<td colspan=\"3\"><table border=\"0\"$CCO>\n";
+    print $handle "<tr>$TDI<td colspan=\"4\">Generic map:</td></tr>\n",
+                  "<tr>$TDI$TDI<td colspan=\"3\"><table border=\"0\"$CCO>\n";
     map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
                               markvhdl($$_[1]), "</td></tr>\n"; } @gmap;
     print $handle "</table></td></tr>\n";
@@ -3218,13 +3223,13 @@ sub printinsthtml
   if( $inst->{"subtype"} eq "component" &&
       ((my $bind= $inst->{"binding"}) || $inst->{"bindname"}) ) {
     if( $bind ) {
-      print $handle "<tr>$ind<td colspan=\"4\">Binding: $SPCO<a href=\"",
+      print $handle "<tr>$TDI<td colspan=\"4\">Binding: $SPCO<a href=\"",
       ($bind->{"type"} eq "entity" ?  "../entities/" : "../configurations/"),
           $bind->{"docfilename"}, "\">$SPID", $bind->{"fullname"},
           "$SP_</a>";
     }
     else {
-      print $handle "<tr>$ind<td colspan=\"4\">Binding: $SPCO$SPID",
+      print $handle "<tr>$TDI<td colspan=\"4\">Binding: $SPCO$SPID",
                       $inst->{"bindname"}, "$SP_";
     }
     if( $inst->{"archname"} ) {
@@ -3238,19 +3243,19 @@ sub printinsthtml
       }
     }
     print $handle "$SP_</td></tr>\n";
-    map { print $handle "<tr>$ind$ind<td colspan=\"3\">$SPDOC$_$SP_</td></tr>\n" }
+    map { print $handle "<tr>$TDI$TDI<td colspan=\"3\">$SPDOC$_$SP_</td></tr>\n" }
                         @{$inst->{"binddoc"}};
     if( $inst->{"bindgen"} ) {
       my $map= $inst->{"bindgen"}->{"map"};
-      print $handle "<tr>$ind$ind<td colspan=\"3\">Generic map:</td></tr>\n",
-                "<tr>$ind$ind$ind<td colspan=\"2\"><table border=\"0\"$CCO>\n";
+      print $handle "<tr>$TDI$TDI<td colspan=\"3\">Generic map:</td></tr>\n",
+                "<tr>$TDI$TDI$TDI<td colspan=\"2\"><table border=\"0\"$CCO>\n";
       map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
                                 markvhdl($$_[1]), "</td></tr>\n"; } @$map;
       print $handle "</table></td></tr>\n";
     }
   }
   if( $#$path ) {
-    print $handle "<tr>$ind<td colspan=\"4\">This instantiation is inside the "
+    print $handle "<tr>$TDI<td colspan=\"4\">This instantiation is inside the "
                 . "following construct", ($#$path>1? "s":""), ":</td></tr>\n";
     map printtracehtml($handle, $_), @$path[0..$#$path-1];
   }
@@ -3264,7 +3269,6 @@ sub printpslhtml
   my ($handle, $obj)= @_;
   my @psldefs;
   my @psldirs;
-  my $ind= "<td width=\"$iw\"></td>";
 
   return unless @{$obj->{"childtype"}->{"psl"} || []};
   use Data::Dumper;
@@ -3278,12 +3282,12 @@ sub printpslhtml
     }
   }
   if( @psldefs ) {
-    print $handle "\n<h2>PSL definitions</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+    print $handle "\n<h2>PSL definitions</h2>\n\n$STDTAB\n";
     for my $def (@psldefs) {
       print $handle "<tr$CCO><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ",
                     "$SPPID$def->{name}$SP_ ";
       print $handle markvhdl($def->{"parlist"}),
-                    "</td></tr>\n<tr$CCO>$ind<td colspan=\"4\">"
+                    "</td></tr>\n<tr$CCO>$TDI<td colspan=\"4\">"
           if $def->{"parlist"};
       print $handle "${SPWD}is$SP_ ", markvhdl($def->{"value"}), "</td></tr>\n";
       printcommonhtml($handle, $def);
@@ -3291,14 +3295,14 @@ sub printpslhtml
     print $handle "</table>\n\n";
   }
   if( @psldirs ) {
-    print $handle "\n<h2>PSL directives</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+    print $handle "\n<h2>PSL directives</h2>\n\n$STDTAB\n";
     for my $dir (@psldirs) {
       print $handle "<tr$CCO><td>";
       print $handle "$SPPID$dir->{name}$SP_ : " if $dir->{"name"};
       print $handle "</td><td colspan=\"4\">$SPPSL$dir->{subtype}$SP_ ",
                     markvhdl($dir->{"property"} || $dir->{"sequence"}),
                     "</td></tr>\n";
-      print $handle "<tr$CCO>$ind<td colspan=\"4\">${SPWD}report$SP_ ",
+      print $handle "<tr$CCO>$TDI<td colspan=\"4\">${SPWD}report$SP_ ",
                     markvhdl($dir->{"report"}), "</td></tr>\n"
           if $dir->{"report"};
       printcommonhtml($handle, $dir);
@@ -3338,32 +3342,29 @@ sub architecturehtml
   printlibusehtml(*ARCH{IO}, $arch);
   if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|protected|
                         protectedbody)$/ix, @{$arch->{"children"}}) ) {
-    print ARCH "\n<h2>Type declarations</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+    print ARCH "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
     map { printtypehtml(*ARCH{IO}, $_) } @types;
     print ARCH "</table>\n\n";
   }
   if( my @consts= @{$arch->{"childtype"}->{"constant"} || []} ) {
-    print ARCH "\n<h2>Constants</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+    print ARCH "\n<h2>Constants</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*ARCH{IO}, $_) } @consts;
     print ARCH "</table>\n\n";
   }
   printfuncprochtml(*ARCH{IO}, $arch);
   if( my @comps= @{$arch->{"childtype"}->{"component"} || []} ) {
-    print ARCH "\n<h2>Component declarations</h2>\n\n<table border=\"0\" " .
-                "cellpadding=\"$cp\">\n";
+    print ARCH "\n<h2>Component declarations</h2>\n\n$STDTAB\n";
     map { printcomphtml(*ARCH{IO}, $_) } @comps;
     print ARCH "</table>\n\n";
   }
   printpslhtml(*ARCH{IO}, $arch);
   if( my @procs= trace_all($arch, "type", "process") ) {
-    print ARCH "\n<h2>Processes</h2>\n\n<table border=\"0\" " .
-                "cellpadding=\"$cp\">\n";
+    print ARCH "\n<h2>Processes</h2>\n\n$STDTAB\n";
     map { printprochtml(*ARCH{IO}, $_) } @procs;
     print ARCH "</table>\n\n";
   }
   if( my @insts= trace_all($arch, "type", "instance") ) {
-    print ARCH "\n<h2>Instantiations</h2>\n\n<table border=\"0\" " .
-                "cellpadding=\"$cp\">\n";
+    print ARCH "\n<h2>Instantiations</h2>\n\n$STDTAB\n";
     map { printinsthtml(*ARCH{IO}, $_) } @insts;
     print ARCH "</table>\n\n";
   }
@@ -3382,12 +3383,11 @@ sub architecturehtml
 sub printconfightml
 {
   my ($handle, $fors, $curdepth, $maxdepth)= @_;
-  my $ind1= "<td width=\"$iw\"></td>";
-  my $ind= $ind1 x $curdepth;
+  my $ind2= $TDI x $curdepth;
   my $span= $maxdepth - $curdepth + 3;
 
   for my $for (@$fors) {
-    print $handle "<tr$CCO>$ind<td colspan=\"", $span, "\">${SPWD}for$SP_ <b>";
+    print $handle "<tr$CCO>$ind2<td colspan=\"", $span, "\">${SPWD}for$SP_ <b>";
     if( $for->{"subtype"} eq "architecture" ) {
       if( $for->{"object"} && $for->{"object"}->{"type"} eq "architecture" ) {
         print $handle "<a href=\"../architectures/",
@@ -3397,7 +3397,7 @@ sub printconfightml
       else {
         print $handle $SPID, $for->{"objname"}, "$SP_</b></td></tr>\n";
       }
-      map { print $handle "<tr>$ind$ind1<td colspan=\"", $span-1, "\">$SPDOC",
+      map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\">$SPDOC",
                    "$_$SP_</td></tr>\n" }    @{$for->{"doc"}->{"description"}};
     }
     else {
@@ -3450,14 +3450,14 @@ sub printconfightml
       else {
         print $handle "</td>$SP_</tr>\n";
       }
-      map { print $handle "<tr>$ind$ind1<td colspan=\"", $span-1, "\">$SPDOC",
+      map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\">$SPDOC",
                    "$_$SP_</td></tr>\n" }    @{$for->{"doc"}->{"description"}};
-      map { print $handle "<tr>$ind$ind1<td colspan=\"", $span-1, "\">$SPDOC",
+      map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\">$SPDOC",
            "$_$SP_</td></tr>\n" }    @{$for->{"use"}->{"doc"}->{"description"}};
       if( $for->{"bindgen"} ) {
         my $map= $for->{"bindgen"}->{"map"};
-        print $handle "<tr>$ind$ind1<td colspan=\"", $span-1,
-                "\">Generic map:</td></tr>\n<tr>$ind$ind1$ind1<td colspan=\"",
+        print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1,
+                "\">Generic map:</td></tr>\n<tr>$ind2$TDI$TDI<td colspan=\"",
                 $span-2, "\"><table border=\"0\"$CCO>\n";
         map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
                                   markvhdl($$_[1]), "</td></tr>\n"; } @$map;
@@ -3500,8 +3500,7 @@ sub configurationhtml
   }
   printobjhtml(*CONF{IO}, $conf);
   printlibusehtml(*CONF{IO}, $conf);
-  print CONF "\n<h2>Configuration</h2>\n\n<table border=\"0\" ",
-                "cellpadding=\"$cp\">\n";
+  print CONF "\n<h2>Configuration</h2>\n\n$STDTAB\n";
   $maxdepth= max_depth($conf);
   @topfors= @{$conf->{"childtype"}->{"for"} || []};
   printconfightml(*CONF{IO}, \@topfors, 0, $maxdepth);
@@ -3581,19 +3580,18 @@ sub packagehtml
     printlibusehtml(*PACK{IO}, $pack);
     if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|
                       protected|protectedbody)$/ix, @{$pack->{"children"}}) ) {
-      print PACK "\n<h2>Type declarations</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+      print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
       map { printtypehtml(*PACK{IO}, $_) } @types;
       print PACK "</table>\n\n";
     }
     if( my @consts= @{$pack->{"childtype"}->{"constant"} || []} ) {
-      print PACK "\n<h2>Constants</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+      print PACK "\n<h2>Constants</h2>\n\n$STDTAB\n";
       map { printgenporthtml(*PACK{IO}, $_) } @consts;
       print PACK "</table>\n\n";
     }
     printfuncprochtml(*PACK{IO}, $pack);
     if( my @comps= @{$pack->{"childtype"}->{"component"} || []} ) {
-      print PACK "\n<h2>Component declarations</h2>\n\n<table border=\"0\" " .
-                  "cellpadding=\"$cp\">\n";
+      print PACK "\n<h2>Component declarations</h2>\n\n$STDTAB\n";
       map { printcomphtml(*PACK{IO}, $_) } @comps;
       print PACK "</table>\n\n";
     }
@@ -3623,12 +3621,12 @@ sub packagehtml
   printlibusehtml(*PACK{IO}, $pbody);
   if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|protected|
                         protectedbody)$/ix, @{$pbody->{"children"}}) ) {
-    print PACK "\n<h2>Type declarations</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+    print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
     map { printtypehtml(*PACK{IO}, $_) } @types;
     print PACK "</table>\n\n";
   }
   if( my @consts= @{$pbody->{"childtype"}->{"constant"} || []} ) {
-    print PACK "\n<h2>Constants</h2>\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+    print PACK "\n<h2>Constants</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*PACK{IO}, $_) } @consts;
     print PACK "</table>\n\n";
   }
@@ -3864,7 +3862,6 @@ sub entitylisthtml
   my @list;
   my $fname= File::Spec->catfile($config{"outputdir"},
                                 $config{"prefix"} . "entities.html");
-  my $ind= "<td width=\"$iw\"></td>";
 
   if( !open(LIST, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
@@ -3903,7 +3900,7 @@ sub entitylisthtml
   elsif( $haveconfs ) {
     print LIST "\n<p>Configurations are given in <i>italics</i>.</p>\n";
   }
-  print LIST "\n\n<table border=\"0\" cellpadding=\"$cp\">\n";
+  print LIST "\n\n$STDTAB\n";
   for my $item (@list) {
     if( $item->{"entity"} ) {
       print LIST "<tr><td colspan=\"2\"><a href=\"entities/",
@@ -3919,7 +3916,7 @@ sub entitylisthtml
       print LIST "<tr><td colspan=\"2\"><b>", $item->{"name"}, "</b></td></tr>\n";
     }
     for my $arch (@{$item->{"architectures"}}) {
-      print LIST "<tr>$ind<td><a href=\"architectures/",$arch->{"docfilename"},
+      print LIST "<tr>$TDI<td><a href=\"architectures/",$arch->{"docfilename"},
                  "\">", $arch->{"name"}, "</a></td>";
       if( my $brief= ($arch->{"doc"}->{"brief"} ||
                       $arch->{"doc"}->{"short"}) ) {
@@ -3928,7 +3925,7 @@ sub entitylisthtml
       print LIST "</tr>\n";
     }
     for my $conf (@{$item->{"configurations"}}) {
-      print LIST "<tr>$ind<td><a href=\"configurations/",
+      print LIST "<tr>$TDI<td><a href=\"configurations/",
             $conf->{"docfilename"}, "\"><i>", $conf->{"name"}, "</i></a></td>";
       if( my $brief= ($conf->{"doc"}->{"brief"} ||
                       $conf->{"doc"}->{"short"}) ) {

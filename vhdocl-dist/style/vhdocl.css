@@ -40,3 +40,11 @@
 *.shaded {
     background-color:#f8f8f8;
 }
+/* Modify the numbers and uncomment to set table padding and indentation
+table.vhdocltab td {
+    padding:3px;
+}
+*.vhdoclind {
+    width:50px;
+}
+*/
