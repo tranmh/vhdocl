@@ -13,6 +13,9 @@
 *.typeid {
     color:blue;
 }
+*.pslid {
+    color:blue;
+}
 *.vhdlstr {
     color:green;
 }
@@ -26,6 +29,9 @@
     color:maroon;
 }
 *.vhdlword {
+    color:maroon;
+}
+*.pslword {
     color:maroon;
 }
 *.vhdlieee {

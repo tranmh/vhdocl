@@ -1432,7 +1432,7 @@ vhdlline:
       }
       @newentries= ( { "type", "psl", "subtype", $subtype, "name", $label } );
       if( $subtype =~ /^(?:assert|assume_guarantee|restrict_guarantee|cover)$/
-          && $psl =~ s/\breport\s+($MSTUFF)\s*;$//io ) {
+          && $psl =~ s/\breport\s+($MSTUFF)\s*$//io ) {
         $newentries[0]->{"report"}= $1;
       }
       $psl =~ s/^\s+//;
@@ -3327,7 +3327,7 @@ sub printpslhtml
     for my $dir (@psldirs) {
       print $handle "<tr$CCO><td>";
       print $handle "$SPPID$dir->{name}$SP_ : " if $dir->{"name"};
-      print $handle "</td><td colspan=\"4\">$SPPSL$dir->{subtype}$SP_ ",
+      print $handle "</td><td colspan=\"4\"><b>$SPPSL$dir->{subtype}$SP_</b> ",
                     markvhdl($dir->{"property"} || $dir->{"sequence"}),
                     "</td></tr>\n";
       print $handle "<tr$CCO>$TDI<td colspan=\"4\">${SPWD}report$SP_ ",
