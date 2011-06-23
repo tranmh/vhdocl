@@ -886,6 +886,22 @@ sub readuntil
 }
 
 
+# Read part of a statement until a given regex matches a prefix.  Return the
+# matching prefix and remove it from $vline.  Potentially dangerous: reads
+# whole file increasingly slowly if regex never matches.
+# -> Regex indicating when to stop reading (leading ^ need not be included)
+# <- Prefix string matching the regex if match was found, undef on EOF
+sub readcomplete
+{
+  my ($re)= @_;
+
+  while( 13 ) {
+    $vline =~ s/^($re)// and return $1;
+    getnextline(0) or return undef;
+  }
+}
+
+
 # Read generic or port declaration list.  Nested parentheses are tracked.
 # Documentation comments are assigned to individual ports or generics.  Before
 # returning, the doc comment variables are cleared to avoid reuse at the end of
@@ -1380,12 +1396,35 @@ vhdlline:
         goto skipnext;
       }
     }
-    elsif( $config{"psl"} && $vline =~ s/^(property|sequence|endpoint|assert|
-         assume|assume_guarantee|restrict|restrict_guarantee|cover)\b//ix ) {
+    elsif( $config{"psl"} && $vline =~ s/^(property|sequence|endpoint)\b//i ) {
+      @newentries= ( { "type", "psl", "subtype", lc($1) } );
+      defined(readuntil( qr/\(/ )) or last vhdlline;
+      $vline =~ s/^\s*($ID)\s*//o or next vhdlline;
+      $newentries[0]->{"name"}= $1;
+      if( $vline =~ /^\(/ ) {
+        while( $vline !~ /\)/ ) {
+          getnextline(0) or last vhdlline;
+        }
+        $vline =~ s/^\(\s*([^)]*?)\s*\)\s*//;
+        $newentries[0]->{"parlist"}= $1;
+      }
+      my $psl;
+      while( 13 ) {
+        if( $vline =~ s/^($PSL);//o ) {
+          $newentries[0]->{"value"}= $1;
+          $newentries[0]->{"value"} =~ s/^\s*is\b\s*//i;
+          $newentries[0]->{"value"} =~ s/\s*$//;
+          last;
+        }
+        getnextline(0) or last vhdlline;
+      }
+    }
+    elsif( $config{"psl"} && $vline =~ s/^(assert|assume|assume_guarantee|
+                                  restrict|restrict_guarantee|cover)\b//ix ) {
       my $subtype= lc($1);
       my $psl;
       while( 13 ) {
-        if( $vline =~ s/^($PSL;)//o ) {
+        if( $vline =~ s/^($PSL);//o ) {
           $psl= $1;
           last;
         }
@@ -1398,16 +1437,7 @@ vhdlline:
       }
       $psl =~ s/^\s+//;
       $psl =~ s/\s+$//;
-      if( $subtype =~ /^(?:property|sequence|endpoint)$/ ) {
-        $psl =~ s/^($ID)\b\s*(\([^)]*\)\s*)?\bis\b\s*//io or next vhdlline;
-        $newentries[0]->{"name"}= $1;
-        my $parlist= $2 || "";
-        $parlist =~ s/^\(\s*//;
-        $parlist =~ s/\s*\)\s*//;
-        $newentries[0]->{"parlist"}= $parlist;
-        $newentries[0]->{"value"}= $psl;
-      }
-      elsif( $subtype =~ /^(?:assert|assume|assume_guarantee)$/ ) {
+      if( $subtype =~ /^(?:assert|assume|assume_guarantee)$/ ) {
         $newentries[0]->{"property"}= $psl;
       }
       else #  elsif( $subtype =~ /^(?:restrict|restrict_guarantee|cover)$/ )
@@ -3271,8 +3301,6 @@ sub printpslhtml
   my @psldirs;
 
   return unless @{$obj->{"childtype"}->{"psl"} || []};
-  use Data::Dumper;
-  print Dumper($obj->{"childtype"}->{"psl"});
   for (@{$obj->{"childtype"}->{"psl"}}) {
     if( $_->{"subtype"} =~ /^(?:property|sequence|endpoint)$/ ) {
         push @psldefs, $_;
@@ -3286,7 +3314,7 @@ sub printpslhtml
     for my $def (@psldefs) {
       print $handle "<tr$CCO><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ",
                     "$SPPID$def->{name}$SP_ ";
-      print $handle markvhdl($def->{"parlist"}),
+      print $handle " (", markvhdl($def->{"parlist"}), ")",
                     "</td></tr>\n<tr$CCO>$TDI<td colspan=\"4\">"
           if $def->{"parlist"};
       print $handle "${SPWD}is$SP_ ", markvhdl($def->{"value"}), "</td></tr>\n";
