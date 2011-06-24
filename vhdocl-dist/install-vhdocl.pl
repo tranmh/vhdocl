@@ -93,6 +93,40 @@ if( !$noop ) {
 print $noop? "Rerun without -n to install to these directories.\n" : "Done.\n";
 
 if( $datadir ne "/usr/local/share/vhdocl" && $datadir ne "/usr/share/vhdocl" ) {
-    print "Remember to define the environment variable VHDOCL_DATADIR as `$datadir'.\n";
+    print <<EOF;
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+To complete the install, define the environment variable VHDOCL_DATADIR as
+\`$datadir'.  In most Linux distributions, and for global installs, this is
+done by adding a pair of scripts to the directory /etc/profile.d which contain:
+export VHDOCL_DATADIR="$datadir"
+for the sh shell; and for csh:
+setenv VHDOCL_DATADIR "$datadir"
+If you install vhdocl in your own home directory, add an appropriate line to
+~/.profile or your personal shell rc file.  For other shells or operating
+systems, please refer to your system documentation.
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+EOF
+}
+
+my @reqmods= qw(Cwd File::Spec File::Path File::Copy Digest::MD5);
+my @needmods;
+
+for my $mod (@reqmods) {
+    eval "require $mod;";
+    if( $@ ) { push @needmods, $mod; }
+}
+if( @needmods ) {
+    print "+" x 79, "\nBefore vhdocl can be run, you have to install the ",
+          "following Perl module", (@needmods > 1? "s":""), ":\n",
+          join(", ", @needmods), ",\nwhich can be downloaded from ",
+          "http://cpan.org .\n", "+" x 79, "\n";
+}
+
+eval { require Time::HiRes; };
+if( $@ ) {
+    print (@needmods?
+    "If you want to benchmark vhdocl, you also need the module Time::HiRes.\n":
+    "If you want to benchmark vhdocl, you have to install the Perl module\n".
+    "Time::HiRes, which can be downloaded from http://cpan.org .\n");
 }
 
