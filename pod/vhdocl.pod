@@ -57,11 +57,6 @@ Print how much time B<vhdocl> took for parsing each file and for subsequent
 processing.  Only really useful to the author for identifying hot spots.
 Requires the Perl module Time::HiRes.
 
-=item B<-c> I<pixels>, B<--cellpadding>=I<pixels>
-
-Cell padding of HTML tables, in pixels.  This determines the spacing in almost
-all lists in the output.  The default value is 3 pixels.
-
 =item B<-f> I<file.vhdocl>, B<--configfile>=I<file.vhdocl>
 
 Tells VHDocL to interrupt command line argument processing and to read options
@@ -82,10 +77,6 @@ horizontal rule.
 
 Print brief usage message and the most important command-line options, then
 exit.  No processing will be done if this option is encountered.
-
-=item B<-i> I<pixels>, B<--indentation>=I<pixels>
-
-Indentation of nested lists in the HTML output.  Default: 50 pixels.
 
 =item B<--javasyntax>
 
@@ -605,6 +596,30 @@ The assignment of classes is based solely on word recognition, and as a
 consequence is not perfect.  For example, the word C<in> occurring in
 C<for...generate> statements will be misidentified as belonging to the
 B<vhdlio> class.
+
+In addition to syntax markup, the indentation of most lists (of entities,
+instances, processes etc.) can also be controlled by CSS.  Indentation is
+created by the use of layout tables.  The following two CSS classes determine
+their size:
+
+=over
+
+=item B<vhdoclind>
+
+Class to which table cells used for indentation belong.  Indentation is
+proportional to their width.  The default value is 50 pixels.
+
+=item B<vhdocltab>
+
+Class of layout tables.  Their cell padding is set to 3 pixels by VHDocL and
+can be modified by setting the padding CSS property on their cells (not on the
+tables themselves).
+
+=back
+
+The default VHDocL style file vhdocl.css contains examples of all the available
+CSS classes.
+
 
 
 =head1 BUGS AND LIMITATIONS
