@@ -2452,6 +2452,24 @@ my $SP_= "</span>";
 my $TDI= "<td class=\"vhdoclind\" width=\"50\"></td>";  # indentation in tables
 my $STDTAB= "<table class=\"vhdocltab\" border=\"0\" cellpadding=\"3\">";   # major layout table
 
+
+# Search for data directory containing style folder in standard locations and
+# at the environment variable VHDOCL_DATADIR if available.
+# <- Path to style directory or undef if not found
+sub getstyledatadir
+{
+  my @locations;
+
+  if( $^O ne "MSWin32" && $^O ne "MacOS" ) {
+    @locations= ("/usr/local/share/vhdocl/style", "/usr/share/vhdocl/style");
+  }
+  unshift @locations, File::Spec->catdir($ENV{"VHDOCL_DATADIR"}, "style")
+      if $ENV{"VHDOCL_DATADIR"};
+  my ($firstex)= grep -d $_, @locations;
+  return $firstex;
+}
+
+
 # Try to create output directories if they do not yet exist, and localise the
 # file name of style sheet and logos relative to the output directory if
 # applicable.  The function dies if it cannot create the directories.
@@ -2459,7 +2477,6 @@ my $STDTAB= "<table class=\"vhdocltab\" border=\"0\" cellpadding=\"3\">";   # ma
 sub prepareoutput
 {
   my $dir= $config{"absoutputdir"};
-  my $datadir;
 
   eval { File::Path::mkpath( $dir ); };
   croak "Cannot create output directory `$dir' - $@" if $@;
@@ -2467,7 +2484,6 @@ sub prepareoutput
             "sources", "style")
   {
     my $subdir= File::Spec->catdir($dir, $d);
-    $config{"datadir"}= $datadir;
     if( opendir(DIR, $subdir) ) {
       closedir DIR;
       next;
@@ -2481,36 +2497,23 @@ sub prepareoutput
     }
   }
   my $styledir= File::Spec->catdir($dir, "style");
-  if( $^O eq "MSWin32" || $^O eq "MacOS" ) {
-    $datadir= $ENV{"VHDOCL_DATADIR"};
-  }
-  else {
-    ($datadir)= grep $_ && -d $_, ($ENV{"VHDOCL_DATADIR"},
-                            "/usr/local/share/vhdocl", "/usr/share/vhdocl");
-  }
-  if( $datadir ) {
-    my $styledatadir= File::Spec->catdir($datadir, "style");
-    if( ! -d $styledatadir ) {
-      print STDERR "Directory `$styledatadir' not found.  Cannot copy style ",
-                    "files.  Continuing regardless.\n"
-        unless $config{"quiet"};
+  my $styledatadir= getstyledatadir();
+  if( $styledatadir ) {
+    my $copyerr= 0;
+    while( my ($key, $file)= each(%requisites) ) {
+      $copyerr ||= ! copyfile(File::Spec->catfile($styledatadir, $file),
+                                  $styledir);
     }
-    else {
-      my $copyerr= 0;
-      while( my ($key, $file)= each(%requisites) ) {
-        next if !$config{"javasyntax"} && $key =~ /^syn/;
-        $copyerr ||= ! copyfile(File::Spec->catfile($styledatadir, $file),
-                                    $styledir);
-      }
-      if( $copyerr && !$config{"quiet"} ) {
-        print STDERR "Could not copy all style files.  Continuing regardless.\n";
-      }
+    if( $copyerr && !$config{"quiet"} ) {
+      print STDERR "Error copying some style files.  Continuing regardless.\n";
     }
   }
   else {
+    print STDERR "Style data directory not found.  Cannot copy style files.  Continuing regardless.\n";
     print STDERR <<EOF unless $config{"quiet"};
-No data directory found.  Set the environment variable VHDOCL_DATADIR to
-indicate its location.  Cannot copy style files.  Continuing regardless.
+This error can occur if VHDocL auxiliary data were installed to a non-standard
+location but the VHDOCL_DATADIR environment variable was not set.  Ask the
+person who installed VHDocL for you to set this variable appropriately.
 EOF
   }
   # Now copy all style files not given as URLs
