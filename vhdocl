@@ -2975,8 +2975,8 @@ sub entityhtml
   }
   if( @{$ent->{"architectures"}} ) {
     print ENT "\n<h2>Architectures</h2>\n\n$STDTAB\n";
-    map { print ENT "<tr><td><a href=\"../architectures/",
-            $_->{"docfilename"}, "\">", $_->{"name"}, "</a></td></tr>\n"; }
+    map { print ENT "<h3><a href=\"../architectures/",
+            $_->{"docfilename"}, "\">", $_->{"name"}, "</h3>\n"; }
             @{$ent->{"architectures"}};
     print ENT "</table>\n\n";
   }
@@ -2985,8 +2985,8 @@ sub entityhtml
   }
   if( @{$ent->{"configurations"}} ) {
     print ENT "\n<h2>Configurations</h2>\n\n$STDTAB\n";
-    map { print ENT "<tr><td><a href=\"../configurations/",
-            $_->{"docfilename"}, "\">", $_->{"name"}, "</a></td></tr>\n"; }
+    map { print ENT "<h3><a href=\"../configurations/",
+            $_->{"docfilename"}, "\">", $_->{"name"}, "</h3>\n"; }
             @{$ent->{"configurations"}};
     print ENT "</table>\n\n";
   }
