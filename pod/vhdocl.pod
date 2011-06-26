@@ -120,6 +120,13 @@ Set a prefix for all HTML file names generated in this run.  This allows to
 generate documentation of several unrelated designs in the same output
 directory without interference.
 
+=item B<--psl>
+
+Enable limited support for the Property Specification Language developed by
+Accelera and formalised in IEEE standard 1850.  Some PSL definitions and most
+verification directives occurring in architectures and packages will be
+documented.  See the L</OUTPUT> section below for details.
+
 =item B<-q>, B<--quiet>
 
 Do not output what VHDocL is doing.  Parsing errors will still be reported,
@@ -479,7 +486,7 @@ use clauses in that source file are documented.  The documentation of other
 sub-declarations follows.
 
 An entity's HTML page documents its ports and generics and links to the pages
-of their architectures and configurations.  Architecture pages contain all of
+of its architectures and configurations.  Architecture pages contain all of
 the following as applicable: declarations of functions, procedures, types,
 constants and components, instantiations, processes and generate and block
 statements.  Instantiations are hyperlinked to the instantiated component,
@@ -511,6 +518,11 @@ links to the appropriate entity and architecture.  Last comes a list of the
 generate statements enclosing this instantiation.  If they had descriptions,
 they would be printed under the generate statement they refer to.
 
+If the option B<--psl> is enabled, some PSL statements in architectures are
+documented.  This includes definitions of named sequences, endpoints and
+properties, and the verification statements C<assert>, C<assume>,
+C<assume_guarantee>, C<restrict>, C<restrict_guarantee> and C<cover>.
+
 Pages of configurations display the prescribed bindings in a hierarchical
 manner similar to the global instantiation hierarchy.  The use statements are
 hyperlinked to the pages of the selected entities, architectures and/or other
@@ -518,7 +530,10 @@ configurations.
 
 Packages and their package bodies are documented in the same HTML page.  It
 contains the declarations of types, constants, functions, procedures and
-components.
+components.  With B<--psl>, PSL sequence, endpoint and property definitions are
+also included.  The documentation of corresponding declarations in the package
+and its package body is merged, and the package body section is omitted unless
+it contains unique declarative items.
 
 Source files are converted to HTML files with syntax highlighting and line
 numbering.  This is done by assigning CSS classes to words and expressions in
@@ -565,6 +580,11 @@ Identifier of a declarative item documented by VHDocL.  Applies to entities,
 architectures, packages, configurations, functions, procedures, components,
 and instances.  In most cases, the style file will treat this as B<identifier>.
 
+=item B<pslid>
+
+Identifier of PSL named sequence, endpoint or property.  Only if B<--psl> was
+enabled.
+
 =item B<identifier>
 
 Other identifier.
@@ -589,6 +609,11 @@ Other VHDL reserved word.
 =item B<vhdlstr>
 
 Quoted VHDL (bit) string or character or bit.
+
+=item B<pslword>
+
+Keyword of PSL (Property Specification Language).  Only if B<--psl> was
+enabled.
 
 =back
 
