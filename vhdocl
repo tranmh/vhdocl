@@ -1402,11 +1402,15 @@ vhdlline:
       $vline =~ s/^\s*($ID)\s*//o or next vhdlline;
       $newentries[0]->{"name"}= $1;
       if( $vline =~ /^\(/ ) {
-        while( $vline !~ /\)/ ) {
+        while( 13 ) {
+          if( $vline =~ s/^($PAREN)//o ) {
+              $newentries[0]->{"parlist"}= $1;
+              $newentries[0]->{"parlist"} =~ s/^\(\s*//;
+              $newentries[0]->{"parlist"} =~ s/\s*\)$//;
+              last;
+          }
           getnextline(0) or last vhdlline;
         }
-        $vline =~ s/^\(\s*([^)]*?)\s*\)\s*//;
-        $newentries[0]->{"parlist"}= $1;
       }
       my $psl;
       while( 13 ) {
