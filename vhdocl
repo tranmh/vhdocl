@@ -1423,6 +1423,11 @@ vhdlline:
         getnextline(0) or last vhdlline;
       }
     }
+    elsif( $config{"psl"} && $vline =~ s/^default\b//i ) {
+      defined(readuntil(qr/;/)) or last vhdlline;
+      $vline =~ s/^\s*clock\s+is\b\s*($MSTUFF)\s*;//i or next vhdlline;
+      @newentries= ( { "type", "psl", "subtype", "default clock", "value", $1 } );
+    }
     elsif( $config{"psl"} && $vline =~ s/^(assert|assume|assume_guarantee|
                                   restrict|restrict_guarantee|cover)\b//ix ) {
       my $subtype= lc($1);
@@ -3309,7 +3314,7 @@ sub printpslhtml
 
   return unless @{$obj->{"childtype"}->{"psl"} || []};
   for (@{$obj->{"childtype"}->{"psl"}}) {
-    if( $_->{"subtype"} =~ /^(?:property|sequence|endpoint)$/ ) {
+    if( $_->{"subtype"} =~ /^(?:property|sequence|endpoint|default clock)$/ ) {
         push @psldefs, $_;
     }
     else {
@@ -3319,8 +3324,9 @@ sub printpslhtml
   if( @psldefs ) {
     print $handle "\n<h2>PSL definitions</h2>\n\n$STDTAB\n";
     for my $def (@psldefs) {
-      print $handle "<tr$CCO><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ",
-                    "$SPPID$def->{name}$SP_ ";
+      print $handle "<tr$CCO><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ";
+      print $handle "$SPPID$def->{name}$SP_ "
+          if $def->{"name"};
       print $handle " (", markvhdl($def->{"parlist"}), ")",
                     "</td></tr>\n<tr$CCO>$TDI<td colspan=\"4\">"
           if $def->{"parlist"};
