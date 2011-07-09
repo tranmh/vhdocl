@@ -3310,8 +3310,9 @@ sub printinsthtml
 }
 
 
+# Print HTML fragment documenting PSL statements in an architecture or package.
 # -> File handle to print to
-#    Reference to hash representing the top-level declaration (library unit)
+#    Reference to hash representing the architecture / package
 sub printpslhtml
 {
   my ($handle, $obj)= @_;
