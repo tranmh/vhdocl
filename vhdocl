@@ -3309,12 +3309,14 @@ sub printinsthtml
 sub printpslhtml
 {
   my ($handle, $obj)= @_;
+  my @allpsl;
   my @psldefs;
   my @psldirs;
 
-  return unless @{$obj->{"childtype"}->{"psl"} || []};
-  for (@{$obj->{"childtype"}->{"psl"}}) {
-    if( $_->{"subtype"} =~ /^(?:property|sequence|endpoint|default clock)$/ ) {
+  @allpsl= trace_all($obj, "type", "psl");
+  return unless @allpsl;
+  for (@allpsl) {
+    if( $_->[-1]->{"subtype"} =~ /^(?:property|sequence|endpoint|default clock)$/ ) {
         push @psldefs, $_;
     }
     else {
@@ -3323,7 +3325,8 @@ sub printpslhtml
   }
   if( @psldefs ) {
     print $handle "\n<h2>PSL definitions</h2>\n\n$STDTAB\n";
-    for my $def (@psldefs) {
+    for my $trc (@psldefs) {
+      my $def= $trc->[-1];
       print $handle "<tr$CCO><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ";
       print $handle "$SPPID$def->{name}$SP_ "
           if $def->{"name"};
@@ -3332,12 +3335,18 @@ sub printpslhtml
           if $def->{"parlist"};
       print $handle "${SPWD}is$SP_ ", markvhdl($def->{"value"}), "</td></tr>\n";
       printcommonhtml($handle, $def);
+      if( $#$trc ) {
+        print $handle "<tr>$TDI<td colspan=\"4\">This definition is inside ",
+                "the following construct", ($#$trc>1? "s":""), ":</td></tr>\n";
+        map printtracehtml($handle, $_), @$trc[0..$#$trc-1];
+      }
     }
     print $handle "</table>\n\n";
   }
   if( @psldirs ) {
     print $handle "\n<h2>PSL directives</h2>\n\n$STDTAB\n";
-    for my $dir (@psldirs) {
+    for my $trc (@psldirs) {
+      my $dir= $trc->[-1];
       print $handle "<tr$CCO><td>";
       print $handle "$SPPID$dir->{name}$SP_ : " if $dir->{"name"};
       print $handle "</td><td colspan=\"4\"><b>$SPPSL$dir->{subtype}$SP_</b> ",
@@ -3347,6 +3356,11 @@ sub printpslhtml
                     markvhdl($dir->{"report"}), "</td></tr>\n"
           if $dir->{"report"};
       printcommonhtml($handle, $dir);
+      if( $#$trc ) {
+        print $handle "<tr>$TDI<td colspan=\"4\">This directive is inside the ",
+                    "following construct", ($#$trc>1? "s":""), ":</td></tr>\n";
+        map printtracehtml($handle, $_), @$trc[0..$#$trc-1];
+      }
     }
     print $handle "</table>\n\n";
   }
