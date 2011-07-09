@@ -519,9 +519,10 @@ generate statements enclosing this instantiation.  If they had descriptions,
 they would be printed under the generate statement they refer to.
 
 If the option B<--psl> is enabled, some PSL statements in architectures are
-documented.  This includes definitions of named sequences, endpoints and
-properties, and the verification statements C<assert>, C<assume>,
-C<assume_guarantee>, C<restrict>, C<restrict_guarantee> and C<cover>.
+documented.  This includes definitions of named sequences, endpoints,
+properties and a default clock, and the verification statements C<assert>,
+C<assume>, C<assume_guarantee>, C<restrict>, C<restrict_guarantee> and
+C<cover>.
 
 Pages of configurations display the prescribed bindings in a hierarchical
 manner similar to the global instantiation hierarchy.  The use statements are
