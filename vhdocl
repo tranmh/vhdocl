@@ -1422,6 +1422,11 @@ vhdlline:
         }
         getnextline(0) or last vhdlline;
       }
+      if( @parsestack ) {
+        # List all PSL definitions to avoid recursive searches
+        my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
+        push @{$top->{"allpsldefs"}}, @newentries;
+      }
     }
     elsif( $config{"psl"} && $vline =~ s/^default\b//i ) {
       defined(readuntil(qr/;/)) or last vhdlline;
@@ -1910,12 +1915,12 @@ sub merge_selname
 # Table of selected names.  Those tables which will be searched are initialised
 # up-front to avoid "can't use undef as hash ref" errors.
 my %selnames= map { $_ => {}; }
-          qw(entity architecture configuration package packagebody component);
+      qw(entity architecture configuration package packagebody component psl);
 # Dummy scalar the reference to which indicates that multiple objects with that
 # name and type exist.
 my $multiple;
 
-# Add objects to the table of selected names applicabel for their type.
+# Add objects to the table of selected names applicable for their type.
 # -> Prefix (for to-level constructs, this is the library name, for
 #    declarations in packages, this is "library.package")
 #    List of objects
@@ -2865,7 +2870,7 @@ sub printobjhtml
 }
 
 
-my %labels= ( "function" => "func:", "procedure" => "proc:",
+my %labels= ( "function" => "func:", "procedure" => "proc:", "psl" => "psl:",
             "component" => "comp:", "instance" => "inst:", "type" => "type:" );
 
 # Print HTML fragment describing the libraries and package use clauses
@@ -3329,13 +3334,14 @@ sub printpslhtml
     for my $trc (@psldefs) {
       my $def= $trc->[-1];
       print $handle "<tr$CCO><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ";
-      print $handle "$SPPID$def->{name}$SP_ "
+      print $handle "<a name=\"$labels{psl}$def->{name}\">$SPPID$def->{name}$SP_</a> "
           if $def->{"name"};
       print $handle " (", markvhdl($def->{"parlist"}), ")",
                     "</td></tr>\n<tr$CCO>$TDI<td colspan=\"4\">"
           if $def->{"parlist"};
       print $handle "${SPWD}is$SP_ ", markvhdl($def->{"value"}), "</td></tr>\n";
       printcommonhtml($handle, $def);
+      printpslrefhtml($handle, $def->{"value"});
       printtracehtml($handle, $trc, "definition");
     }
     print $handle "</table>\n\n";
@@ -3353,10 +3359,28 @@ sub printpslhtml
                     markvhdl($dir->{"report"}), "</td></tr>\n"
           if $dir->{"report"};
       printcommonhtml($handle, $dir);
+      printpslrefhtml($handle, $dir->{"property"} || $dir->{"sequence"});
       printtracehtml($handle, $trc, "directive");
     }
     print $handle "</table>\n\n";
   }
+}
+
+
+# Print Links to PSL definitions referenced in a given PSL statement.
+# -> File handle to print to
+#    PSL code fragment to be searched for identifiers referring to definitions.
+sub printpslrefhtml
+{
+  my ($handle, $code)= @_;
+
+  my @refs= grep $_ && ref($_) eq "HASH",
+            map find_selname($_, "psl"), $code =~ /$ID/g;
+  return unless @refs;
+  print $handle "<tr>$TDI<td colspan=\"4\">Referenced definition",
+                (@refs > 1 ? "s" : ""), ": ",
+            join(", ", map "<a href=\"$_->{doclink}\">$_->{name}</a>", @refs),
+                "</td></tr>\n";
 }
 
 
@@ -4474,12 +4498,14 @@ for my $arch (@architectures) {
   # HTML file name
   $arch->{"docfilename"}= $config{"prefix"} . $arch->{"objname"} . "-" .
                           $arch->{"name"} . ".html";
-  for my $child (@{$arch->{"children"}}, @{$arch->{"allinstances"}}) {
-    if( $labels{$child->{"type"}} ) {
+  for my $child (@{$arch->{"children"}}, @{$arch->{"allinstances"}}, @{$arch->{"allpsldefs"}}) {
+    if( $labels{$child->{"type"}} && $child->{"name"} ) {
       $child->{"doclink"}= "../architectures/" . $arch->{"docfilename"} . "#"
                             . $labels{$child->{"type"}} . $child->{"name"};
     }
   }
+  # Abuse selected name database for resolving PSL definition references
+  add_selnames("", @{$arch->{"allpsldefs"}});
 }
 
 
@@ -4511,9 +4537,9 @@ for my $pack (@packages)
   $pack->{"docfilename"}= $config{"prefix"} . $pack->{"fullname"} . ".html";
   # Create full name and HTML link (where applicable) for declarative items in
   # package
-  for my $child (@{$pack->{"children"}}) {
+  for my $child (@{$pack->{"children"}}, @{$pack->{"allpsldefs"}}) {
     $child->{"fullname"}= $pack->{"fullname"} . "." . $child->{"name"};
-    if( $labels{$child->{"type"}} ) {
+    if( $labels{$child->{"type"}} && $child->{"name"} ) {
       $child->{"doclink"}= "../packages/" . $pack->{"docfilename"} . "#" .
                                 $labels{$child->{"type"}} . $child->{"name"};
     }
@@ -4522,6 +4548,8 @@ for my $pack (@packages)
   match_attributes($pack);
   # Add component declarations to selected name table
   add_selnames($pack->{"fullname"}, @{$pack->{"childtype"}->{"component"}});
+  # Abuse selected name database for resolving PSL definition references
+  add_selnames("", @{$pack->{"allpsldefs"}});
   # Find default bindings for components declared in the package
   map { $_->{"binding"}= find_selname($_->{"name"}, "entity",
                             $pack->{"fullname"}); }
