@@ -3150,33 +3150,42 @@ sub printtypehtml
 }
 
 
-# Print HTML fragment describing one of the constructs surrounding a process or
-# instantiation
+# Print HTML fragment describing the constructs surrounding a process,
+# instantiation or PSL statement.
 # -> File handle to print to
-#    Reference to hash representing declarative item (usually a generate or
-#    block statement)
+#    Reference to array of hashes representing declarative items (usually
+#    generate or block statements) enclosing the process (etc.) and the process
+#    itself.
+#    Name of the declaration enclosed in blocks; defaults to the type of the
+#    last path element.
 sub printtracehtml
 {
-  my ($handle, $trc)= @_;
+  my ($handle, $path, $declname)= @_;
 
-  if( $trc->{"type"} eq "generate" ) {
-    print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID", $trc->{"name"},
-        "$SP_</b> : $SPWD", $trc->{"subtype"}, "$SP_ ",
-        markvhdl($trc->{"parameters"}), " ${SPWD}generate$SP_</td></tr>\n";
+  return unless $#$path;
+  $declname //= $path->[-1]->{"type"};
+  print $handle "<tr>$TDI<td colspan=\"4\">This $declname is inside the ",
+                "following construct", ($#$path>1? "s":""), ":</td></tr>\n";
+  for my $trc (@$path[0..$#$path-1]) {
+    if( $trc->{"type"} eq "generate" ) {
+      print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID$trc->{name}",
+          "$SP_</b> : $SPWD", $trc->{"subtype"}, "$SP_ ",
+          markvhdl($trc->{"parameters"}), " ${SPWD}generate$SP_</td></tr>\n";
+    }
+    elsif( $trc->{"type"} eq "block" ) {
+      my $guard= $trc->{"guard"} ? "( " . markvhdl($trc->{"guard"}) . " )" : "";
+      print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID$trc->{name}",
+          "$SP_</b> : ${SPWD}block$SP_ ", $guard, "</td></tr>\n";
+    }
+    else {
+      print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\">$SPWD", $trc->{"type"},
+                 "$SP_ <b>", ($trc->{"name"} ? $SPID.$trc->{"name"}.$SP_ :
+                                              "<i>${SPNC}unnamed$SP_</i>"),
+                 "</b></td></tr>\n";
+    }
+    map { print $handle "<tr>$TDI$TDI$TDI<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
+                          @{$trc->{"doc"}->{"description"}};
   }
-  elsif( $trc->{"type"} eq "block" ) {
-    my $guard= $trc->{"guard"} ? "( " . markvhdl($trc->{"guard"}) . " )" : "";
-    print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID", $trc->{"name"},
-        "$SP_</b> : ${SPWD}block$SP_ ", $guard, "</td></tr>\n";
-  }
-  else {
-    print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\">$SPWD", $trc->{"type"},
-               "$SP_ <b>", ($trc->{"name"} ? $SPID.$trc->{"name"}.$SP_ :
-                                            "<i>${SPNC}unnamed$SP_</i>"),
-               "</b></td></tr>\n";
-  }
-  map { print $handle "<tr>$TDI$TDI$TDI<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
-                        @{$trc->{"doc"}->{"description"}};
 }
 
 
@@ -3195,11 +3204,7 @@ sub printprochtml
   print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}postponed$SP_</b></td></tr>\n"
         if $proc->{"postponed"};
   printcommonhtml($handle, $proc);
-  if( $#$path ) {
-    print $handle "<tr>$TDI<td colspan=\"4\">This process is inside the " .
-                "following construct", ($#$path>1? "s":""), ":</td></tr>\n";
-    map printtracehtml($handle, $_), @$path[0..$#$path-1];
-  }
+  printtracehtml($handle, $path);
 }
 
 
@@ -3296,11 +3301,7 @@ sub printinsthtml
       print $handle "</table></td></tr>\n";
     }
   }
-  if( $#$path ) {
-    print $handle "<tr>$TDI<td colspan=\"4\">This instantiation is inside the "
-                . "following construct", ($#$path>1? "s":""), ":</td></tr>\n";
-    map printtracehtml($handle, $_), @$path[0..$#$path-1];
-  }
+  printtracehtml($handle, $path, "instantiation");
 }
 
 
@@ -3335,11 +3336,7 @@ sub printpslhtml
           if $def->{"parlist"};
       print $handle "${SPWD}is$SP_ ", markvhdl($def->{"value"}), "</td></tr>\n";
       printcommonhtml($handle, $def);
-      if( $#$trc ) {
-        print $handle "<tr>$TDI<td colspan=\"4\">This definition is inside ",
-                "the following construct", ($#$trc>1? "s":""), ":</td></tr>\n";
-        map printtracehtml($handle, $_), @$trc[0..$#$trc-1];
-      }
+      printtracehtml($handle, $trc, "definition");
     }
     print $handle "</table>\n\n";
   }
@@ -3356,11 +3353,7 @@ sub printpslhtml
                     markvhdl($dir->{"report"}), "</td></tr>\n"
           if $dir->{"report"};
       printcommonhtml($handle, $dir);
-      if( $#$trc ) {
-        print $handle "<tr>$TDI<td colspan=\"4\">This directive is inside the ",
-                    "following construct", ($#$trc>1? "s":""), ":</td></tr>\n";
-        map printtracehtml($handle, $_), @$trc[0..$#$trc-1];
-      }
+      printtracehtml($handle, $trc, "directive");
     }
     print $handle "</table>\n\n";
   }
