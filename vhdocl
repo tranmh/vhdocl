@@ -3342,7 +3342,7 @@ sub printpslhtml
           if $def->{"parlist"};
       print $handle "${SPWD}is$SP_ ", markvhdl($def->{"value"}), "</td></tr>\n";
       printcommonhtml($handle, $def);
-      printpslrefhtml($handle, $def->{"value"});
+      printpslrefhtml($handle, $def);
       printtracehtml($handle, $trc, "definition");
     }
     print $handle "</table>\n\n";
@@ -3360,7 +3360,7 @@ sub printpslhtml
                     markvhdl($dir->{"report"}), "</td></tr>\n"
           if $dir->{"report"};
       printcommonhtml($handle, $dir);
-      printpslrefhtml($handle, $dir->{"property"} || $dir->{"sequence"});
+      printpslrefhtml($handle, $dir);
       printtracehtml($handle, $trc, "directive");
     }
     print $handle "</table>\n\n";
@@ -3373,14 +3373,13 @@ sub printpslhtml
 #    PSL code fragment to be searched for identifiers referring to definitions.
 sub printpslrefhtml
 {
-  my ($handle, $code)= @_;
+  my ($handle, $psl)= @_;
 
-  my @refs= grep $_ && ref($_) eq "HASH",
-            map find_selname($_, "psl"), $code =~ /$ID/g;
-  return unless @refs;
+  my $refs= $psl->{"defrefs"};
+  return unless $refs && @$refs;
   print $handle "<tr>$TDI<td colspan=\"4\">Referenced definition",
-                (@refs > 1 ? "s" : ""), ": ",
-            join(", ", map "<a href=\"$_->{doclink}\">$_->{name}</a>", @refs),
+                (@$refs > 1 ? "s" : ""), ": ",
+            join(", ", map "<a href=\"$_->{doclink}\">$_->{name}</a>", @$refs),
                 "</td></tr>\n";
 }
 
@@ -4505,8 +4504,6 @@ for my $arch (@architectures) {
                             . $labels{$child->{"type"}} . $child->{"name"};
     }
   }
-  # Abuse selected name database for resolving PSL definition references
-  add_selnames("", @{$arch->{"allpsldefs"}});
 }
 
 
@@ -4550,7 +4547,7 @@ for my $pack (@packages)
   # Add component declarations to selected name table
   add_selnames($pack->{"fullname"}, @{$pack->{"childtype"}->{"component"}});
   # Abuse selected name database for resolving PSL definition references
-  add_selnames("", @{$pack->{"allpsldefs"}});
+  add_selnames($pack->{"fullname"}, @{$pack->{"allpsldefs"}});
   # Find default bindings for components declared in the package
   map { $_->{"binding"}= find_selname($_->{"name"}, "entity",
                             $pack->{"fullname"}); }
@@ -4804,6 +4801,35 @@ for my $anode (@ahier) {
 }
 
 @hierarchy= sort hier_sort_cmp @hierarchy;
+
+
+# Resolve PSL definition references
+if( $config{"psl"} ) {
+  for my $du (@architectures, @packages) {
+    next unless $du->{"allpsldefs"};
+    my @topuses= reverse grep $_->{"subtype"} eq "package", @{$du->{"uses"}};
+    # Local PSL definitions:
+    my @psldefs= grep $_->{"subtype"} =~ /^(?:property|sequence|endpoint)$/i,
+                      @{$du->{"allpsldefs"}};
+    my %psldefdict= map { $_->{"name"} => $_; } @psldefs;
+    for my $psl (@{$du->{"allpsldefs"}}) {
+      my $code= $psl->{"value"} || $psl->{"property"} || $psl->{"sequence"};
+      my @ids= $code =~ /$ID/g;
+      for my $id (@ids) {
+        my $ref= $psldefdict{$id};
+        unless( $ref ) {
+          for my $use (@topuses) {
+            my $selname= merge_selname($use->{"name"}, $id);
+            next unless $selname;
+            $ref= find_selname($selname, "psl");
+            last if $ref;
+          }
+        }
+        push @{$psl->{"defrefs"}}, $ref if $ref;
+      }
+    }
+  }
+}
 
 benchmark("to process") if $config{"benchmark"};
 
