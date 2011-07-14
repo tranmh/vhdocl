@@ -198,6 +198,22 @@ sub codecmp
 }
 
 
+# Remove substrings matching a regex and replace by a given mark character or
+# string.
+# -> Reference to text to modify
+#    Regex
+#    Mark
+# <- List of substrings that were replaced by the mark
+sub removeandmark
+{
+  my ($tref, $re, $mark)= @_;
+  my @phrases;
+
+  while( $$tref =~ s/($re)/$mark/ ) { push @phrases, $1; }
+  return @phrases;
+}
+
+
 # Copy a file.  Uses File::Copy->copy() but prevents croaking.
 # -> Source file name
 #    Destination file name or target directory
@@ -3772,6 +3788,63 @@ sub sourcehtml
 }
 
 
+
+my @htmlescapes= qw( x &amp; &lt; &gt; &quot; );
+
+sub sourcehtml_slurp
+{
+  my ($file)= @_;
+  my $srcfname= $file->{"name"};
+  my $outfname= File::Spec->catfile($config{"outputdir"}, "sources",
+                                    $file->{"docfilename"});
+  my $header;
+  my $source;
+  my $markedcode;
+
+  if( !open(VHDL, $srcfname) ) {
+    limitfileerr("Cannot open source file $srcfname for generating source HTML file", \$sourcehtmlerr);
+    return;
+  }
+  if( !open(SRCHTML, ">$outfname") ) {
+    limitfileerr("Cannot create output file $outfname", \$sourcehtmlerr);
+    close VHDL;
+    return;
+  }
+  {
+      local $/;
+      $source= <VHDL>;
+  }
+  close VHDL;
+  my $endnewline= $source =~ /\n$/;
+  $source =~ s/[ \t\r]+\n/\n/g;
+  $source =~ tr/&<>"/\x01\x02\x03\x04/;
+  $source =~ s/(($MARKQUOT)|(--(?:([+*](?:[^+*].*)?)|.*)(?=\n))|($ID))/
+            ($3 ? $4 ? $SPDOC : $SPDO : $2 ? $SPSTR :
+             $SPANCLASS{lc($5)} || $SPID) . $1 . $SP_ /ieog;
+  $source =~ s/([\x01-\x04])/$htmlescapes[ord $1]/ge;
+  $source= "<div class=\"shaded\">$source";
+  my ($shadeon, $shadeoff)= ("\n<div class=\"shaded\">", "\n</div>");
+  my $linenr= 0;
+  my $nlines= $source =~ s/\n/++$linenr & 1 ? $shadeoff : $shadeon/ge;
+  $source .= "</div>" if ($linenr & 1) == 0;
+  ++$nlines unless $endnewline;
+
+  printhtmlheader(*SRCHTML{IO}, $file->{"name"});
+  print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
+  print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
+                                $file->{"link"}, "\">Link to file</a></p>\n";
+  print SRCHTML "<table border=\"0\" cellpadding=\"0\"><tr><td><pre>\n";
+  my $nrwidth= length($nlines);
+  for my $nr (1..$nlines) {
+    printf SRCHTML "%${nrwidth}d \n", $nr;
+  }
+  print SRCHTML "</pre></td><td width=\"15\"></td><td>\n";
+  print SRCHTML "<pre$CCO>\n$source</pre>\n</td></tr></table>\n";
+  printhtmlfooter(*SRCHTML{IO});
+  close SRCHTML;
+}
+
+
 # Create a JavaScript file in the style folder which performs VHDL syntax
 # markup.
 # (->) %SPANCLASS
@@ -4877,7 +4950,7 @@ for my $file (@vhdlfiles) {
     sourcehtml_js($file);
   }
   else {
-    sourcehtml($file);
+    sourcehtml_slurp($file);
   }
 }
 
