@@ -3725,73 +3725,11 @@ sub packagehtml
 
 
 my $sourcehtmlerr= 0;
+my @htmlescapes= qw( x &amp; &lt; &gt; &quot; );
 
 # Generate the HTML page for a source file.
 # -> Reference to hash representing the VHDL file
 sub sourcehtml
-{
-  my ($file)= @_;
-  my $srcfname= $file->{"name"};
-  my $outfname= File::Spec->catfile($config{"outputdir"}, "sources",
-                                    $file->{"docfilename"});
-  my $header;
-  my $markedcode;
-
-  if( !open(VHDL, $srcfname) ) {
-    limitfileerr("Cannot open source file $srcfname for generating source HTML file", \$sourcehtmlerr);
-    return;
-  }
-  if( !open(SRCHTML, ">$outfname") ) {
-    limitfileerr("Cannot create output file $outfname", \$sourcehtmlerr);
-    close VHDL;
-    return;
-  }
-  printhtmlheader(*SRCHTML{IO}, $file->{"name"});
-  print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
-  print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
-                                $file->{"link"}, "\">Link to file</a></p>\n";
-  my $shadeline= 1;
-  while( <VHDL> )
-  {
-    my $comment= "";
-    s/\s+$//;
-    if( s/^($MANY)--(.*)$/$1/o ) {
-        $comment= $2;
-        $comment =~ s/&/&amp;/g;
-        $comment =~ s/"/&quot;/g;
-        $comment =~ s/</&lt;/g;
-        $comment =~ s/>/&gt;/g;
-        if( $comment =~ /^([+*])([^+*].*|)$/ ) {
-            $comment= "$SPDOC--$comment$SP_";
-        }
-        else {
-            $comment= "$SPDO--$comment$SP_";
-        }
-    }
-    my $line= markvhdl($_) . $comment . "\n";
-    if( $shadeline ) {
-      $line= "<div class=\"shaded\">$line</div>";
-    }
-    $shadeline= ! $shadeline;
-    $markedcode .= $line;
-  }
-  print SRCHTML "<table border=\"0\" cellpadding=\"0\"><tr><td><pre>\n";
-  my $nrwidth= length($.);
-  for my $nr (1..$.) {
-    printf SRCHTML "%${nrwidth}d \n", $nr;
-  }
-  print SRCHTML "</pre></td><td width=\"15\"></td><td>\n";
-  print SRCHTML "<pre$CCO>\n$markedcode</pre>\n</td></tr></table>\n";
-  printhtmlfooter(*SRCHTML{IO});
-  close SRCHTML;
-  close VHDL;
-}
-
-
-
-my @htmlescapes= qw( x &amp; &lt; &gt; &quot; );
-
-sub sourcehtml_slurp
 {
   my ($file)= @_;
   my $srcfname= $file->{"name"};
@@ -4950,7 +4888,7 @@ for my $file (@vhdlfiles) {
     sourcehtml_js($file);
   }
   else {
-    sourcehtml_slurp($file);
+    sourcehtml($file);
   }
 }
 
