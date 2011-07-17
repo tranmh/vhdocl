@@ -108,7 +108,7 @@ systems, please refer to your system documentation.
 EOF
 }
 
-my @reqmods= qw(Cwd File::Spec File::Path File::Copy Digest::MD5);
+my @reqmods= qw(Cwd File::Spec File::Path File::Glob File::Copy Digest::MD5);
 my @needmods;
 
 for my $mod (@reqmods) {
