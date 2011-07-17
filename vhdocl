@@ -3818,7 +3818,7 @@ sub sourcehtml_slurp
   my $endnewline= $source =~ /\n$/;
   $source =~ s/[ \t\r]+\n/\n/g;
   $source =~ tr/&<>"/\x01\x02\x03\x04/;
-  $source =~ s/(($MARKQUOT)|(--(?:([+*](?:[^+*].*)?)|.*)(?=\n))|($ID))/
+  $source =~ s/(($MARKQUOT)|(--)(?:([+*])(?:[^+*\n].*)?|.*)(?=\n)|($ID))/
             ($3 ? $4 ? $SPDOC : $SPDO : $2 ? $SPSTR :
              $SPANCLASS{lc($5)} || $SPID) . $1 . $SP_ /ieog;
   $source =~ s/([\x01-\x04])/$htmlescapes[ord $1]/ge;
