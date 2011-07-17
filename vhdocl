@@ -3030,8 +3030,8 @@ sub printattrhtml
     my $aspec= $obj->{"attributes"}->{$attrname};
     my $attr= $aspec->{"attribute"};
     print $handle "<tr$CCO><td><b>$SPID", $aspec->{"name"},
-                "$SP_</b></td><td> : ",
-            (markvhdl($attr->{"subtype"}) || "<i>${SPNC}unknown type$SP_</i>"), 
+                "$SP_</b></td><td> : ", ($attr->{"subtype"} ?
+             markvhdl($attr->{"subtype"}) : "<i>${SPNC}unknown type$SP_</i>"), 
                 "</td><td> := ", markvhdl($aspec->{"value"}), "</td></tr>\n";
     if( $attr->{"doc"}->{"description"} &&
                               @{$attr->{"doc"}->{"description"}} ) {
