@@ -65,17 +65,6 @@ sub elem(&@)
 }
 
 
-# Generate a regex which matches one of a list of words.  Wourd boundary
-# matches are put before and after the word match, and the match is made case
-# insensitive.
-# -> List of words (not an array ref, but the actual list)
-# <- Regex
-sub wordregex
-{
-  return "(?:\\b(?i:" . join("|", @_) . ")\\b)";
-}
-
-
 # Reverse a hash to a hash of arrays.  The values of the result hash are
 # references to arrays containing all keys of the original hash having the same
 # value (which becomes the corresponding key in the new hash).
@@ -195,22 +184,6 @@ sub codecmp
   $b =~ s/ (?=\W)//g;
   $b =~ s/(?<=\W) //g;
   return $a cmp $b;
-}
-
-
-# Remove substrings matching a regex and replace by a given mark character or
-# string.
-# -> Reference to text to modify
-#    Regex
-#    Mark
-# <- List of substrings that were replaced by the mark
-sub removeandmark
-{
-  my ($tref, $re, $mark)= @_;
-  my @phrases;
-
-  while( $$tref =~ s/($re)/$mark/ ) { push @phrases, $1; }
-  return @phrases;
 }
 
 
