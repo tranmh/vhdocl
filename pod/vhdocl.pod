@@ -132,6 +132,12 @@ documented.  See the L</OUTPUT> section below for details.
 Do not output what VHDocL is doing.  Parsing errors will still be reported,
 though less verbosely than they would normally.
 
+=item B<-r>, B<--recursive>
+
+Search directories given after this option recursively for VHDL files.  The
+negated form B<+r> or B<--norecursive> switches off recursion for the following
+directories, until the next B<-r> option.
+
 =item B<--rightlogo>=I<image>
 
 File name or URL of an image to put in the top right of every HTML page
@@ -168,9 +174,9 @@ encountered.
 
 Long options may be abbreviated.  Boolean-valued short options can be negated
 by replacing the "-" by a "+", long options by prepending "no" to the option
-name.  Options other than the -l/--library option can be mixed freely with
-input file names.  If the same option occurs several times, the last occurrence
-overrides the others.
+name.  Options other than the B<-l>/B<--library> and B<-r>/B<--recursive>
+options can be mixed freely with input file names.  If the same option occurs
+several times, the last occurrence overrides the others.
 
 
 =head1 USAGE
@@ -191,14 +197,18 @@ design files are located in a single directory, it is sufficient to say:
     vhdocl .
 
 (Assuming you are currently in that directory.)  VHDocL will then process all
-files with the extension .vhd or .vhdl in that directory, though not in
-subdirectories.  If you want to process all VHDL files in a directory tree
-without manually making a list, you could do the following:
+files with the extension .vhd or .vhdl in that directory.  To include files in
+subdirectories, give the option B<-r>:
 
-    find . -iname \*.vhd | vhdocl -
+    vhdocl -r .
 
-(Assuming all your source files have the extension .vhd rather than .vhdl.)
-The argument "-" causes VHDocL to interrupt command-line processing and read
+If you want to process only some VHDL files in a directory tree without
+manually making a list, you can use the find command and pipe its results in
+to VHDocL's stdin:
+
+    find . -iname \*.vhd -a ! -iname \*_tb.vhd | vhdocl -
+
+The argument "-" causes VHDocL to suspend command-line processing and read
 arguments from standard input.
 
 It is not necessary to tell VHDocL which of the source files contains the top
@@ -282,8 +292,9 @@ A configuration file could for example look like this:
     input= fun.vhd songndance.vhd
 
 As on the command line, directories may be given instead of files, and all VHDL
-files in those directories will be parsed.  The special input file "-" for
-reading file names from standard input is not allowed in config files.
+files in those directories will be parsed, subdirectories included if the
+"recursive" option is in force.  The special input file "-" for reading file
+names from standard input is not allowed in config files.
 
 
 =head1 MARKUP LANGUAGE
