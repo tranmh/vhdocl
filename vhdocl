@@ -1256,7 +1256,7 @@ vhdlline:
     elsif( $vline =~ s/^((?:postponed)?process|block)\b//i &&
             ($label || lc($1) ne "block") ) {
       my ($name, $type, $post)= ($label, lc($1) eq "block"? "block":"process",
-                                    lc($1) eq "postponedprocess", "");
+                                    lc($1) eq "postponedprocess");
       my $list= "";
       while( 13 ) {
         if( $vline =~ s/^\s*(\S)// ) {
@@ -1280,6 +1280,11 @@ vhdlline:
       }
       else {
         @$newchild{qw(postponed sensitivity)}= ($post, $list);
+        if( @parsestack && $newchild->{"type"} eq "process" ) {
+          # List all processes to avoid recursive searches later
+          my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
+          push @{$top->{"allprocesses"}}, $newchild;
+        }
       }
     }
     elsif( $vline =~ s/^if\b//i ) {
@@ -1478,12 +1483,18 @@ vhdlline:
           $vline =~ s/^(?>(?:(component|configuration|entity)\s+)?)
             ($SID)(?:\s*\(\s*($ID)\s*\))?\s*(generic|port)\s+map\s*\(//iox;
       my $genmap= [];
+      my $firstmap= lc($4);
       @newentries= ( { "type", "instance", "name", $label, "objname", $2,
                           "subtype", lc($1 || "component"), "archname", $3,
                           "genericmap", $genmap, "uses",
                       [ @parsestack ? @{$parsestack[-1]->{"uses"}} : () ] } );
       $newentries[0]->{"objname"} =~ s/\s+//g;
-      readcommalist($genmap) if $4 eq "generic";
+      readcommalist($genmap) if $firstmap eq "generic";
+      if( @parsestack ) {
+        # List all instances to avoid recursive searches later
+        my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
+        push @{$top->{"allinstances"}}, @newentries;
+      }
     }
     elsif( $vline =~ s/^(?:(?:else|begin|is)\b|;)//i ) {}
     elsif( $vline =~ s/^elsif\b//i ) {
@@ -1516,10 +1527,6 @@ skipnext:
               "uses" => [ @parsestack ? @{$parsestack[-1]->{"uses"}} : () ] };
       $inconfiguration= 1 if $newchild->{"type"} eq "configuration";
       $parent= $newchild;
-      if( @parsestack > 1 && $newchild->{"type"} eq "process" ) {
-        # List all processes to avoid recursive searches later
-        push @{$parsestack[1]->{"backtrack"}->{"allprocesses"}}, $newchild;
-      }
       if( $parsdbg ) {
         print "$.: descending into ", $newchild->{"type"};
         print " ", $newchild->{"name"} if $newchild->{"name"};
@@ -1547,12 +1554,7 @@ skipnext:
         # new entries having the same type.
         push @{$parent->{"childtype"}->{$newentries[0]->{"type"}}}, @newentries;
       }
-      if( @parsestack && $newentries[0]->{"type"} eq "instance" ) {
-        # List all instances to avoid recursive searches later
-        my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
-        push @{$top->{"allinstances"}}, @newentries;
-      }
-      elsif( $newentries[0]->{"type"} eq "use" ) {
+      if( $newentries[0]->{"type"} eq "use" ) {
         # List all use clauses to avoid recursive searches later
         if( @parsestack ) {
           my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
