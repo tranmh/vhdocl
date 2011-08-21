@@ -124,9 +124,9 @@ if( @needmods ) {
 
 eval { require Time::HiRes; };
 if( $@ ) {
-    print (@needmods?
+    print( @needmods?
     "If you want to benchmark vhdocl, you also need the module Time::HiRes.\n":
     "If you want to benchmark vhdocl, you have to install the Perl module\n".
-    "Time::HiRes, which can be downloaded from http://cpan.org .\n");
+    "Time::HiRes, which can be downloaded from http://cpan.org .\n" );
 }
 
