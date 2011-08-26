@@ -63,7 +63,7 @@ else {
 print $noop? "Pretending to install" : "Installing", " to $destdir, data directory $datadir...\n";
 
 print "Creating install directories...\n";
-File::Path::mkpath($exedir, $datadir, "$datadir/style", $htmldir, {}) unless $noop;
+File::Path::mkpath( [$exedir, $datadir, "$datadir/style", $htmldir] ) unless $noop;
 File::Path::mkpath($mandir, {}) if $mandir && !$noop;
 
 print "Installing executables to $exedir...\n";
