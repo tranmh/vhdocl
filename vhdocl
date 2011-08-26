@@ -3182,7 +3182,7 @@ sub printtracehtml
   my ($handle, $path, $declname)= @_;
 
   return unless $#$path;
-  $declname //= $path->[-1]->{"type"};
+  $declname ||= $path->[-1]->{"type"};
   print $handle "<tr>$TDI<td colspan=\"4\">This $declname is inside the ",
                 "following construct", ($#$path>1? "s":""), ":</td></tr>\n";
   for my $trc (@$path[0..$#$path-1]) {
