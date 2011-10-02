@@ -137,12 +137,12 @@ sub sourcelink
   # for other systems we would probably have to use URI::file.
   $pathsep ||= File::Spec->catdir("","") || "/";
   if( File::Spec->file_name_is_absolute($filename) ) {
-    $filename =~ s!$pathsep!/!g unless $pathsep eq "/";
+    $filename =~ s!\Q$pathsep\E!/!g unless $pathsep eq "/";
     return "file://$filename";
   }
   else {
     $filename= File::Spec->abs2rel($filename, $config{"absoutputdir"});
-    $filename =~ s!$pathsep!/!g unless $pathsep eq "/";
+    $filename =~ s!\Q$pathsep\E!/!g unless $pathsep eq "/";
     return $filename;
   }
 }
