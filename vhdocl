@@ -39,7 +39,7 @@ my $version= "0.2.0";
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "compat" => 0, "cwd" => "", "psl" => 0, "parsedebug" => 0, "quiet" => 0, 
   "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
-  "title" => "", "footer" => "" );
+  "title" => "", "footer" => "", "topmodules" => [] );
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "nodeimg" => "node.png", "subtrimg" => "subtree.png",
@@ -265,6 +265,11 @@ sub benchmark
 ##############################################################################
 ##############################################################################
 
+# Format of option table: Each option array contains the short option letter,
+# the long option name, the option type and the %config hash key (or a
+# subroutine reference for some).  The option types are: "*" string, "#"
+# decimal integer, "w" word (=~ /^\w*$/), "/" pathname, "?" boolean, "<" config
+# file name, "@" array of strings, "&" call subroutine.
 my @options= (
 [ "h", "help", "&", \&printhelp ],
 [ "", "version", "&", \&printversion ],
@@ -272,6 +277,8 @@ my @options= (
 [ "f", "configfile", "<", 0 ],
 [ "p", "prefix", "w", "prefix" ],
 [ "l", "library", "w", "curlib" ],
+[ "r", "recursive", "?", "recursive" ],
+[ "t", "topmodule", "@", "topmodules" ],
 [ "", "psl", "?", "psl" ],
 [ "", "parsedebug", "?", "parsedebug" ],
 [ "", "benchmark", "?", "benchmark" ],
@@ -281,7 +288,6 @@ my @options= (
 [ "m", "compatibility", "?", "compat" ],
 [ "", "stylesheet", "/", "stylesheet" ],
 [ "", "leftlogo", "/", "leftlogo" ],
-[ "r", "recursive", "?", "recursive" ],
 [ "", "rightlogo", "/", "rightlogo" ],
 [ "", "title", "*", "title" ],
 [ "", "footer", "*", "footer" ],
@@ -322,6 +328,7 @@ sub parseargv
     $files= [];
     parsecfgfile($cfile, $files, $config{"cwd"});
   }
+  parsetopmods();
   return $files;
 }
 
@@ -470,6 +477,9 @@ sub parseopt
   if( $opt->[2] eq "<" ) {
     parsecfgfile($value, $filelist);
   }
+  elsif( $opt->[2] eq "@" ) {
+    push @{$config{$opt->[3]}}, split /\s+/, $value;
+  }
   else {
     $config{$opt->[3]}= $value;
   }
@@ -583,6 +593,9 @@ sub parsecfgfile
       else {
         $config{$opts[0]->[3]}= $onoff;
       }
+    }
+    elsif( $opts[0]->[2] eq "@" ) {
+      push @{$config{$opts[0]->[3]}}, split /\s+/, $value;
     }
     else {
       if( $opts[0]->[2] eq "w" ) {
@@ -2450,6 +2463,69 @@ sub hier_max_depth
 }
 
 
+# Parse the strings from the --topmodule option.
+# (->) $config{"topmodules"}
+# (<-) $config{"topmodhash"} has (selected) entity names as keys and  a scalar
+#      1 or an array ref of two hashes as value.  These hashes contain the
+#      names of architectures and configurations as keys, respectively.
+sub parsetopmods
+{
+  my %topmods;
+
+  for (@{$config{"topmodules"}}) {
+    print "parsing top module $_\n";
+    if( /^([\w\.]+)(?:\((\w+)\)|\[(\w+)\])?$/ ) {
+      my ($ent, $arch, $conf)= ($1, $2, $3);
+      $ent= "work.$ent" unless $ent =~ /\./;
+      next if $topmods{$ent} && !ref($topmods{$ent});
+      if( $arch ) {
+        $topmods{$ent}->[0]->{$arch}= 1;
+      }
+      elsif( $conf ) {
+        $topmods{$ent}->[1]->{$conf}= 1;
+      }
+      else {
+        $topmods{$ent}= 1;
+        print "listed $ent globally\n";
+      }
+    }
+    else {
+      print STDERR "Invalid top module specification \`$_'.\n",
+      "The format is: <entity>(<architecture>) or <entity>[<configuration>].\n"
+            unless $config{"quiet"};
+    }
+  }
+  $config{"topmodhash"}= \%topmods;
+}
+
+
+# Generate list of uninstantiated hierarchy nodes, splitting off
+# user-designated top modules.
+# -> Reference to array of hierarchy nodes
+# <- List of two array references containing designated top modules and other
+#    uninstantiated modules, respectively
+sub topmodules
+{
+  my ($hier)= @_;
+  my (@tops, @uninst);
+
+  for my $node (@$hier) {
+    my $topflag= $config{"topmodhash"}->{$node->{"entname"}};
+    if( ref $topflag ) {
+      $topflag= ($topflag->[0] && $node->{"archname"} && $topflag->[0]->{$node->{"archname"}}) ||
+                ($topflag->[1] && $node->{"confname"} && $topflag->[1]->{$node->{"confname"}});
+    }
+    if( $topflag ) {
+      push @tops, $node;
+    }
+    elsif( !$node->{"instantiated"} ) {
+      push @uninst, $node;
+    }
+  }
+  return (\@tops, \@uninst);
+}
+
+
 ##############################################################################
 ##############################################################################
 ####                    Output functions
@@ -4063,6 +4139,66 @@ sub packagelisthtml
 }
 
 
+# Modify the HTML header and body tag to allow the hierarchical tree view to
+# work.
+# -> Reference to scalar containing the start of the HTML file returned by
+#    printhtmlheader()
+#    List of IDs of tags enclosing tree views
+# (<-) modified HTML header scalar
+sub maketreeviewheader
+{
+  my ($header, @ids)= @_;
+
+  return unless @ids;
+  $$header =~ s!(?=</head>)!<<EOF!ie;
+    <link type="text/css" rel="stylesheet" href="style/treeview.css">
+    <script type="text/javascript" src="style/treeview.js"></script>
+EOF
+  my $ind= -1;
+  my $onload= join " ", map scalar(++$ind, "treeMenu_init(document.getElementById('$_'), unescape(window.name).split(',')[$ind]);"), @ids;
+  my $onunload= join ").concat(',').concat(", map "escape(treeMenu_store(document.getElementById('$_')))", @ids;
+  $onunload= "window.name = ($onunload);";
+  $$header =~ s!<body>!<<EOF!ie;
+<body
+  onload="$onload"
+  onunload="$onunload">
+EOF
+}
+
+
+# Print the instantiation hierarchy or partof it in a tree view parts of which
+# can be hidden or exposed using JavaScript.
+# -> File handle to print to
+#    Reference to array of root nodes
+#    Flag indicating that the whole hierarchy should be printed rather than
+#    just the first level
+#    Optional: ID of the <dl> tag enclosing the hierarchy view (needed if more
+#    than one such list goes onto the same page)
+sub printhierarchy
+{
+  my ($handle, $nodes, $deep, $tagid)= @_;
+  $tagid ||= "treeview";
+
+  print $handle <<EOF;
+<p>
+<span onclick="treeMenu_closeOrOpenAll(document.getElementById('$tagid'), false);"><b>Open all</b></span> /
+<span onclick="treeMenu_closeOrOpenAll(document.getElementById('$tagid'), true);"><b>Close all</b></span>
+</p>
+<dl id="$tagid">
+EOF
+  my $maxdepth= 0;
+  for my $node (@$nodes) {
+    next unless $deep || $node->{"confname"};
+    my $thismax= hier_max_depth($node);
+    $maxdepth= $thismax if $maxdepth < $thismax;
+  }
+  for my $node (@$nodes) {
+    printhiernodehtml($handle, $node, [], $maxdepth, !$deep);
+  }
+  print $handle "</dl>\n\n";
+}
+
+
 # Prints an HTML fragment describing one node in the instantiation hierarchy
 # and recursively calls itself to print the children
 # -> File handle to print to
@@ -4172,15 +4308,7 @@ sub instantiationhtml
     return;
   }
   printhtmlheader(\$header, "Instantiation overview", 1);
-  $header =~ s!(?=</head>)!<<EOF!ie;
-    <link type="text/css" rel="stylesheet" href="style/treeview.css">
-    <script type="text/javascript" src="style/treeview.js"></script>
-EOF
-  $header =~ s!<body>!<<EOF!ie;
-<body
-  onload="treeMenu_init(document.getElementById('treeview'), unescape(window.name).split(',')[0]);"
-  onunload="window.name = escape(treeMenu_store(document.getElementById('treeview')))" >
-EOF
+  maketreeviewheader(\$header, "treeview");
   print INST $header;
   print INST "\n<h1>Instantiation overview</h1>\n\n";
   print INST "\n<p>Configurations are given in brackets and in <i>italics</i>.</p>\n\n"
@@ -4189,22 +4317,9 @@ EOF
 
 <p>Click on <img src="style/$requisites{nodeimg}"> to open or close one level,
 on <img src="style/$requisites{subtrimg}"> to open or close all levels (only
-for configurations).
-<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);"><b>Open all</b></span> /
-<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);"><b>Close all</b></span></p>
-
-<dl id="treeview">
+for configurations).</p>
 EOF
-  $maxdepth= 0;
-  for my $node (@$hier) {
-    next unless $node->{"confname"};
-    my $thismax= hier_max_depth($node);
-    $maxdepth= $thismax if $maxdepth < $thismax;
-  }
-  for my $node (@$hier) {
-    printhiernodehtml(*INST{IO}, $node, [], $maxdepth, 1);
-  }
-  print INST "</dl>\n\n";
+  printhierarchy(*INST{IO}, $hier, 0, "treeview");
   printhtmlfooter(*INST{IO});
   close INST;
 }
@@ -4226,16 +4341,9 @@ sub hierarchyhtml
     print STDERR "Cannot create output file $fname - $!\n";
     return;
   }
+  my @topmods= topmodules($hier);
   printhtmlheader(\$header, "Instantiation hierarchy", 1);
-  $header =~ s!(?=</head>)!<<EOF!ie;
-    <link type="text/css" rel="stylesheet" href="style/treeview.css">
-    <script type="text/javascript" src="style/treeview.js"></script>
-EOF
-  $header =~ s!<body>!<<EOF!ie;
-<body
-  onload="treeMenu_init(document.getElementById('treeview'), unescape(window.name).split(',')[0]);"
-  onunload="window.name = escape(treeMenu_store(document.getElementById('treeview')))" >
-EOF
+  maketreeviewheader(\$header, (@{$topmods[0]} ? ("topview", "otherview") : ("otherview")));
   print HIER $header;
   print HIER "\n<h1>Instantiation hierarchy</h1>\n\n";
   print HIER "\n<p>Configurations are given in brackets and in <i>italics</i>.</p>\n\n"
@@ -4243,26 +4351,15 @@ EOF
   print HIER <<EOF;
 
 <p>Click on <img src="style/$requisites{nodeimg}"> to open or close one level,
-on <img src="style/$requisites{subtrimg}"> to open or close all levels.
-<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), false);"><b>Open all</b></span> /
-<span onclick="treeMenu_closeOrOpenAll(document.getElementById('treeview'), true);"><b>Close all</b></span></p>
-
-<dl id="treeview">
+on <img src="style/$requisites{subtrimg}"> to open or close all levels.</p>
 EOF
-  my @topmods= grep !$_->{"instantiated"}, @$hier;
-  $maxdepth= 0;
-  for my $node (@topmods) {
-    my $thismax= hier_max_depth($node);
-    $maxdepth= $thismax if $maxdepth < $thismax;
-  }
-  for my $node (@topmods) {
-    printhiernodehtml(*HIER{IO}, $node, [], $maxdepth);
+  if( @{$topmods[0]} ) {
+    print HIER "<h3>Designated top modules</h3>\n\n";
+    printhierarchy(*HIER{IO}, $topmods[0], 1, "topview");
+    print HIER "<h3>Other uninstantiated modules</h3>\n\n";
   }
   my @leftovers= grep !$_->{"done"}, @$hier;
-  for my $node (@leftovers) {
-    printhiernodehtml(*HIER{IO}, $node, [], $maxdepth);
-  }
-  print HIER "</dl>\n\n";
+  printhierarchy(*HIER{IO}, [@{$topmods[1]}, @leftovers], 1, "otherview");
   printhtmlfooter(*HIER{IO});
   close HIER;
 }
