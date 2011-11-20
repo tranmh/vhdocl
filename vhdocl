@@ -2473,7 +2473,6 @@ sub parsetopmods
   my %topmods;
 
   for (@{$config{"topmodules"}}) {
-    print "parsing top module $_\n";
     if( /^([\w\.]+)(?:\((\w+)\)|\[(\w+)\])?$/ ) {
       my ($ent, $arch, $conf)= ($1, $2, $3);
       $ent= "work.$ent" unless $ent =~ /\./;
@@ -2486,11 +2485,10 @@ sub parsetopmods
       }
       else {
         $topmods{$ent}= 1;
-        print "listed $ent globally\n";
       }
     }
     else {
-      print STDERR "Invalid top module specification \`$_'.\n",
+      print STDERR "Warning: Ignoring invalid top module specification \`$_'.\n",
       "The format is: <entity>(<architecture>) or <entity>[<configuration>].\n"
             unless $config{"quiet"};
     }
@@ -2499,8 +2497,8 @@ sub parsetopmods
 }
 
 
-# Generate list of uninstantiated hierarchy nodes, splitting off
-# user-designated top modules.
+# Generate lists of user-designated top modules and other uninstantiated
+# hierarchy nodes.
 # -> Reference to array of hierarchy nodes
 # <- List of two array references containing designated top modules and other
 #    uninstantiated modules, respectively
