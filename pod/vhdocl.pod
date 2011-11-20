@@ -151,6 +151,17 @@ generated HTML files.  This allows the user to influence the appearance of the
 generated HTML.  If this is a file, it will be copied to the documentation
 folder.
 
+=item B<-t> I<"modules ...">, B<--topmodule>=I<"modules ...">
+
+Designate some entities or entity-architecture/configuration combinations top
+modules.  These top modules will be listed separately in the instantiation
+hierarchy page.  The option argument is a list of space-separated strings.
+Listing an entity name makes all architectures and configurations of this
+entity top modules.  Specific architectures and configurations can be given in
+the syntax C<entity(architecture)> and C<entity[configuration]>.  This option
+is not affected by B<--library>, so you have to give the library explicitly (as
+C<library.entity>) if it is something other than C<work>.
+
 =item B<--title>
 
 Title string to be printed at the top of every documentation file.  Intended
