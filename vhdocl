@@ -2474,7 +2474,7 @@ sub parsetopmods
 
   for (@{$config{"topmodules"}}) {
     if( /^([\w\.]+)(?:\((\w+)\)|\[(\w+)\])?$/ ) {
-      my ($ent, $arch, $conf)= ($1, $2, $3);
+      my ($ent, $arch, $conf)= (lc($1), lc($2 || ""), lc($3 || ""));
       $ent= "work.$ent" unless $ent =~ /\./;
       next if $topmods{$ent} && !ref($topmods{$ent});
       if( $arch ) {
@@ -2508,10 +2508,10 @@ sub topmodules
   my (@tops, @uninst);
 
   for my $node (@$hier) {
-    my $topflag= $config{"topmodhash"}->{$node->{"entname"}};
+    my $topflag= $config{"topmodhash"}->{lc($node->{"entname"})};
     if( ref $topflag ) {
-      $topflag= ($topflag->[0] && $node->{"archname"} && $topflag->[0]->{$node->{"archname"}}) ||
-                ($topflag->[1] && $node->{"confname"} && $topflag->[1]->{$node->{"confname"}});
+      $topflag= ($topflag->[0] && $node->{"archname"} && $topflag->[0]->{lc($node->{"archname"})}) ||
+                ($topflag->[1] && $node->{"confname"} && $topflag->[1]->{lc($node->{"confname"})});
     }
     if( $topflag ) {
       push @tops, $node;
