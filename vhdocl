@@ -2941,9 +2941,9 @@ sub printobjhtml
         if $obj->{"doc"}->{"version"};
   print $handle "ID: ", html_esc($obj->{"doc"}->{"id"}), "<br>\n"
         if $obj->{"doc"}->{"id"};
-  print $handle "</p>\n<hr>\n\n";
+  print $handle "</p>\n\n";
   if( $obj->{"doc"}->{"description"} && @{$obj->{"doc"}->{"description"}} ) {
-    print $handle "<h2>Detailed description</h2>\n\n";
+    print $handle "<hr>\n\n<h2>Detailed description</h2>\n\n";
     printdescription($handle, $obj->{"doc"}->{"description"});
   }
   if( $obj->{"doc"}->{"see"} && @{$obj->{"doc"}->{"see"}} ) {
@@ -3064,17 +3064,6 @@ sub entityhtml
   printhtmlheader(*ENT{IO}, $ent->{"fullname"});
   print ENT "\n<h1>Entity ", $ent->{"fullname"}, "</h1>\n";
   printobjhtml(*ENT{IO}, $ent);
-  printlibusehtml(*ENT{IO}, $ent);
-  if( my @gens= @{$ent->{"childtype"}->{"generic"} || []} ) {
-    print ENT "\n<h2>Generics</h2>\n\n$STDTAB\n";
-    map { printgenporthtml(*ENT{IO}, $_) } @gens;
-    print ENT "</table>\n\n";
-  }
-  if( my @ports= @{$ent->{"childtype"}->{"port"} || []} ) {
-    print ENT "\n<h2>Ports</h2>\n\n$STDTAB\n";
-    map { printgenporthtml(*ENT{IO}, $_) } @ports;
-    print ENT "</table>\n\n";
-  }
   if( @{$ent->{"architectures"}} ) {
     print ENT "\n<h2>Architectures</h2>\n\n$STDTAB\n";
     map { print ENT "<h3><a href=\"../architectures/",
@@ -3090,6 +3079,18 @@ sub entityhtml
     map { print ENT "<h3><a href=\"../configurations/",
             $_->{"docfilename"}, "\">", $_->{"name"}, "</h3>\n"; }
             @{$ent->{"configurations"}};
+    print ENT "</table>\n\n";
+  }
+  print ENT "\n<hr>\n\n";
+  printlibusehtml(*ENT{IO}, $ent);
+  if( my @gens= @{$ent->{"childtype"}->{"generic"} || []} ) {
+    print ENT "\n<h2>Generics</h2>\n\n$STDTAB\n";
+    map { printgenporthtml(*ENT{IO}, $_) } @gens;
+    print ENT "</table>\n\n";
+  }
+  if( my @ports= @{$ent->{"childtype"}->{"port"} || []} ) {
+    print ENT "\n<h2>Ports</h2>\n\n$STDTAB\n";
+    map { printgenporthtml(*ENT{IO}, $_) } @ports;
     print ENT "</table>\n\n";
   }
   printhtmlfooter(*ENT{IO});
@@ -3499,6 +3500,7 @@ sub architecturehtml
           $arch->{"objname"}, "</a></h1>\n\n";
   }
   printobjhtml(*ARCH{IO}, $arch);
+  print ARCH "\n<hr>\n\n";
   printlibusehtml(*ARCH{IO}, $arch);
   if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|protected|
                         protectedbody)$/ix, @{$arch->{"children"}}) ) {
@@ -3659,6 +3661,7 @@ sub configurationhtml
           $conf->{"objname"}, "</a></h1>\n\n";
   }
   printobjhtml(*CONF{IO}, $conf);
+  print CONF "\n<hr>\n\n";
   printlibusehtml(*CONF{IO}, $conf);
   print CONF "\n<h2>Configuration</h2>\n\n$STDTAB\n";
   $maxdepth= max_depth($conf);
@@ -3737,6 +3740,7 @@ sub packagehtml
     }
     print PACK "<h1>Package ", $pack->{"fullname"}, "</h1>\n\n";
     printobjhtml(*PACK{IO}, $pack);
+    print PACK "\n<hr>\n\n";
     printlibusehtml(*PACK{IO}, $pack);
     if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|
                       protected|protectedbody)$/ix, @{$pack->{"children"}}) ) {
@@ -3778,6 +3782,7 @@ sub packagehtml
   print PACK "\n\n<hr>\n\n";
   print PACK "<h1>Package body ", $pbody->{"fullname"}, "</h1>\n\n";
   printobjhtml(*PACK{IO}, $pbody);
+  print PACK "\n<hr>\n\n";
   printlibusehtml(*PACK{IO}, $pbody);
   if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|protected|
                         protectedbody)$/ix, @{$pbody->{"children"}}) ) {
