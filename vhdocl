@@ -4164,7 +4164,7 @@ EOF
 }
 
 
-# Print the instantiation hierarchy or partof it in a tree view parts of which
+# Print the instantiation hierarchy or part of it in a tree view parts of which
 # can be hidden or exposed using JavaScript.
 # -> File handle to print to
 #    Reference to array of root nodes
@@ -4178,10 +4178,10 @@ sub printhierarchy
   $tagid ||= "treeview";
 
   print $handle <<EOF;
-<p>
-<span onclick="treeMenu_closeOrOpenAll(document.getElementById('$tagid'), false);"><b>Open all</b></span> /
-<span onclick="treeMenu_closeOrOpenAll(document.getElementById('$tagid'), true);"><b>Close all</b></span>
-</p>
+<p><form>
+<input type="button" value="Open all" onclick="treeMenu_closeOrOpenAll(document.getElementById('$tagid'), false);">
+<input type="button" value="Close all" onclick="treeMenu_closeOrOpenAll(document.getElementById('$tagid'), true);">
+</form></p>
 <dl id="$tagid">
 EOF
   my $maxdepth= 0;
