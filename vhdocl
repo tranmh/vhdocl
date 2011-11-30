@@ -4216,11 +4216,9 @@ sub printhiernodehtml
 {
   my ($handle, $node, $trace, $maxdepth, $notdeep)= @_;
   my $real= $node->{"proxy"} || $node;
-  my $nodehtml;
   my $brief;
   my $recursion= 0;
 
-#  $nodehtml .= "<table border=\"0\"><tr><td>";
   if( grep($_ == $real, @$trace) ) {
     $recursion= 1;
   }
@@ -4231,32 +4229,7 @@ sub printhiernodehtml
        ($brief= $real->{"entity"}->{"doc"}->{"brief"} ||
                 $real->{"entity"}->{"doc"}->{"short"})) ) {
   }
-  if( $real->{"entname"} ) {
-    $nodehtml .= "<a href=\"entities/" . $real->{"entity"}->{"docfilename"} .
-                  "\">"
-      if $real->{"entity"};
-    $nodehtml .= "<b>" . $real->{"entname"} . "</b>";
-    $nodehtml .= "</a>"
-      if $real->{"entity"};
-  }
-  if( $real->{"archname"} ) {
-    $nodehtml .= "&nbsp;";
-    $nodehtml .= "<a href=\"architectures/" .
-                  $real->{"architecture"}->{"docfilename"} . "\">"
-      if $real->{"architecture"};
-    $nodehtml .= "(" . $real->{"archname"} . ")";
-    $nodehtml .= "</a>"
-      if $real->{"architecture"};
-  }
-  if( $node->{"confname"} ) {
-    $nodehtml .= "&nbsp;";
-    $nodehtml .= "<a href=\"configurations/" .
-                  $node->{"configuration"}->{"docfilename"} . "\">"
-      if $node->{"configuration"};
-    $nodehtml .= "[<i>" . $node->{"confname"} . "</i>]";
-    $nodehtml .= "</a>"
-      if $node->{"configuration"};
-  }
+  my $nodehtml= nodehtml($node);
   $node->{"done"}= 1;
   $real->{"done"}= 1;
   if( $recursion ) {
@@ -4291,6 +4264,52 @@ EOF
   }
   shift @$trace;
   print $handle "</dl></dd>\n";
+}
+
+
+# Generate HTML code describing the module represented by a hierarchy node.
+# The HTML is cached in the html field of the node hash.
+# -> Reference to hierarchy node hash
+# <- HTML string
+sub nodehtml
+{
+  my ($node)= @_;
+
+  return $node->{"html"} if $node->{"html"};
+  my $html= "";
+  if( $node->{"proxy"} ) {
+    $html= nodehtml($node->{"proxy"});
+  }
+  else {
+    if( $node->{"entname"} ) {
+      $html .= "<a href=\"entities/" . $node->{"entity"}->{"docfilename"} .
+                    "\">"
+        if $node->{"entity"};
+      $html .= "<b>" . $node->{"entname"} . "</b>";
+      $html .= "</a>"
+        if $node->{"entity"};
+    }
+    if( $node->{"archname"} ) {
+      $html .= "&nbsp;";
+      $html .= "<a href=\"architectures/" .
+                    $node->{"architecture"}->{"docfilename"} . "\">"
+        if $node->{"architecture"};
+      $html .= "(" . $node->{"archname"} . ")";
+      $html .= "</a>"
+        if $node->{"architecture"};
+    }
+  }
+  if( $node->{"confname"} ) {
+    $html .= "&nbsp;";
+    $html .= "<a href=\"configurations/" .
+                  $node->{"configuration"}->{"docfilename"} . "\">"
+      if $node->{"configuration"};
+    $html .= "[<i>" . $node->{"confname"} . "</i>]";
+    $html .= "</a>"
+      if $node->{"configuration"};
+  }
+  $node->{"html"}= $html;
+  return $html;
 }
 
 
