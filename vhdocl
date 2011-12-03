@@ -1371,6 +1371,7 @@ vhdlline:
       while( 13 ) {
         if( $inconfiguration && $vline =~ s/^\s*($ID)\s*(for)/$2/io ) {
           $newchild= { "type", "for", "subtype", "architecture", "objname", $1 };
+          # leave $aheaddoccom as it is
           last;
         }
         elsif( $vline =~ s/^$MSTUFF\bloop\b//io ) {
@@ -1543,9 +1544,6 @@ skipnext:
     if( $newchild ) {
       $keepdoccom= 0;
       $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
-      $doccomment= $aheaddoccom;
-      $keepdoccom ||= $keepaheaddoc;
-      $aheaddoccom= "";
       push @{$parent->{"children"}}, $newchild;
       if( @parsestack == 0 ) {
         $newchild->{"uses"}= [ @topuses ];
@@ -1609,6 +1607,10 @@ skipnext:
   }
   continue {
     $doccomment= "" unless $config{"compat"} && !@parsestack;
+    $doccomment .= $aheaddoccom;
+    $keepdoccom ||= $keepaheaddoc;
+    $aheaddoccom= "";
+    $keepaheaddoc= 0;
     $label= "";
   }
 done:
