@@ -84,6 +84,25 @@ sub revhash(\%)
 }
 
 
+# Remove duplicates from a sorted array (or successive duplicates from any
+# array).  The != operator is used for comparisons, suitable for numbers and
+# references.
+# -> List of values or references
+# <- List of unique values or references
+sub uniq
+{
+    return @_ if @_ < 2;
+    my $prev= shift;
+    my @uniques= ( $prev );
+    for (@_) {
+        next unless $_ != $prev;
+        push @uniques, $_;
+        $prev= $_;
+    }
+    return @uniques;
+}
+
+
 # An auxiliary function for obtaining the canonical form of a file name.
 # Required to work around Cwd::abs_path()'s intolerance towards non-existing
 # files and directories.
@@ -3047,6 +3066,23 @@ sub printgenporthtml
 }
 
 
+# Print section with links to components instantiating this one.
+# -> File handle to print to
+#    Reference to has representing entity, architecture or configuration
+sub printinstantiated
+{
+  my ($handle, $obj)= @_;
+
+  return unless $obj->{"instantiated"} && @{$obj->{"instantiated"}};
+  # The instantiation list is already sorted because it was generated after
+  # sorting the hierarchy nodes.  But it may contain duplicates if a
+  # configuration has separate bindings for multiple instances of the same
+  # entity.
+  my @instlinks= map nodehtml($_, 1), uniq @{$obj->{"instantiated"}};
+  print $handle "\n<h2>Instantiated in...</h2>\n\n", join(", ", @instlinks);
+}
+
+
 my $enthtmlerr= 0;
 
 # Write the HTML documentation for an entity
@@ -3081,6 +3117,7 @@ sub entityhtml
             @{$ent->{"configurations"}};
     print ENT "</table>\n\n";
   }
+  printinstantiated(*ENT{IO}, $ent);
   print ENT "\n<hr>\n\n";
   printlibusehtml(*ENT{IO}, $ent);
   if( my @gens= @{$ent->{"childtype"}->{"generic"} || []} ) {
@@ -3500,6 +3537,7 @@ sub architecturehtml
           $arch->{"objname"}, "</a></h1>\n\n";
   }
   printobjhtml(*ARCH{IO}, $arch);
+  printinstantiated(*ARCH{IO}, $arch);
   print ARCH "\n<hr>\n\n";
   printlibusehtml(*ARCH{IO}, $arch);
   if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|protected|
@@ -3661,6 +3699,7 @@ sub configurationhtml
           $conf->{"objname"}, "</a></h1>\n\n";
   }
   printobjhtml(*CONF{IO}, $conf);
+  printinstantiated(*CONF{IO}, $conf);
   print CONF "\n<hr>\n\n";
   printlibusehtml(*CONF{IO}, $conf);
   print CONF "\n<h2>Configuration</h2>\n\n$STDTAB\n";
@@ -4270,12 +4309,14 @@ EOF
 # Generate HTML code describing the module represented by a hierarchy node.
 # The HTML is cached in the html field of the node hash.
 # -> Reference to hierarchy node hash
+#    optional: if true, prepend "../" to all links (applicable for use in
+#    non-global pages in subfolders)
 # <- HTML string
 sub nodehtml
 {
-  my ($node)= @_;
+  my ($node, $nonglobal)= @_;
 
-  return $node->{"html"} if $node->{"html"};
+  return $node->{$nonglobal? "../html" : "html"} if $node->{"html"};
   my $html= "";
   if( $node->{"proxy"} ) {
     $html= nodehtml($node->{"proxy"});
@@ -4308,8 +4349,9 @@ sub nodehtml
     $html .= "</a>"
       if $node->{"configuration"};
   }
-  $node->{"html"}= $html;
-  return $html;
+  $node->{"../html"}= $node->{"html"}= $html;
+  $node->{"../html"} =~ s! href="! href="../!ig;
+  return $node->{$nonglobal? "../html" : "html"};
 }
 
 
@@ -4929,6 +4971,28 @@ for my $anode (@ahier) {
 }
 
 @hierarchy= sort hier_sort_cmp @hierarchy;
+
+# Create links from modules to hierchy nodes of architectures and
+# configurations instantiating them
+for my $node (@hierarchy) {
+  for my $child (@{$node->{"children"}}) {
+    # The following conditions for configuration nodes are meant to ensure that
+    # configurations are only linked to when the instantiation binding was
+    # determined by them.  (Caveat: these conditions will fail if the
+    # configuration "skips" a binding for a level of the hierarchy, but is this
+    # legal?)
+    if( ! $node->{"configuration"} || ($child->{"configuration"} &&
+                $node->{"configuration"} == $child->{"configuration"}) ) {
+      push @{$child->{"entity"}->{"instantiated"}}, $node
+          if $child->{"entity"};
+      push @{$child->{"architecture"}->{"instantiated"}}, $node
+          if $child->{"architecture"};
+    }
+    push @{$child->{"configuration"}->{"instantiated"}}, $node
+        if $child->{"configuration"} && (!$node->{"configuration"}
+            || $child->{"configuration"} != $node->{"configuration"});
+  }
+}
 
 
 # Resolve PSL definition references
