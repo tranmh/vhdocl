@@ -34,7 +34,7 @@ use Cwd 'abs_path';
 # File::Copy from Perl distribution
 # Time::HiRes (for --benchmark) from http://search.cpan.org/~zefram/Time-HiRes/
 
-my $version= "0.2.0";
+my $version= "? (use mkvhdocldist.sh and install-vhdocl.pl to install properly)";
 
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "compat" => 0, "cwd" => "", "psl" => 0, "parsedebug" => 0, "quiet" => 0, 
