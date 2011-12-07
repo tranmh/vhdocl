@@ -760,7 +760,7 @@ sub parsedoccom
         $doc{$1}= $2;
       }
       elsif( $line =~ /^\@author\s+(.*)$/is ) {
-        $doc{"author"} .= "$1, ";
+        push @{$doc{"author"}}, $1;
       }
       elsif( $line =~ /^\@see\s+(.*)$/is ) {
         push @{$doc{"see"}}, map( [ $_ ], split(/\s*,\s*/, $1));
@@ -784,6 +784,7 @@ sub parsedoccom
     }
   }
   $doc{"id"} =~ s/\$Id:\s*(.*?)\s*\$/$1/ if $doc{"id"};
+  $doc{"author"}= join(", ", @{$doc{"author"}}) if $doc{"author"};
   return \%doc;
 }
 
@@ -1645,9 +1646,52 @@ done:
   map { $_->{"filename"}= $fname; $_->{"file"}= $file; } @{$file->{"children"}};
   print STDERR "There were errors parsing $fname.  Continuing regardless.\n"
         if $errflag;
+  insertgit($file);
 }
 
 }   # End of scope of parsing variables
+
+
+# Insert metainformation from git repository into doc comments where requested.
+# Git is run only if the doc comment hash of one of the top-level design units
+# has a version, date, id or author entry containing only "$git$".
+# -> Reference to file hash
+# (<-) Git version, date, id or author information inserted into doc hashes of
+#      top-level design units where requested
+sub insertgit
+{
+  my ($file)= @_;
+  my %places;     # ...where git metadata is wanted
+
+  for my $unit (@{$file->{"children"}}) {
+    next unless $unit->{"doc"};
+    for my $key (qw(version date id author)) {
+      push @{$places{$key}}, \$unit->{"doc"}->{$key}
+        if defined($unit->{"doc"}->{$key}) && $unit->{"doc"}->{$key} =~ /^\s*\$git\$\s*$/;
+    }
+  }
+  return unless keys %places;
+  my $devnull= "";
+  $devnull= " 2> /dev/null" if $^O eq "MSWin32" || $^O eq "MacOS";
+  if( $places{"id"} ) {
+    my $id= `git hash-object $file->{"name"}$devnull`;
+    map { $$_= $id; } @{$places{"id"}} if $id;
+  }
+  return unless $places{"version"} || $places{"date"} || $places{"author"};
+  my ($vol, $dir, $fname)= File::Spec->splitpath($file->{"name"});
+  $dir= File::Spec->catpath($vol, $dir, "") || ".";
+  my $log= runat $dir, "git log -n 1 --format=medium $fname$devnull";
+  return unless $log;
+  my $commit= $1 if $log =~ /^commit\s+([0-9a-f]{40})\b/i;
+  my $date= $1 if $log =~ /^Date:\s+(.*)$/im;
+  my $author= $1 if $log =~ /^Author:\s+(.*)$/im;
+  map { $$_= $date; } @{$places{"date"}} if $date && $places{"date"};
+  map { $$_= $author; } @{$places{"author"}} if $author && $places{"author"};
+  return unless $places{"version"} && $commit;
+  my $rev= runat $dir, "git describe --tags --always $commit$devnull";
+  $rev ||= $commit;
+  map { $$_= $rev; } @{$places{"version"}} if $rev && $places{"version"};
+}
 
 
 # Compare the hash representations of two functions or procedures for finding
@@ -2967,7 +3011,6 @@ sub printobjhtml
   }
   print $handle "<p>\n";
   if( $obj->{"doc"}->{"author"} ) {
-    $obj->{"doc"}->{"author"} =~ s/,\s*$//;
     print $handle ($obj->{"doc"}->{"author"} =~ /,|;|\band\b/?
                                         "Authors: " : "Author: ");
     print $handle html_esc($obj->{"doc"}->{"author"}), "<br>\n";
