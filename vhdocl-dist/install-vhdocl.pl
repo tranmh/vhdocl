@@ -99,12 +99,27 @@ if( !$noop ) {
 
 print $noop? "Rerun without -n to install to these directories.\n" : "Done.\n";
 
-if( $datadir ne "/usr/local/share/vhdocl" && $datadir ne "/usr/share/vhdocl" ) {
+if( $^O eq "MSWin32" ) {
     print <<EOF;
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 To complete the install, define the environment variable VHDOCL_DATADIR as
-\`$datadir'.  In most Linux distributions, and for global installs, this is
-done by adding a pair of scripts to the directory /etc/profile.d which contain:
+\`$datadir'.
+On Windows XP, right click on the "My Computer" icon -> select "Properties"
+from the context menu -> click on the "Advanced" tab -> click the button
+"Environment variables" at the bottom -> click on the "New" button in the lower
+part ("System variables") and add the new variable to allow all users to run
+VHDocL; or use the "New" button in the upper part ("User variables") if you do
+not have administrator privileges or want to install it only for yourself.
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+EOF
+}
+elsif( $datadir ne "/usr/local/share/vhdocl" && $datadir ne "/usr/share/vhdocl" ) {
+    print <<EOF;
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+To complete the install, define the environment variable VHDOCL_DATADIR as
+\`$datadir'.
+In most Linux distributions, and for global installs, this is done by adding a
+pair of scripts to the directory /etc/profile.d which contain:
 export VHDOCL_DATADIR="$datadir"
 for the sh shell; and for csh:
 setenv VHDOCL_DATADIR "$datadir"
