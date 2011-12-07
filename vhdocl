@@ -137,7 +137,7 @@ sub runat
 
 # Transforms a file name which is relative to a different directory to one
 # which is relative to the current working directory.  Absolute file names and
-# URLs are left unchanged
+# URLs are left unchanged.
 # -> File name
 #    Directory path
 # <- Transformed file name
@@ -1647,7 +1647,7 @@ done:
         if $errflag;
 }
 
-}
+}   # End of scope of parsing variables
 
 
 # Compare the hash representations of two functions or procedures for finding
