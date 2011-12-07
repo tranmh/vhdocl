@@ -119,6 +119,22 @@ sub mycanonpath
 }
 
 
+# Run a command after changing the current working directory.  Before
+# returning, the working directory is changed back to $config{"cwd"}.
+# -> Directory
+#    Command
+# <- Output of the command, or undef if chdir failed
+sub runat
+{
+    my ($dir, $cmd)= @_;
+
+    chdir $dir or return undef;
+    my $result= `$cmd`;
+    chdir $config{"cwd"};
+    return $result;
+}
+
+
 # Transforms a file name which is relative to a different directory to one
 # which is relative to the current working directory.  Absolute file names and
 # URLs are left unchanged
