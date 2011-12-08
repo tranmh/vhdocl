@@ -1672,7 +1672,8 @@ sub insertgit
   }
   return unless keys %places;
   my $devnull= "";
-  $devnull= " 2> /dev/null" if $^O eq "MSWin32" || $^O eq "MacOS";
+  $devnull= " 2> /dev/null"
+        unless $config{"parsedebug"} || $^O eq "MSWin32" || $^O eq "MacOS";
   if( $places{"id"} ) {
     my $id= `git hash-object $file->{"name"}$devnull`;
     map { $$_= $id; } @{$places{"id"}} if $id;
