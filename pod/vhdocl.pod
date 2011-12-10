@@ -474,6 +474,15 @@ declaration.  But if you have a separate file for each entity/architecture and
 package/package body pair, having Subversion data in their description is still
 meaningful.
 
+Recent versions of VHDocL support a similar feature for sources stored in a GIT
+repository.  If the text after a @date, @version, @id or @author markup is just
+"$git$", VHDocL runs a git command on the source file to obtain that
+information.  The date, version and author is from the most recent revision of
+the file according to C<git log>; the version is made more readable by C<git
+describe>.  The file ID is determined by C<git hash-object>.  The same caveats
+as for SVN apply: The author of the most recent revision is not necessarily
+what you want, and a design unit may not be modified even if its file was.
+
 
 =head1 OUTPUT
 
