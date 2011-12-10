@@ -199,6 +199,27 @@ sub fileext
 }
 
 
+# Split a string at white space, allowing quoting by single and double quotes.
+# -> String
+#    Optional reference to scalar that will be set to the unmatched quote
+#    character if one is encountered, undef otherwise
+# <- List of substrings
+
+my $QUOTWORD= qr/[^'"\s]*(?:(?:"[^"]*"|'[^']*')[^'"\s]*)*/;
+
+sub splitquoted
+{
+  my ($str, $unmatched)= @_;
+
+  $str =~ s/^\s+//;
+  my @words= ( $str =~ /\G($QUOTWORD)(?:\s+|$)/ogc );
+  ($$unmatched)= $str =~ /\G.*?(["'])/ if $unmatched;
+  pop @words unless length $words[-1];
+  map { s/"([^"]*)"|'([^']*)'/defined($1)? $1 : $2/eg; } @words;
+  return @words;
+}
+
+
 # Compare two code snippets.  White space is compressed to one space character
 # between words and completely removed elsewhere.  The contents of strings are
 # not treated specially, so if two snippets differ only by the amount of white
@@ -557,7 +578,11 @@ sub parsecfgfile
     $value =~ s/^\s+//;
     $value =~ s/\s+$//;
     if( $optname eq "input" ) {
-      my @files= split /\s+/, $value;
+      my $unmatched;
+      my @files= splitquoted $value, \$unmatched;
+      croak "Unmatched " . ($unmatched eq '"'? "double" : "single") .
+            " quote in $fname, line $..  (Verbatim quote characters have to be quoted now, see the manual.)  Aborting."
+          if $unmatched;
       for my $file (@files) {
         $file= fixpath($file, $basedir);
         my @vhdl;
