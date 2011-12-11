@@ -199,20 +199,21 @@ sub fileext
 }
 
 
-# Quote glob characters in a string
+# Quote glob characters in a string by prepending '\x01'.
 # -> String
 # <- Quoted string
 sub quoteglob
 {
-    my ($str)= @_;
+  my ($str)= @_;
 
-    $str =~ s/([\\\[\]\?\*\{\}\~])/\\$1/g;
-    return $str;
+  $str =~ s/([\[\]\?\*\{\}\~])/\x01$1/g;
+  return $str;
 }
 
 
-# Split a string at white space, allowing quoting by single and double quotes.
-# Single quotes quote glob characters *?[]{} and ~; double quotes do not.
+# Split a string containing file names at white space, allowing quoting by
+# single and double quotes.  Single quotes quote glob characters *?[]{} and ~;
+# double quotes do not.
 # -> String
 #    Optional reference to scalar that will be set to the unmatched quote
 #    character if one is encountered, undef otherwise
@@ -220,7 +221,7 @@ sub quoteglob
 
 my $QUOTWORD= qr/[^'"\s]*(?:(?:"[^"]*"|'[^']*')[^'"\s]*)*/;
 
-sub splitquoted
+sub splitfilenames
 {
   my ($str, $unmatched)= @_;
 
@@ -592,31 +593,46 @@ sub parsecfgfile
     $value =~ s/\s+$//;
     if( $optname eq "input" ) {
       my $unmatched;
-      my @files= splitquoted $value, \$unmatched;
+      my @fileargs= splitfilenames $value, \$unmatched;
       croak "Unmatched " . ($unmatched eq '"'? "double" : "single") .
             " quote in $fname, line $..  (Verbatim quote characters have to be quoted now, see the manual.)  Aborting."
           if $unmatched;
-      for my $file (@files) {
-        $file= fixpath($file, $basedir);
-        my @vhdl;
-        if( $file =~ /\?|\*|\[|\]|\{|\}|\~/ ) {
-          @vhdl= grep -f, File::Glob::bsd_glob($file);
-          push @$filelist, map +{ "type", "file", "name", $_,
-                                  "libname", $config{"curlib"} }, @vhdl;
-        }
-        elsif( -d $file ) {
-          @vhdl= searchdirectory($file);
-          push @$filelist, map +{ "type", "file", "name", $_,
-                                  "libname", $config{"curlib"} }, @vhdl;
-        }
-        elsif( $file !~ /\.vhdl?$/i && !-e $file ) {
-          my ($fname)= grep -f, File::Glob::bsd_glob("$file.[vV][hH][dD]{,[lL]}");
-          push @$filelist, { "type", "file", "name", $fname || $file,
-                              "libname", $config{"curlib"} };
+      for my $farg (@fileargs) {
+        $farg= fixpath($farg, $basedir);
+        my $globarg= $farg;
+        $globarg =~ s/\\/\\\\/g;  # escape backslashes (windoze)
+        $globarg =~ tr/\x01/\\/;  # escape glob characters (see quoteglob())
+        my @files;
+        if( $farg =~ /(?<!\x01)(?:\?|\*|\[|\]|\{|\}|\~)/ ) {
+          @files= grep -f, File::Glob::bsd_glob($globarg);
+          if( ! @files ) {
+            print STDERR "Warning: No matches for glob pattern `$globarg'.\n"
+                unless $config{"quiet"};
+          }
+          @files= map fixpath($_), @files;
         }
         else {
-          push @$filelist, { "type", "file", "name", $file,
-                              "libname", $config{"curlib"} };
+          $farg =~ tr/\x01//d;      # remove glob char escape markers
+          if( -e $farg ) {
+            @files= ( $farg );
+          }
+          else {      # glob for .vhd(l) files if verbatim file name not found
+            @files= grep -f, File::Glob::bsd_glob("$globarg.[vV][hH][dD]{,[lL]}")
+                unless $farg =~ /\.vhdl?$/i;
+            croak "Input file `$farg' does not exist.  Aborting."
+                unless @files;
+          }
+        }
+        for my $file (@files) {
+          if( -d $file ) {
+            my @dirfiles= searchdirectory($file);
+            push @$filelist, map +{ "type", "file", "name", $_,
+                                    "libname", $config{"curlib"} }, @dirfiles;
+          }
+          else {
+            push @$filelist, { "type", "file", "name", $file,
+                                "libname", $config{"curlib"} };
+          }
         }
       }
       next;
