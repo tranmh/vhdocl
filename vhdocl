@@ -783,7 +783,6 @@ sub parsedoccom
       push @{$doc{"description"}}, $line;
     }
   }
-  $doc{"id"} =~ s/\$Id:\s*(.*?)\s*\$/$1/ if $doc{"id"};
   $doc{"author"}= join(", ", @{$doc{"author"}}) if $doc{"author"};
   return \%doc;
 }
