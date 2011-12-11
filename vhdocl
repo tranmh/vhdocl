@@ -199,7 +199,20 @@ sub fileext
 }
 
 
+# Quote glob characters in a string
+# -> String
+# <- Quoted string
+sub quoteglob
+{
+    my ($str)= @_;
+
+    $str =~ s/([\\\[\]\?\*\{\}\~])/\\$1/g;
+    return $str;
+}
+
+
 # Split a string at white space, allowing quoting by single and double quotes.
+# Single quotes quote glob characters *?[]{} and ~; double quotes do not.
 # -> String
 #    Optional reference to scalar that will be set to the unmatched quote
 #    character if one is encountered, undef otherwise
@@ -215,7 +228,7 @@ sub splitquoted
   my @words= ( $str =~ /\G($QUOTWORD)(?:\s+|$)/ogc );
   ($$unmatched)= $str =~ /\G.*?(["'])/ if $unmatched;
   pop @words unless length $words[-1];
-  map { s/"([^"]*)"|'([^']*)'/defined($1)? $1 : $2/eg; } @words;
+  map { s/"([^"]*)"|'([^']*)'/defined($1)? $1 : quoteglob($2)/eg; } @words;
   return @words;
 }
 
