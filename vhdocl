@@ -576,8 +576,7 @@ sub parsecfgfile
   open(CFG, "<$fname") or croak "Could not open config file $fname - $!";
   while( <CFG> )
   {
-    s/#.*$//;
-    chomp;
+    s/\s*(?:#.*)?$//s;
     next unless $_;
     $line .= " " . $_;
     next if $line =~ s/\s*\\$//;
