@@ -273,10 +273,12 @@ configuration file.  (So are the arguments of options like "outputdir",
 "stylesheet" etc.)  Multiple "input"s are allowed, as are several files per
 "input", separated by spaces.  File  names containing any of *?[]{}~ are
 interpreted as glob patterns for searching for source files (but not
-directories).  File names which contain any of these characters or white space
-can be specified by replacing them by "?".  As on the command line, the source
-files are assigned to the library given with the latest "library" option, or
-the work library if no "library" option was encountered.
+directories).  File names which contain any of these characters have to be
+quoted by single quotes.   File names containing white space can be quoted by
+single or double quotes (which do not quote glob characters).  As on the
+command line, the source files are assigned to the library given with the
+latest "library" option, or the work library if no "library" option was
+encountered.
 
 The configuration file is line-oriented.  Every option or input file
 specification has to be contained in a single line.  However, lines may be
