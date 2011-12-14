@@ -753,8 +753,8 @@ and a list of entities and of packages and the design's instantiation
 hierarchy.
 The most important command-line options are:
     -o, --outputdir     Output directory (default: "doc")
-    -p, --prefix        Prefix for all HTML files
     -l, --library       Library to which the following source files belong
+    -r, --recursive     Process following source directories recursively
     -q, --quiet         Reduce verbosity of progress reporting
     --stylesheet=stylefile.css  CSS style file to reference
 Long options may be abbreviated.
