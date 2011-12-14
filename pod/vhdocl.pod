@@ -285,7 +285,9 @@ specification has to be contained in a single line.  However, lines may be
 continued in the following text line by putting a backslash at the end of the
 previous line.  The backslash may be followed by white space and a comment.
 Comments start with the "#" character and extend up to the end of the text
-line.
+line.  To avoid ambiguities, "#" characters are not allowed in comments, and if
+a "#" is contained in an option value, a comment must be present.  In other
+words, VHDocL removes anything from the last "#" to the end of the line.
 
 A configuration file could for example look like this:
 
@@ -476,7 +478,7 @@ declaration.  But if you have a separate file for each entity/architecture and
 package/package body pair, having Subversion data in their description is still
 meaningful.
 
-Recent versions of VHDocL support a similar feature for sources stored in a GIT
+Recent versions of VHDocL support a similar feature for sources stored in a git
 repository.  If the text after a @date, @version, @id or @author markup is just
 "$git$", VHDocL runs a git command on the source file to obtain that
 information.  The date, version and author is from the most recent revision of
@@ -484,6 +486,8 @@ the file according to C<git log>; the version is made more readable by C<git
 describe>.  The file ID is determined by C<git hash-object>.  The same caveats
 as for SVN apply: The author of the most recent revision is not necessarily
 what you want, and a design unit may not be modified even if its file was.
+Also be aware that use of this feature can slow VHDocL down considerably, as
+multiple git commands may have to be run for each file.
 
 
 =head1 OUTPUT
