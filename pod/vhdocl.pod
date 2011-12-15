@@ -225,7 +225,10 @@ arguments from standard input.
 It is not necessary to tell VHDocL which of the source files contains the top
 module, as it will automatically resolve instantiations and treat those modules
 which are instantiated nowhere as top modules.  (So unless you omit testbench
-files from the source file list, they will be regarded as top modules.)
+files from the source file list, they will be regarded as top modules.)  The
+B<-t> option allows you to designate some top modules, which are then displayed
+more prominently on the hierarchy page.  This allows you to separate your
+design top modules from test benches, for example.
 
 Arguments to VHDocL, both options and input file names, can be given in three
 ways: on the command line, on standard input and in the configuration file (see
