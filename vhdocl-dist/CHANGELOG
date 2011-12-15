@@ -1,4 +1,12 @@
 
+0.2.3
+
+ - file names in config files can now be quoted
+ - new option to display designated top modules separately in hierarchy view
+ - backlinks from design units to units that instantiate them
+ - experimental git support for @version, @date, @author and @id markups
+ - fixes for Windows: quoting of path separators, install as .pl, environment variable instructions
+
 0.2.2
 
  - limited support for PSL (Accelera Property Specification Language)
