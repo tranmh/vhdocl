@@ -580,17 +580,17 @@ sub parsecfgfile
     next unless $_;
     $line .= " " . $_;
     next if $line =~ s/\s*\\$//;
-    $line =~ /^\s*([^\s=]+)\s*(=)?\s*([^=]*?)\s*$/
+    $line =~ /^\s*([^\s=]+)\s*=?\s*([^=]*?)\s*$/
         or croak "Cannot understand line $. in $fname: $line";
     my $optname= $1;
-    my $value= $3;
+    my $value= $2;
     my $onoff= 1;
     croak "Unknown option $optname in $fname, line $..  Aborting."
         unless $optname =~ /^\w+$/;
     $line= "";
     $value =~ s/^\s+//;
     $value =~ s/\s+$//;
-    if( $optname eq "input" ) {
+    if( lc($optname) eq "input" ) {
       my $unmatched;
       my @fileargs= splitfilenames $value, \$unmatched;
       croak "Unmatched " . ($unmatched eq '"'? "double" : "single") .
@@ -652,7 +652,7 @@ sub parsecfgfile
     if( $opts[0]->[2] eq "&" ) {
       print STDERR "Ignoring option $optname in $fname.\n";
     }
-    elsif( $optname eq "configfile" ) {
+    elsif( $opts[0]->[2] eq "<" ) {     # configfile option
       push @$track, $fname;
       $value= fixpath($value, $basedir);
       if( grep($_ eq $value, @$track) ) {
