@@ -1047,6 +1047,10 @@ sub readportlist
     }
     $vline =~ s/^([;)])//;
     my $delimiter= $1;
+    if( $type eq "recordelement" && $port =~ /^\s*end\b/i ) {
+      $vline= $port . $delimiter . $vline;
+      last;
+    }
     if( $port =~ /^\s*($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
                                   ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
       $doccomment ||= $lastdoccom if $keepdoccom;
@@ -1417,6 +1421,9 @@ vhdlline:
             (?:\b(record|protected|protectedbody)\b|($MSTUFF);)//iox ) {
         if( $2 ) {
           $newchild= { "type", lc($2), "name", $1, "sub", $sub };
+          if( $newchild->{"type"} eq "record" ) {
+            @newentries= readportlist("recordelement");
+          }
         }
         else {
           my ($name, $typedef)= ($1, $3);
@@ -1632,7 +1639,7 @@ skipnext:
         print "\n";
       }
     }
-    elsif( @newentries ) {
+    if( @newentries ) {
       if( !$doccomment && $keepdoccom ) {
         $keepdoccom= 0 unless $newentries[0]->{"type"} eq $keepdoctype;
         $doccomment ||= $lastdoccom if $keepdoccom;
@@ -3378,7 +3385,12 @@ sub printtypehtml
     print $handle markvhdl($type->{"subtype"}), "</td></tr>\n";
   }
   elsif( $type->{"type"} eq "record" ) {
-    print $handle "${SPWD}record$SP_...</td></tr>\n";
+    print $handle "${SPWD}record$SP_</td></tr>\n";
+    if( my @elements= @{$type->{"children"} || []} ) {
+      print $handle "<tr><td></td><td></td><td colspan=\"3\">$STDTAB\n";
+      map { printgenporthtml($handle, $_) } @elements;
+      print $handle "</table></td></tr>\n";
+    }
   }
   elsif( $type->{"type"} eq "units" ) {
     print $handle markvhdl($type->{"subtype"}), " ${SPWD}units$SP_ $SPID",
