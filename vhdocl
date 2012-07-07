@@ -2079,10 +2079,14 @@ std_ulogic_vector std_logic std_logic_vector signed unsigned );
 sub resolve_types
 {
   my ($obj)= shift;
-  my @puses= reverse grep $_->{"package"}, @{$obj->{"uses"}};
   my %resolved;
   my %unresolved= %no_usertypes;
+  my $typedef;
 
+  my @puses= reverse grep $_->{"package"}, @{$obj->{"uses"}};
+  my @puses2= grep $_->{"name"} =~ tr/././ == 1, @puses;
+  my @puses3= grep $_->{"name"} =~ tr/././ == 2, @puses;
+  @puses= ();
   for my $typed (@_) {
     my $typeexpr= $typed->{$typed->{"type"} eq "type" ? "definition" : "subtype"};
     next unless $typeexpr;
@@ -2092,50 +2096,54 @@ typeexprid:
       $id= lc($id);
       next if $unresolved{$id};
       $typed->{"typedef"}= $resolved{$id}, last if $resolved{$id};
-      if( $id =~ /\./ ) {
-        my $origid= $id;
-        $id= $obj->{"libname"} . ".$id" if $id =~ tr/././ == 1;
-        my ($pack, $localid)= $id =~ /^(.*)\.([^.]+)$/;
-        $pack= find_selname($pack, "package");
-        next unless $pack;
-        my @candidates= grep lc($_->{"name"}) eq $localid,
-                             @{$pack->{"childtype"}->{"type"} || []};
-        if( @candidates ) {
-          $resolved{$id}= $resolved{$origid}= $candidates[0];
-          $typed->{"typedef"}= $candidates[0];
+      my $numdots= $id =~ tr/././;
+      if( $numdots > 2 ) {
+        $unresolved{$id}= 1;
+        next;
+      }
+      elsif( $numdots == 2 ) {
+        $typedef= find_selname($id, "type");
+      }
+      elsif( $numdots == 1 ) {
+        for my $use (@puses2) {
+          my $selname= merge_selname($use->{"name"}, $id);
+          next unless $selname;
+          $typedef= find_selname($selname, "type");
+          next unless $typedef;
+          $resolved{$selname}= $typedef if $typedef;
+          last;
         }
-        else {
-          $unresolved{$id}= $unresolved{$origid}= 1;
+        unless( $typedef ) {
+          my $selname= $obj->{"libname"}.".".$id;
+          $typedef= find_selname($selname, "type");
+          $resolved{$selname}= $typedef if $typedef;
         }
+      }
+      else {
+        ($typedef)= grep lc($_->{"name"}) eq $id, @{$obj->{"childtype"}->{"type"} || []};
+        unless( $typedef ) {
+          for my $use (@puses3) {
+            my $selname= merge_selname($use->{"name"}, $id);
+            next unless $selname;
+            $typedef= find_selname($selname, "type");
+            next unless $typedef;
+            $resolved{$selname}= $typedef if $typedef;
+            last;
+          }
+        }
+      }
+      if( $typedef ) {
+        if( !ref($typedef) ) {
+            print "typedef is >$typedef< for $id\n";
+        }
+        $resolved{$id}= $typedef;
+        $typed->{"typedef"}= $typedef;
         last;
       }
-      my @candidates= grep lc($_->{"name"}) eq $id,
-                           @{$obj->{"childtype"}->{"type"} || []};
-      if( @candidates ) {
-        $resolved{$id}= $candidates[0];
-        $typed->{"typedef"}= $candidates[0];
-        last;
+      else {
+        $unresolved{$id}= 1;
       }
-      for my $use (@puses) {
-        my $selid= lc($use->{"name"});
-        next unless $selid =~ tr/././ == 2 && 
-         (substr($selid, -length($id)-1) eq ".$id" || $selid =~ s/\.all$/.$id/);
-        next if $unresolved{$selid};
-        $resolved{$id}= $typed->{"typedef"}= $resolved{$selid}, last typeexprid
-            if $resolved{$selid};
-        my @candidates= grep lc($_->{"name"}) eq $id,
-                          @{$use->{"package"}->{"childtype"}->{"type"}};
-        $unresolved{$selid}= 1, next unless @candidates;
-        $resolved{$id}= $resolved{$selid}= $candidates[0];
-        $typed->{"typedef"}= $candidates[0];
-        last typeexprid;
-      }
-      $unresolved{$id}= 1;
     }
-#    print "resolved typedef of $typed->{type} $typed->{name}: $typed->{typedef}->{name}\n"
-#        if $typed->{typedef};
-#    print "unresolved typedef of $typed->{type} $typed->{name}\n"
-#        unless $typed->{typedef};
   }
 }
 
@@ -2166,7 +2174,7 @@ sub merge_selname
 # Table of selected names.  Those tables which will be searched are initialised
 # up-front to avoid "can't use undef as hash ref" errors.
 my %selnames= map { $_ => {}; }
-      qw(entity architecture configuration package packagebody component psl);
+  qw(entity architecture configuration package packagebody component type psl);
 # Dummy scalar the reference to which indicates that multiple objects with that
 # name and type exist.
 my $multiple;
@@ -4943,6 +4951,8 @@ for my $pack (@packages)
   match_attributes($pack);
   # Add component declarations to selected name table
   add_selnames($pack->{"fullname"}, @{$pack->{"childtype"}->{"component"}});
+  # Add type declarations to selected name table
+  add_selnames($pack->{"fullname"}, @{$pack->{"childtype"}->{"type"}});
   # Abuse selected name database for resolving PSL definition references
   add_selnames($pack->{"fullname"}, @{$pack->{"allpsldefs"}});
   # Find default bindings for components declared in the package
