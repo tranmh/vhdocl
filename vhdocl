@@ -1413,29 +1413,33 @@ vhdlline:
         skipuntil( qr/\bloop\b/i );
       }
     }
-    elsif( $vline =~ s/^(sub)?type\b//i ) {
-      my $sub= defined($1);
+    elsif( $vline =~ s/^((?:sub)?type)\b//i ) {
+      my $sub= lc($1);
       last vhdlline unless
        defined(readuntil( qr/\b(?:record|protected|protectedbody)\b/i ));
       if( $vline =~ s/^\s*($ID)\s+is\b\s*
             (?:\b(record|protected|protectedbody)\b|($MSTUFF);)//iox ) {
-        if( $2 ) {
-          $newchild= { "type", lc($2), "name", $1, "sub", $sub };
-          if( $newchild->{"type"} eq "record" ) {
+        my ($name, $sub2, $typedef)= ($1, $2, $3);
+        $newchild= { "type", "type", "subtype", lc($sub2 || $sub),
+                     "name", $name };
+        if( $sub2 ) {
+          $newchild->{"type"}= $sub2;
+          # This is only for recognising "end", will be undone later
+          if( $newchild->{"subtype"} eq "record" ) {
             @newentries= readportlist("recordelement");
           }
         }
         else {
-          my ($name, $typedef)= ($1, $3);
           $typedef =~ s/^\s+//;
           $typedef =~ s/\s+$//;
-          if( $typedef =~ s/\s*\bunits\s+($ID)$//i ) {
-            $newchild= { "type", "units", "baseunit", $1, "sub", $sub,
-                                "name", $name, "subtype", $typedef };
+          $newchild->{"definition"}= $typedef;
+          if( $newchild->{"definition"} =~ s/\s*\bunits\s+($ID)$//i ) {
+            $newchild->{"type"}= $newchild->{"subtype"}= "units";
+            $newchild->{"baseunit"}= $1;
           }
           else {
-            @newentries= ( { "type", "type", "sub", $sub,
-                                "name", $name, "subtype", $typedef } );
+            @newentries= ( $newchild );
+            $newchild= undef;
           }
         }
       }
@@ -2057,6 +2061,85 @@ tryfunctarget:
 }
 
 
+# Blacklist to avoid false positives when searching type expressions for
+# user-defined types: (this is merely an optimisation)
+my %no_usertypes= map { $_ => 1; } qw( array of to downto range integer
+positive natural boolean real string character time std_ulogic
+std_ulogic_vector std_logic std_logic_vector signed unsigned );
+
+# Resolve type identifiers of user-defined types.  This is deliberately less
+# sophisticated than the resolving of component instances below, because typed
+# declarations are more numerous and hence the impact on runtime is likely to
+# be larger, and less important.  Only type declarations accessible within the
+# same top-level construct or via package use statements are taken into
+# account.  And it is assumed that each type designation can only contain one
+# user-defined type.
+# -> Top-level construct containing the following declarations
+#    List of typed declarations possibly referencing user-defined types
+sub resolve_types
+{
+  my ($obj)= shift;
+  my @puses= reverse grep $_->{"package"}, @{$obj->{"uses"}};
+  my %resolved;
+  my %unresolved= %no_usertypes;
+
+  for my $typed (@_) {
+    my $typeexpr= $typed->{$typed->{"type"} eq "type" ? "definition" : "subtype"};
+    next unless $typeexpr;
+    my @ids= $typeexpr =~ /$SID/g;
+typeexprid:
+    for my $id (@ids) {
+      $id= lc($id);
+      next if $unresolved{$id};
+      $typed->{"typedef"}= $resolved{$id}, last if $resolved{$id};
+      if( $id =~ /\./ ) {
+        my $origid= $id;
+        $id= $obj->{"libname"} . ".$id" if $id =~ tr/././ == 1;
+        my ($pack, $localid)= $id =~ /^(.*)\.([^.]+)$/;
+        $pack= find_selname($pack, "package");
+        next unless $pack;
+        my @candidates= grep lc($_->{"name"}) eq $localid,
+                             @{$pack->{"childtype"}->{"type"} || []};
+        if( @candidates ) {
+          $resolved{$id}= $resolved{$origid}= $candidates[0];
+          $typed->{"typedef"}= $candidates[0];
+        }
+        else {
+          $unresolved{$id}= $unresolved{$origid}= 1;
+        }
+        last;
+      }
+      my @candidates= grep lc($_->{"name"}) eq $id,
+                           @{$obj->{"childtype"}->{"type"} || []};
+      if( @candidates ) {
+        $resolved{$id}= $candidates[0];
+        $typed->{"typedef"}= $candidates[0];
+        last;
+      }
+      for my $use (@puses) {
+        my $selid= lc($use->{"name"});
+        next unless $selid =~ tr/././ == 2 && 
+         (substr($selid, -length($id)-1) eq ".$id" || $selid =~ s/\.all$/.$id/);
+        next if $unresolved{$selid};
+        $resolved{$id}= $typed->{"typedef"}= $resolved{$selid}, last typeexprid
+            if $resolved{$selid};
+        my @candidates= grep lc($_->{"name"}) eq $id,
+                          @{$use->{"package"}->{"childtype"}->{"type"}};
+        $unresolved{$selid}= 1, next unless @candidates;
+        $resolved{$id}= $resolved{$selid}= $candidates[0];
+        $typed->{"typedef"}= $candidates[0];
+        last typeexprid;
+      }
+      $unresolved{$id}= 1;
+    }
+#    print "resolved typedef of $typed->{type} $typed->{name}: $typed->{typedef}->{name}\n"
+#        if $typed->{typedef};
+#    print "unresolved typedef of $typed->{type} $typed->{name}\n"
+#        unless $typed->{typedef};
+  }
+}
+
+
 # Try to merge the selected name in a package use clause with the selected name
 # describing an entity, component, configuration or similar.  The rightmost
 # part of the use clause name has to be the same as the leftmost part of the
@@ -2073,7 +2156,7 @@ sub merge_selname
 
   $suse =~ s/\.all$//i;
   $selname= $suse . "." . $sobj;
-  $selname =~ s/\.([^.]+)\.\1\./.$1./;
+  $selname =~ s/\.([^.]+)\.\1\./.$1./i;
   return ($selname =~ tr/././) <= 2 ? $selname : undef;
 }
 
@@ -2089,7 +2172,7 @@ my %selnames= map { $_ => {}; }
 my $multiple;
 
 # Add objects to the table of selected names applicable for their type.
-# -> Prefix (for to-level constructs, this is the library name, for
+# -> Prefix (for top-level constructs, this is the library name, for
 #    declarations in packages, this is "library.package")
 #    List of objects
 sub add_selnames
@@ -2976,7 +3059,7 @@ my @IEEETYPES= qw( integer positive natural boolean real string character time
 delay_length severity_level file_open_kind file_open_status line text side
 std_ulogic std_ulogic_vector std_logic std_logic_vector x01 x01z ux01
 ux01z small_int signed unsigned complex complex_vector complex_polar );
-# "width" is a type defined in textio, but has been removed, a it may often be
+# "width" is a type defined in textio, but has been removed, as it may often be
 # used as a constant/variable name.
 my @PSLWORDS= qw( abort always assume assume_guarantee before clock const
 countones cover default endpoint eventually fairness fell forall inf inherit
@@ -2995,7 +3078,7 @@ my %SPANCLASS= ( map( { $_ => $SPIO; } @IOWORDS),
                  map( { $_ => $SPIET; } @IEEETYPES) );
 
 # Convert VHDL code to HTML with syntax markup expressed in CSS classes.
-# -> VHDL-code
+# -> VHDL code
 # <- HTML with <span> tags of the appropriate classes
 sub markvhdl
 {
@@ -3008,6 +3091,23 @@ sub markvhdl
   $code =~ s/\x02/&lt;/g;
   $code =~ s/\x03/&gt;/g;
   $code =~ s/\x04/&quot;/g;
+  return $code;
+}
+
+
+# Apply HTML markup to type name.  Calls markvhdl, and adds a link to the type
+# definition if available.
+# -> VHDL code describing a type
+#    Reference to hash of the object that has this type, possibly including a
+#    "typedef" field referencing the type definition object
+# <- HTML markup of the type designation
+sub marktype
+{
+  my ($code, $obj)= @_;
+
+  $code= markvhdl($code);
+  return $code unless $obj->{"typedef"} && $obj->{"typedef"}->{"doclink"};
+  $code =~ s/\b((?:\w+\.)*$obj->{typedef}->{name})\b/<a href="$obj->{typedef}->{doclink}">$1<\/a>/i;
   return $code;
 }
 
@@ -3177,7 +3277,7 @@ sub printgenporthtml
                 "$SP_</b></td>\n";
   print $handle "<td align=\"center\"><i><b>$SPIO", $gp->{"direction"}, 
                 "$SP_</b></i></td>" if $gp->{"direction"};
-  print $handle "<td align=\"left\">", markvhdl($gp->{"subtype"}), "</td>\n";
+  print $handle "<td align=\"left\">", marktype($gp->{"subtype"}, $gp), "</td>\n";
   print $handle "<td align=\"left\">:= ", markvhdl($gp->{"value"}), "</td>\n"
         if $gp->{"value"};
   print $handle "</tr>\n";
@@ -3378,13 +3478,15 @@ sub printtypehtml
 {
   my ($handle, $type)= @_;
 
-  print $handle "<tr$CCO><td>$SPDCL", ($type->{"sub"}? "subtype": "type"),
-                "$SP_</td><td><b>$SPTYID", $type->{"name"}, "$SP_</b></td>",
-                "<td>${SPWD}is$SP_</td>\n<td>";
-  if( $type->{"type"} eq "type" ) {
-    print $handle markvhdl($type->{"subtype"}), "</td></tr>\n";
+  my $label= $labels{"type"} . $type->{"name"};
+  print $handle "<tr$CCO><td>$SPDCL",
+                ($type->{"subtype"} eq "subtype"? "subtype": "type"),
+                "$SP_</td><td><a name=\"$label\"><b>$SPTYID", $type->{"name"},
+                "$SP_</b></a></td><td>${SPWD}is$SP_</td>\n<td>";
+  if( $type->{"subtype"} =~ /type$/ ) {
+    print $handle marktype($type->{"definition"}, $type), "</td></tr>\n";
   }
-  elsif( $type->{"type"} eq "record" ) {
+  elsif( $type->{"subtype"} eq "record" ) {
     print $handle "${SPWD}record$SP_</td></tr>\n";
     if( my @elements= @{$type->{"children"} || []} ) {
       print $handle "<tr><td></td><td></td><td colspan=\"3\">$STDTAB\n";
@@ -3392,11 +3494,11 @@ sub printtypehtml
       print $handle "</table></td></tr>\n";
     }
   }
-  elsif( $type->{"type"} eq "units" ) {
-    print $handle markvhdl($type->{"subtype"}), " ${SPWD}units$SP_ $SPID",
+  elsif( $type->{"subtype"} eq "units" ) {
+    print $handle marktype($type->{"definition"}), " ${SPWD}units$SP_ $SPID",
                   $type->{"baseunit"}, "$SP_</td></tr>\n";
   }
-  elsif( $type->{"type"} =~ /^protected/i ) {
+  elsif( $type->{"subtype"} =~ /^protected/i ) {
     print $handle "${SPWD}protected$SP_...</td></tr>\n";
   }
   else {
@@ -3666,8 +3768,7 @@ sub architecturehtml
   printinstantiated(*ARCH{IO}, $arch);
   print ARCH "\n<hr>\n\n";
   printlibusehtml(*ARCH{IO}, $arch);
-  if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|protected|
-                        protectedbody)$/ix, @{$arch->{"children"}}) ) {
+  if( my @types= @{$arch->{"childtype"}->{"type"} || []} ) {
     print ARCH "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
     map { printtypehtml(*ARCH{IO}, $_) } @types;
     print ARCH "</table>\n\n";
@@ -3907,8 +4008,7 @@ sub packagehtml
     printobjhtml(*PACK{IO}, $pack);
     print PACK "\n<hr>\n\n";
     printlibusehtml(*PACK{IO}, $pack);
-    if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|
-                      protected|protectedbody)$/ix, @{$pack->{"children"}}) ) {
+    if( my @types= @{$pack->{"childtype"}->{"type"} || []} ) {
       print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
       map { printtypehtml(*PACK{IO}, $_) } @types;
       print PACK "</table>\n\n";
@@ -3936,10 +4036,9 @@ sub packagehtml
     $pack= undef;
   }
   # Only document package body if it contains further declarations
-  unless( elem( sub { $_->{"type"} =~ /^(?:type|subtype|record|units|protected|
-                            protectedbody)$/ix }, @{$pbody->{"children"}}) ||
-            @{$pbody->{"childtype"}->{"funcproc"} || []} ||
-            @{$pbody->{"childtype"}->{"constant"} || []} ) {
+  unless( @{$pbody->{"childtype"}->{"type"} || []} ||
+          @{$pbody->{"childtype"}->{"funcproc"} || []} ||
+          @{$pbody->{"childtype"}->{"constant"} || []} ) {
     printhtmlfooter(*PACK{IO});
     close PACK;
     return;
@@ -3949,8 +4048,7 @@ sub packagehtml
   printobjhtml(*PACK{IO}, $pbody);
   print PACK "\n<hr>\n\n";
   printlibusehtml(*PACK{IO}, $pbody);
-  if( my @types= grep($_->{"type"} =~ /^(?:type|subtype|record|units|protected|
-                        protectedbody)$/ix, @{$pbody->{"children"}}) ) {
+  if( my @types= @{$pbody->{"childtype"}->{"type"} || []} ) {
     print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
     map { printtypehtml(*PACK{IO}, $_) } @types;
     print PACK "</table>\n\n";
@@ -4657,6 +4755,7 @@ my @usertypes;
 my @userdeclids;
 my @pslids;
 my $duplicate= 0;
+my @alsotypes= qw(record units protected protectedbody);
 
 # Build entity, architecture, configuration and package lists
 for my $lib (keys(%libraries)) {
@@ -4675,16 +4774,15 @@ for my $lib (keys(%libraries)) {
   $duplicate += uniq_objs(\@packs);
   my @pbods= grep $_->{"type"} eq "packagebody", @$decls;
   $duplicate += uniq_objs(\@pbods);
-  map { $_->{"fullname"}= $lib . "." . $_->{"name"}; } @ents;
   for my $ac (@archs, @confs) {
     $ac->{"libname"} = $lib;
     next if $ac->{"objname"} =~ /\..*\./ || 
   ($ac->{"objname"} =~ /^([^.\s]+)\s*\./ && grep($_ eq $1, keys(%libraries)));
     $ac->{"objname"}= $lib . "." . $ac->{"objname"};
   }
-  for my $pack (@packs, @pbods) {
-    $pack->{"libname"} = $lib;
-    $pack->{"fullname"}= $lib . "." . $pack->{"name"};
+  for (@ents, @packs, @pbods) {
+    $_->{"libname"} = $lib;
+    $_->{"fullname"}= $lib . "." . $_->{"name"};
   }
   add_selnames($lib, @ents, @archs, @confs, @packs, @pbods);
   push @entities, @ents;
@@ -4704,14 +4802,17 @@ for my $lib (keys(%libraries)) {
   push @pslids, map lc($_->{"name"}), grep $_->{"name"},
                 map @{$_->{"childtype"}->{"psl"} || []}, (@archs, @packs)
     if $config{"psl"};
-  push @usertypes, map lc($_->{"name"}),
-        map( (@{$_->{"childtype"}->{"type"} || []},
-              @{$_->{"childtype"}->{"subtype"} || []},
-              @{$_->{"childtype"}->{"record"} || []},
-              @{$_->{"childtype"}->{"units"} || []},
-              @{$_->{"childtype"}->{"protected"} || []},
-              @{$_->{"childtype"}->{"protectedbody"} || []}),
-            (@archs, @packs, @pbods));
+  # Restore "type" hash entry of some type declarations that was set
+  # incorrectly to facilitate parsing.
+  for my $obj (@archs, @packs, @pbods) {
+    for my $ty (@alsotypes) {
+      next unless $obj->{"childtype"}->{$ty};
+      map { $_->{"type"}= "type"; } @{$obj->{"childtype"}->{$ty}};
+      push @{$obj->{"childtype"}->{"type"}}, @{$obj->{"childtype"}->{$ty}};
+      undef $obj->{"childtype"}->{$ty};
+    }
+    push @usertypes, map lc($_->{"name"}), @{$obj->{"childtype"}->{"type"} || []};
+  }
 }
 
 @SPANCLASS{@userdeclids}= ($SPDID) x @userdeclids;
@@ -4873,7 +4974,7 @@ for my $opb (@orphanedpbodies)
   # package body, since we do not have a package to match
   for my $child (@{$opb->{"children"}}) {
     $child->{"fullname"}= $opb->{"fullname"} . "." . $child->{"name"};
-    if( $labels{$child->{"type"}} ) {
+    if( $labels{$child->{"type"}} && $child->{"name"} ) {
       $child->{"doclink"}= "../packages/" . $opb->{"docfilename"} . "#" .
                                 $labels{$child->{"type"}} . $child->{"name"};
     }
@@ -4883,9 +4984,7 @@ for my $opb (@orphanedpbodies)
 }
 
 
-
-# Now take care of locally specified bindings and generic maps of instances.
-# Nested configurations will be tackled below.
+# Resolve package use clauses and link to the package.
 for my $file (@vhdlfiles)
 {
   my @fuses= grep $_->{"subtype"} eq "package", @{$file->{"uses"}};
@@ -4900,6 +4999,26 @@ for my $file (@vhdlfiles)
   }
 }
 
+
+# Resolve the user-defined types in all kinds of declarations
+for my $obj (@architectures, @packages, @packagebodies) {
+  my @typed= (@{$obj->{"childtype"}->{"constant"} || []},
+              @{$obj->{"childtype"}->{"type"} || []},
+              grep( $_->{"type"} eq "recordelement",
+                    map( ( @{$_->{"children"} || []} ),
+                         grep( $_->{"subtype"} eq "record",
+                               @{$obj->{"childtype"}->{"type"} || []} ))) );
+  resolve_types($obj, @typed);
+}
+
+for my $ent (@entities) {
+  resolve_types($ent, @{$ent->{"childtype"}->{"port"} || []},
+                      @{$ent->{"childtype"}->{"generic"} || []} );
+}
+
+
+# Now take care of locally specified bindings and generic maps of instances.
+# Nested configurations will be tackled below.
 for my $arch (@architectures, @orphanedarchs)
 {
   my @topuses= reverse grep $_->{"subtype"} eq "package", @{$arch->{"uses"}};
