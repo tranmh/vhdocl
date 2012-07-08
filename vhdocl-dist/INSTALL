@@ -1,0 +1,81 @@
+
+Installation instructions for VHDocL
+=====================================
+
+Considering you are reading this, you have already downloaded the tar archive
+containing a release of VHDocL.  Just for the record, the home page of VHDocL
+is http://www.volkerschatz.com/hardware/vhdocl.html.
+
+
+Prerequisites / dependencies
+----------------------------
+
+VHDocL is a Perl script, so you need to have Perl installed.  Linux
+distributions provide packages containing the Perl interpreter and standard
+modules, which can be installed with the distribution's package manager.  For
+Windows, you can download Active Perl
+(http://www.activestate.com/Products/activeperl/) or one of the other Perl
+distributions for Windows (see
+http://win32.perl.org/wiki/index.php?title=Win32_Distributions).
+
+VHDocL also needs some Perl modules.  Most of them are quite common, so they
+may already have been installed together with Perl itself.  Under Linux, you
+can check their presence with the command "perldoc File::Path", for example.
+
+The required packages and their CPAN homepages are:
+
+Cwd and File::Spec   http://search.cpan.org/~smueller/PathTools/
+File::Path           http://search.cpan.org/~dland/File-Path/
+Digest::MD5          http://search.cpan.org/~gaas/Digest-MD5/
+File::Copy           (included in Perl distribution)
+Time::HiRes (for --benchmark only)  http://search.cpan.org/~zefram/Time-HiRes/
+
+Under Linux, distribution packages should be available for all of them; otherwise you may have to use the "cpan" or "cpanp" utility.  The easiest way to install
+them under Windows is using the package manager of the Perl distribution if it
+provides one.  Otherwise you have to download them from their CPAN homepages
+and install them manually.
+
+
+Installing VHDocL
+------------------
+
+The archive of VHDocL contains an installer, the Perl script
+"install-vhdocl.pl".  It works for both Linux and Windows, but there are some
+differences.  It has the following options:
+
+-h  Print brief usage message
+-n  Runs the installer without actually installing anything, but prints all the
+    installation paths and messages as usual
+
+Installing on Linux
+--------------------
+
+For Linux it is sufficient to run "install-vhdocl.pl" without options.  The
+executable is then installed in /usr/local/bin, and other stuff in
+corresponding directories under /usr/local.  If /usr/local/bin is already in
+your PATH, no further action is necessary.
+
+If you want, you can choose a different installation directory (instead of
+/usr/local) or data directory (for HTML style data; see "install-vhdocl.pl -h"
+for how to do it).  In the latter case, you need to set the environment
+variable VHDOCL_DATADIR to that directory before using VHDocL.  (It makes sense
+to add that assignment to the system's global bashrc file.)  And of course the
+directory in which the executable is going to be located has to be in your PATH
+if you want to run it without an explicit path.
+
+Installing on Windows
+----------------------
+
+On Windows there is no default installation directory, so it always has to
+be given on the command line of the installer.  The data directory defaults to
+the "data" subdirectory of the installation directory.  The executable is
+installed both under its plain name and with the extension .pl, so the command
+"vhdocl.pl" automatically invokes the Perl interpreter if file associations are
+set correctly.  The environment variable VHDOCL_DATADIR has to be set always,
+best once and for all in the global system variables list.  The installer
+reminds you of this.
+
+In order to use VHDocL comfortably, you should add the installation directory
+(which is also the location of the executable) to the global PATH variable.
+This saves you always giving the path when running the command.
+
