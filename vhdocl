@@ -1154,6 +1154,40 @@ sub readcommalist
 }
 
 
+# Parse the sub-unit statements of a unit declaration.  The occurring sub-units
+# are arranged in one or several chains of equations in their order of
+# dependency.  Definitions of sub-units occurring in several chanins are not
+# repeated.
+# -> Reference to hash of units declaration
+# (<-) The "chains" entry is assigned an array ref containing the equation
+# chains.
+sub readunitlist
+{
+  my ($unitsdecl)= @_;
+  my %subunits;
+  my @order;
+  my %nothead;
+
+  while( 13 ) {
+    last unless readuntil( qr/;/ );
+    last if $vline =~ /^\s*\bend\b/;
+    last unless $vline =~ s/^\s*($ID)\s*=\s*(?:(\d(?:[^;]*[^;\s])?)\s+)?($ID)\s*;//o;
+    $subunits{$1}= [ defined($2)? $2 : "", $3 ];
+    push @order, $1;
+    $nothead{$3}= 1;
+  }
+  @{$unitsdecl->{"chains"}}= map [ $_ ], grep !$nothead{$_}, @order;
+  for my $chain (@{$unitsdecl->{"chains"}}) {
+    my $u= $chain;
+    while( $subunits{$$u[0]} ) {
+      push @$u, $subunits{$$u[0]}->[0], [ $subunits{$$u[0]}->[1] ];
+      undef $subunits{$$u[0]};
+      $u= $$u[2];
+    }
+  }
+}
+
+
 # Parse VHDL file (to some extent).
 # -> Reference to hash representing file.  It has to have a "type" entry and a 
 #    "name" entry giving the file name.
@@ -1436,6 +1470,8 @@ vhdlline:
           if( $newchild->{"definition"} =~ s/\s*\bunits\s+($ID)$//i ) {
             $newchild->{"type"}= $newchild->{"subtype"}= "units";
             $newchild->{"baseunit"}= $1;
+            readuntil( qr/;/ ) && $vline =~ s/^\s*;//;
+            readunitlist($newchild);
           }
           else {
             @newentries= ( $newchild );
@@ -3505,6 +3541,20 @@ sub printtypehtml
   elsif( $type->{"subtype"} eq "units" ) {
     print $handle marktype($type->{"definition"}), " ${SPWD}units$SP_ $SPID",
                   $type->{"baseunit"}, "$SP_</td></tr>\n";
+    for my $chain (@{$type->{"chains"}}) {
+      print $handle "<tr><td></td><td></td><td colspan=\"3\">";
+      my $u= $chain;
+      my $closeparens= "";
+      while( @$u > 1 ) {
+        print $handle "$SPID$$u[0]$SP_ = $$u[1] ";
+        $u= $$u[2];
+        if( @$u > 1 ) {
+          print $handle "( ";
+          $closeparens .= ")";
+        }
+      }
+      print $handle "$SPID$$u[0]$SP_ $closeparens</td></tr>\n";
+    }
   }
   elsif( $type->{"subtype"} =~ /^protected/i ) {
     print $handle "${SPWD}protected$SP_...</td></tr>\n";
