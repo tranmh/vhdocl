@@ -1783,13 +1783,14 @@ sub insertgit
   my $log= runat $dir, "git log -n 1 --format=medium $fname$devnull";
   return unless $log;
   my $commit= $1 if $log =~ /^commit\s+([0-9a-f]{40})\b/i;
-  my $date= $1 if $log =~ /^Date:\s+(.*)$/im;
-  my $author= $1 if $log =~ /^Author:\s+(.*)$/im;
+  my $date= html_esc($1) if $log =~ /^Date:\s+(.*)$/im;
+  my $author= html_esc($1) if $log =~ /^Author:\s+(.*)$/im;
   map { $$_= $date; } @{$places{"date"}} if $date && $places{"date"};
   map { $$_= $author; } @{$places{"author"}} if $author && $places{"author"};
   return unless $places{"version"} && $commit;
   my $rev= runat $dir, "git describe --tags --always $commit$devnull";
   $rev ||= $commit;
+  $rev= html_esc($rev);
   map { $$_= $rev; } @{$places{"version"}} if $rev && $places{"version"};
 }
 
@@ -2893,7 +2894,7 @@ EOF
       if( !$config{$item."url"} ) {
         my $destname= $config{"prefix"} . $item . "." . fileext($config{$item});
         if( ! copyfile($config{$item}, File::Spec->catfile($styledir, $destname)) ) {
-          print STDERR "Could not copy `", $config{$item}, "to style",
+          print STDERR "Could not copy `", $config{$item}, "' to style",
                     " directory.  Continuing regardless.\n"
             unless $config{"quiet"};
         }
@@ -3217,13 +3218,13 @@ sub printobjhtml
   if( $obj->{"doc"}->{"author"} ) {
     print $handle ($obj->{"doc"}->{"author"} =~ /,|;|\band\b/?
                                         "Authors: " : "Author: ");
-    print $handle html_esc($obj->{"doc"}->{"author"}), "<br>\n";
+    print $handle $obj->{"doc"}->{"author"}, "<br>\n";
   }
   print $handle "Date: ", $obj->{"doc"}->{"date"}, "<br>\n"
         if $obj->{"doc"}->{"date"};
-  print $handle "Version: ", html_esc($obj->{"doc"}->{"version"}), "<br>\n"
+  print $handle "Version: ", $obj->{"doc"}->{"version"}, "<br>\n"
         if $obj->{"doc"}->{"version"};
-  print $handle "ID: ", html_esc($obj->{"doc"}->{"id"}), "<br>\n"
+  print $handle "ID: ", $obj->{"doc"}->{"id"}, "<br>\n"
         if $obj->{"doc"}->{"id"};
   print $handle "</p>\n\n";
   if( $obj->{"doc"}->{"description"} && @{$obj->{"doc"}->{"description"}} ) {
@@ -3368,7 +3369,7 @@ sub entityhtml
   if( @{$ent->{"architectures"}} ) {
     print ENT "\n<h2>Architectures</h2>\n\n$STDTAB\n";
     map { print ENT "<h3><a href=\"../architectures/",
-            $_->{"docfilename"}, "\">", $_->{"name"}, "</h3>\n"; }
+            $_->{"docfilename"}, "\">", $_->{"name"}, "</a></h3>\n"; }
             @{$ent->{"architectures"}};
     print ENT "</table>\n\n";
   }
@@ -3378,7 +3379,7 @@ sub entityhtml
   if( @{$ent->{"configurations"}} ) {
     print ENT "\n<h2>Configurations</h2>\n\n$STDTAB\n";
     map { print ENT "<h3><a href=\"../configurations/",
-            $_->{"docfilename"}, "\">", $_->{"name"}, "</h3>\n"; }
+            $_->{"docfilename"}, "\">", $_->{"name"}, "</a></h3>\n"; }
             @{$ent->{"configurations"}};
     print ENT "</table>\n\n";
   }
