@@ -706,19 +706,16 @@ would also be interested in your design, or even better a simple test case.
 Instantiations without either a port map or a generic map are not supported.
 Positional association for generic maps is not supported.
 
-Records and unit declarations are recognised but not documented in detail.
-
 Nested declarations, such as functions inside functions, constants inside
 processes, etc. are parsed but not documented.
 
 The home page of VHDocL is L<http://www.volkerschatz.com/hardware/vhdocl.html>.
-Backfeed is welcome to the e-mail vhdocl at that domain.  (Hopefully this
-formulation will defeat the spambots.)
+Backfeed is welcome to the e-mail vhdocl at that domain.
 
 
 =head1 COPYRIGHT
 
-VHDocL is (c) 2007-2011 Volker Schatz, with enhancements by Minh Cuong Tran.
+VHDocL is (c) 2007-2012 Volker Schatz, with enhancements by Minh Cuong Tran.
 It is free software and may be redistributed and/or modified under the terms of
 the GNU General Public License, version 3 or later.
 
