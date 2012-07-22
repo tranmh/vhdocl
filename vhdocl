@@ -1458,8 +1458,9 @@ vhdlline:
                      "name", $name };
         if( $sub2 ) {
           $newchild->{"type"}= $sub2;
-          # This is only for recognising "end", will be undone later
+          # This "type" serves only for recognising "end", will be undone later
           if( $newchild->{"subtype"} eq "record" ) {
+            $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
             @newentries= readportlist("recordelement");
           }
         }
@@ -1470,8 +1471,10 @@ vhdlline:
           if( $newchild->{"definition"} =~ s/\s*\bunits\s+($ID)$//i ) {
             $newchild->{"type"}= $newchild->{"subtype"}= "units";
             $newchild->{"baseunit"}= $1;
+            $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
             readuntil( qr/;/ ) && $vline =~ s/^\s*;//;
             readunitlist($newchild);
+            $doccomment= "";
           }
           else {
             @newentries= ( $newchild );
@@ -3528,20 +3531,22 @@ sub printtypehtml
                 ($type->{"subtype"} eq "subtype"? "subtype": "type"),
                 "$SP_</td><td><a name=\"$label\"><b>$SPTYID", $type->{"name"},
                 "$SP_</b></a></td><td>${SPWD}is$SP_</td>\n<td>";
-  if( $type->{"subtype"} =~ /type$/ ) {
-    print $handle marktype($type->{"definition"}, $type), "</td></tr>\n";
-  }
-  elsif( $type->{"subtype"} eq "record" ) {
+  if( $type->{"subtype"} eq "record" ) {
     print $handle "${SPWD}record$SP_</td></tr>\n";
+    map { print $handle "<tr><td></td><td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n"; }
+                        @{$type->{"doc"}->{"description"}};
     if( my @elements= @{$type->{"children"} || []} ) {
-      print $handle "<tr><td></td><td></td><td colspan=\"3\">$STDTAB\n";
+      print $handle "<tr><td></td><td>Elements: </td><td colspan=\"3\">$STDTAB\n";
       map { printgenporthtml($handle, $_) } @elements;
       print $handle "</table></td></tr>\n";
     }
+    return;
   }
-  elsif( $type->{"subtype"} eq "units" ) {
+  if( $type->{"subtype"} eq "units" ) {
     print $handle marktype($type->{"definition"}), " ${SPWD}units$SP_ $SPID",
                   $type->{"baseunit"}, "$SP_</td></tr>\n";
+    map { print $handle "<tr><td></td><td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n"; }
+                        @{$type->{"doc"}->{"description"}};
     for my $chain (@{$type->{"chains"}}) {
       print $handle "<tr><td></td><td></td><td colspan=\"3\">";
       my $u= $chain;
@@ -3556,6 +3561,10 @@ sub printtypehtml
       }
       print $handle "$SPID$$u[0]$SP_ $closeparens</td></tr>\n";
     }
+    return;
+  }
+  if( $type->{"subtype"} =~ /type$/ ) {
+    print $handle marktype($type->{"definition"}, $type), "</td></tr>\n";
   }
   elsif( $type->{"subtype"} =~ /^protected/i ) {
     print $handle "${SPWD}protected$SP_...</td></tr>\n";
@@ -3563,7 +3572,7 @@ sub printtypehtml
   else {
     print $handle "???</td></tr>\n";
   }
-  map { print $handle "<tr><td></td><td colspan=\"3\">$SPDOC$_$SP_</td></tr>\n"; }
+  map { print $handle "<tr><td></td><td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
 }
 
