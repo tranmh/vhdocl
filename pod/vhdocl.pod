@@ -78,6 +78,12 @@ horizontal rule.
 Print brief usage message and the most important command-line options, then
 exit.  No processing will be done if this option is encountered.
 
+=item B<--homehtml>=I<file>
+
+Insert the HTML document I<file> into the home page of the documentation.
+I<file> may but need not be a complete HTML document.  If it is, only the part
+within the body tags will be copied, and the header will be discarded.
+
 =item B<--javasyntax>
 
 Generate JavaScript for syntax highlighting of source HTML pages instead of
@@ -162,7 +168,7 @@ the syntax C<entity(architecture)> and C<entity[configuration]>.  This option
 is not affected by B<--library>, so you have to give the library explicitly (as
 C<library.entity>) if it is something other than C<work>.
 
-=item B<--title>
+=item B<--title>=I<string>
 
 Title string to be printed at the top of every documentation file.  Intended
 to contain a brief description of the purpose of the design documented.  HTML
@@ -171,10 +177,12 @@ entities and markup are allowed, for example to print non-ASCII characters.
 =item B<--toplink>=[I<text|>]I<file.html>
 
 Gives a hyperlink to appear in the navigation bar of all generated HTML files.
-Intended for "interfacing" with other local documentation of which the
-generated design docs are part.  If present, the text before the vertical bar
-is used for the text of the hyperlink reference.  Be aware that your shell may
-try to interpret the vertical bar and escape it if necessary.
+That link replaces the one to the documentation home page, which will not be
+generated.  Intended for "interfacing" with other local documentation of which
+the generated design docs are part.  If present, the text before the vertical
+bar is used for the text of the hyperlink reference (the default is "Home").
+Be aware that your shell may try to interpret the vertical bar and escape it if
+necessary.
 
 =item B<--version>
 
@@ -183,11 +191,12 @@ encountered.
 
 =back
 
-Long options may be abbreviated.  Boolean-valued short options can be negated
-by replacing the "-" by a "+", long options by prepending "no" to the option
-name.  Options other than the B<-l>/B<--library> and B<-r>/B<--recursive>
-options can be mixed freely with input file names.  If the same option occurs
-several times, the last occurrence overrides the others.
+Long options may be abbreviated.  Their arguments may also be separated by
+spaces instead of C<=>.  Boolean-valued short options can be negated by
+replacing the "-" by a "+", long options by prepending "no" to the option name.
+Options other than the B<-l>/B<--library> and B<-r>/B<--recursive> options can
+be mixed freely with input file names.  For other options, the last of multiple
+occurrences overrides the others.
 
 
 =head1 USAGE
@@ -508,12 +517,14 @@ list every instantiated module only once, even when it is instantiated several
 times in the same parent module.  The hierarchy stops at recursive
 instantiations, if applicable.
 
-There is also an index.html in the output directory which links to the five
-pages mentioned above.  If a top-level URL is given  with the --toplink option,
-this is supposed to replace it, and index.html will not be generated.  The
-top-level declarations listed in the top-level HTML files are hyperlinked to
-the HTML files which describe them in detail, located in the accordingly named
-subdirectory of the output directory.  If a @brief/@short description is
+There is also a home page C<index.html> in the output directory which links to
+the five pages mentioned above.  The B<--homehtml> option allows to insert an
+existing HTML document into this page, for example a general description of the
+project.  If a top-level URL is given  with the B<--toplink> option, this is
+supposed to replace the home page, and C<index.html> will not be generated.
+The top-level declarations listed in the top-level HTML files are hyperlinked
+to the HTML files which describe them in detail, located in the accordingly
+named subdirectory of the output directory.  If a @brief/@short description is
 available, the top-level HTML files display it.
 
 All entities, architectures, configurations, packages and package bodies are

@@ -39,7 +39,7 @@ my $version= "? (use mkvhdocldist.sh and install-vhdocl.pl to install properly)"
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "compat" => 0, "cwd" => "", "psl" => 0, "parsedebug" => 0, "quiet" => 0, 
   "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
-  "title" => "", "footer" => "", "topmodules" => [] );
+  "homehtml" => "", "title" => "", "footer" => "", "topmodules" => [] );
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "nodeimg" => "node.png", "subtrimg" => "subtree.png",
@@ -273,6 +273,30 @@ sub copyfile
 }
 
 
+# Read an HTML file and cut out the HTML within <body> tags.
+# -> File name
+# <- HTML text
+sub gethtml
+{
+  my ($fname)= @_;
+  my $content;
+
+  return "" unless $fname;
+  if( !open(IN, "<$fname") ) {
+    print STDERR "Error: Could not open `$fname' for reading.  Ignoring --homehtml and generating empty home page.\n";
+    return "";
+  }
+  {
+    local $/;
+    $content= <IN>;
+  }
+  close IN;
+  $content =~ s/^.*<\s*body\b[^>]*>//is;
+  $content =~ s/<\/\s*body\b[^>]*>.*$//is;
+  return $content;
+}
+
+
 # Print file error messages at most three times, and print a note when
 # suppressing further error messages.
 # -> Error message
@@ -362,6 +386,7 @@ my @options= (
 [ "", "title", "*", "title" ],
 [ "", "footer", "*", "footer" ],
 [ "", "toplink", "/", "toplink" ],
+[ "", "homehtml", "/", "homehtml" ],
 [ "", "javasyntax", "?", "javasyntax" ],
 );
 
@@ -2908,6 +2933,8 @@ EOF
     }
   }
   if( $config{"toplink"} ) {
+    print STDERR "Warning: --homehtml is pointless when --toplink is present.  The home page will not be generated.\n"
+        if $config{"homehtml"} && !$config{"quiet"};
     $config{"toplink"} =~ s/^([^|]*)\|//;
     $config{"toplinktext"}= $1 || "Home";
     $config{"toplinkabs"}= $config{"toplink"} =~ /^\w+:\/\// ||
@@ -2926,7 +2953,8 @@ EOF
     my $fname= $config{"outputdir"} . "/" . $config{"toplink"};
     open INDEX, ">$fname" or croak "Could not create index.html.\n";
     printhtmlheader(*INDEX{IO}, "Home", 1);
-    print INDEX "<p></p>\n";
+    my $homecontent= gethtml($config{"homehtml"});
+    print INDEX ($homecontent ? "$homecontent\n<hr>\n" : "<p></p>\n");
     printhtmlfooter(*INDEX{IO}, 1);
     close INDEX;
   }
