@@ -925,23 +925,18 @@ sub markgit
 sub getgitmeta
 {
   return unless @gitfiles;
-  my @files= map $_->{"fname"}, @gitfiles;
-
   my @repos;
-  my @metadata;
-
   my $nocasefiles= File::Spec->case_tolerant();
 
 repofilename:
-  while( my ($fileind, $fname) = each @files ) {
-    $fname= File::Spec->rel2abs($fname);
+  for my $file (@gitfiles) {
+    my $fname= File::Spec->rel2abs($file->{"fname"});
     $fname= mycanonpath($fname);
     $fname= lc($fname) if $nocasefiles;
     for my $repo (@repos) {
       if( substr($fname, 0, length($repo->{"dir"})) eq $repo->{"dir"} ) {
-        push @{$repo->{"files"}}, File::Spec->abs2rel($fname, $repo->{"dir"});
-        push @{$repo->{"fileinds"}}, $fileind;
-        $gitfiles[$fileind]->{"haverepo"}= 1;
+        push @{$repo->{"files"}}, [ File::Spec->abs2rel($fname, $repo->{"dir"}), $file ];
+        $file->{"haverepo"}= 1;
         next repofilename;
       }
     }
@@ -952,9 +947,9 @@ repofilename:
       $basedir= "" unless defined $basedir;
       my $trydir= File::Spec->catpath($vol, $basedir, ".git");
       if( -d $trydir ) {
-        push @repos, { "dir" => $basedir, "fileinds" => [ $fileind ],
-          "files" => [ File::Spec->abs2rel($fname, $basedir) ] };
-        $gitfiles[$fileind]->{"haverepo"}= 1;
+        push @repos, { "dir" => File::Spec->catfile(@dirs, ""),
+            "files" => [ [ File::Spec->abs2rel($fname, $basedir), $file ] ] };
+        $file->{"haverepo"}= 1;
         last;
       }
       # assumes git repos are never at the top level of a drive on
@@ -972,18 +967,17 @@ repofilename:
     my (%comhashes, %hashprefix);
     my $comind= 0;
     my @tags= ( [ undef, undef ] );
-    $repo->{"filerev"}= [ (undef) x @{$repo->{"files"}} ];
     for my $commit (@commits) {
       my ($hash, $tag) = $commit =~ /^commit ([\da-fA-F]{40})(?:\s+\((?:[^,]*, )*tag:\s+([^ ,]+)(?:, [^,]*)*\))?/;
       push @{$hashprefix{substr($hash, 0, 7)}}, $hash;
       my $comrev;
-      while( my ($fileind, $fname) = each @{$repo->{"files"}} ) {
-        next if $repo->{"filerev"}->[$fileind];
-        next unless $commit =~ /^$fname$/m;
-        $repo->{"filerev"}->[$fileind]= $comrev, next if $comrev;
+      for my $repofile (@{$repo->{"files"}}) {
+        next if $repofile->[2];
+        next unless $commit =~ /^$repofile->[0]$/m;
+        $repofile->[2]= $comrev, next if $comrev;
         my ($author)= $commit =~ /^Author:\s+(.*)$/m;
         my ($date)= $commit =~ /^Date:\s+(.*)$/m;
-        $repo->{"filerev"}->[$fileind]= $comrev= 
+        $repofile->[2]= $comrev= 
             { "hash" => $hash, "prefix" => substr($hash, 0, 7),
               "index" => $comind, "tag" => $tags[-1],
               "author" => html_esc($author), "date" => html_esc($date) };
@@ -995,8 +989,9 @@ repofilename:
       }
       ++$comind;
     }
-    while( my ($ind, $frev) = each @{$repo->{"filerev"}} ) {
-      my $places= $gitfiles[$repo->{"fileinds"}->[$ind]]->{"places"};
+    for my $repofile (@{$repo->{"files"}}) {
+      my $places= $repofile->[1]->{"places"};
+      my $frev= $repofile->[2];
       map { $$_= $frev->{"author"} || "??"; } @{$places->{"author"}}
           if $places->{"author"};
       map { $$_= $frev->{"date"} || "??"; } @{$places->{"date"}}
