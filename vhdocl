@@ -1633,6 +1633,7 @@ vhdlline:
           # This "type" serves only for recognising "end", will be undone later
           if( $newchild->{"subtype"} eq "record" ) {
             $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
+            $doccomment= "";
             @newentries= readportlist("recordelement");
           }
         }
