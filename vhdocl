@@ -39,7 +39,8 @@ my $version= "? (use mkvhdocldist.sh and install-vhdocl.pl to install properly)"
 my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
   "compat" => 0, "cwd" => "", "psl" => 0, "parsedebug" => 0, "quiet" => 0, 
   "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
-  "homehtml" => "", "title" => "", "footer" => "", "topmodules" => [] );
+  "homehtml" => "", "title" => "", "footer" => "", "topmodules" => [],
+  "sourcelinks" => 1 );
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "nodeimg" => "node.png", "subtrimg" => "subtree.png",
@@ -409,6 +410,7 @@ my @options= (
 [ "", "toplink", "/", "toplink" ],
 [ "", "homehtml", "/", "homehtml" ],
 [ "", "javasyntax", "?", "javasyntax" ],
+[ "", "sourcelinks", "?", "sourcelinks" ],
 );
 
 
@@ -4310,7 +4312,8 @@ sub sourcehtml
   printhtmlheader(*SRCHTML{IO}, $file->{"name"});
   print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
-                                $file->{"link"}, "\">Link to file</a></p>\n";
+                                $file->{"link"}, "\">Link to file</a></p>\n"
+        if $config{"sourcelinks"};
   print SRCHTML "<table border=\"0\" cellpadding=\"0\"><tr><td><pre>\n";
   my $nrwidth= length($nlines);
   for my $nr (1..$nlines) {
@@ -4454,7 +4457,8 @@ EOF
   print SRCHTML $header;
   print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
-                                $file->{"link"}, "\">Link to file</a></p>\n";
+                                $file->{"link"}, "\">Link to file</a></p>\n"
+        if $config{"sourcelinks"};
   print SRCHTML "<table><tr><td><pre id=\"linenumbers\">\n";
   print SRCHTML "</pre></td><td><pre id=\"vhdlcode\" class=\"vhdlcode\">\n";
   while( <VHDL> )
@@ -4872,8 +4876,10 @@ sub sourcelisthtml
   print SOURCE "\n<table border=\"0\">\n";
   for my $file (@srclist) {
     print SOURCE "<tr><td><a href=\"sources/", $file->{"docfilename"}, "\">",
-                $file->{"name"}, "</a>&nbsp;&nbsp;&nbsp;</td><td><a href=\"",
-                $file->{"link"}, "\">[source file]</a></td></tr>\n";
+                $file->{"name"}, "</a>";
+    print SOURCE "&nbsp;&nbsp;&nbsp;</td><td><a href=\"" . $file->{"link"}, "\">[source file]</a>"
+        if $config{"sourcelinks"};
+    print SOURCE "</td></tr>\n";
   }
   print SOURCE "</table>\n";
   printhtmlfooter(*SOURCE{IO});

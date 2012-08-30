@@ -150,6 +150,14 @@ File name or URL of an image to put in the top right of every HTML page
 generated.  Intended for institute or company logos.  If this is a file, it
 will be copied to the documentation folder.
 
+=item B<--sourcelinks>
+
+Insert hyperlinks to each VHDL source file into its HTML page and the source
+overview.  This allows to edit the file with one click if you set your
+browser's file associations accordingly.  This option is enabled by default,
+but it may make sense to disable it, for example when the documentation is to
+be put on a web server.
+
 =item B<--stylesheet>=I<stylefile.css>
 
 File name or URL of a CSS stylesheet to reference in the headers of all
@@ -592,8 +600,9 @@ numbering.  This is done by assigning CSS classes to words and expressions in
 the code.  Their appearance is determined by a default CSS file and can be
 overridden in the user CSS file.  (The same applies to source code quoted in
 the documentation pages.)  The source file itself is hyperlinked from the
-source pages, so you can edit it by clicking on the link if you have the file
-associations of your browser set accordingly.
+source pages (unless you choose B<--nosourcelinks>), so you can edit it by
+clicking on the link if you have the file associations of your browser set
+accordingly.
 
 The following CSS classes are available for syntax markup:
 
