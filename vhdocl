@@ -3214,7 +3214,7 @@ my @VARWORDS= qw( constant signal variable file attribute );
 # for package use statements.
 my @DECLWORDS= qw( entity architecture configuration package body
 function procedure subtype type library component use );
-my @OTHERWORDS= qw( begin pure impure postponed guarded if then
+my @OTHERWORDS= qw( begin pure impure postponed guarded if then else
 elsif for generate while until loop next case when group exit block process
 array units record with port generic map open null all others range not and
 nand or xor xnor mod rem sla sll sra srl ror rol assert report severity 
