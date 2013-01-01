@@ -1,4 +1,11 @@
 
+0.2.4
+
+  - more efficient git support for versioning markup codes
+  - more detailed documentation of record and units types
+  - links to type definitions from occurrences of those types
+  - new options to include HTML in title page and disable links to source files
+
 0.2.3
 
  - file names in config files can now be quoted
