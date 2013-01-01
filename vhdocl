@@ -1920,7 +1920,7 @@ done:
   prune_all($file, "type", "loop");
   prune_all($file, "type", "if");
   prune_all($file, "type", "case");
-  map { $_->{"filename"}= $fname; $_->{"file"}= $file; } @{$file->{"children"}};
+  map { $_->{"filename"}= $fname; $_->{"file"}= $file; } @{$file->{"children"} ||= []};
   print STDERR "There were errors parsing $fname.  Continuing regardless.\n"
         if $errflag;
   markgit($file);
@@ -2291,7 +2291,7 @@ typeexprid:
         }
       }
       else {
-        ($typedef)= grep lc($_->{"name"}) eq $id, @{$obj->{"childtype"}->{"type"} || []};
+        ($typedef)= grep lc($_->{"name"}) eq $id, @{$obj->{"childtype"}->{"type"}};
         unless( $typedef ) {
           for my $use (@puses3) {
             my $selname= merge_selname($use->{"name"}, $id);
@@ -2382,6 +2382,7 @@ sub find_selname
   my ($name, $type, $prefix)= @_;
 
   if( $type ) {
+    return undef unless $selnames{$type};
     my $obj= $selnames{$type}->{lc($name)};
     return $obj if $obj && $obj != \$multiple;
     return ($obj ? 0 : undef) if !$prefix;
@@ -3523,12 +3524,12 @@ sub entityhtml
   printinstantiated(*ENT{IO}, $ent);
   print ENT "\n<hr>\n\n";
   printlibusehtml(*ENT{IO}, $ent);
-  if( my @gens= @{$ent->{"childtype"}->{"generic"} || []} ) {
+  if( my @gens= @{$ent->{"childtype"}->{"generic"}} ) {
     print ENT "\n<h2>Generics</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*ENT{IO}, $_) } @gens;
     print ENT "</table>\n\n";
   }
-  if( my @ports= @{$ent->{"childtype"}->{"port"} || []} ) {
+  if( my @ports= @{$ent->{"childtype"}->{"port"}} ) {
     print ENT "\n<h2>Ports</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*ENT{IO}, $_) } @ports;
     print ENT "</table>\n\n";
@@ -3618,7 +3619,7 @@ sub printfuncprochtml
   my @headwords;
   my $headline;
 
-  @funcprocs= @{$obj->{"childtype"}->{"funcproc"} || []};
+  @funcprocs= @{$obj->{"childtype"}->{"funcproc"}};
   return unless @funcprocs;
   push @headwords, "functions" if $obj->{"childtype"}->{"function"} &&
                                  @{$obj->{"childtype"}->{"function"}};
@@ -3970,18 +3971,18 @@ sub architecturehtml
   printinstantiated(*ARCH{IO}, $arch);
   print ARCH "\n<hr>\n\n";
   printlibusehtml(*ARCH{IO}, $arch);
-  if( my @types= @{$arch->{"childtype"}->{"type"} || []} ) {
+  if( my @types= @{$arch->{"childtype"}->{"type"}} ) {
     print ARCH "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
     map { printtypehtml(*ARCH{IO}, $_) } @types;
     print ARCH "</table>\n\n";
   }
-  if( my @consts= @{$arch->{"childtype"}->{"constant"} || []} ) {
+  if( my @consts= @{$arch->{"childtype"}->{"constant"}} ) {
     print ARCH "\n<h2>Constants</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*ARCH{IO}, $_) } @consts;
     print ARCH "</table>\n\n";
   }
   printfuncprochtml(*ARCH{IO}, $arch);
-  if( my @comps= @{$arch->{"childtype"}->{"component"} || []} ) {
+  if( my @comps= @{$arch->{"childtype"}->{"component"}} ) {
     print ARCH "\n<h2>Component declarations</h2>\n\n$STDTAB\n";
     map { printcomphtml(*ARCH{IO}, $_) } @comps;
     print ARCH "</table>\n\n";
@@ -4210,18 +4211,18 @@ sub packagehtml
     printobjhtml(*PACK{IO}, $pack);
     print PACK "\n<hr>\n\n";
     printlibusehtml(*PACK{IO}, $pack);
-    if( my @types= @{$pack->{"childtype"}->{"type"} || []} ) {
+    if( my @types= @{$pack->{"childtype"}->{"type"}} ) {
       print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
       map { printtypehtml(*PACK{IO}, $_) } @types;
       print PACK "</table>\n\n";
     }
-    if( my @consts= @{$pack->{"childtype"}->{"constant"} || []} ) {
+    if( my @consts= @{$pack->{"childtype"}->{"constant"}} ) {
       print PACK "\n<h2>Constants</h2>\n\n$STDTAB\n";
       map { printgenporthtml(*PACK{IO}, $_) } @consts;
       print PACK "</table>\n\n";
     }
     printfuncprochtml(*PACK{IO}, $pack);
-    if( my @comps= @{$pack->{"childtype"}->{"component"} || []} ) {
+    if( my @comps= @{$pack->{"childtype"}->{"component"}} ) {
       print PACK "\n<h2>Component declarations</h2>\n\n$STDTAB\n";
       map { printcomphtml(*PACK{IO}, $_) } @comps;
       print PACK "</table>\n\n";
@@ -4238,9 +4239,9 @@ sub packagehtml
     $pack= undef;
   }
   # Only document package body if it contains further declarations
-  unless( @{$pbody->{"childtype"}->{"type"} || []} ||
-          @{$pbody->{"childtype"}->{"funcproc"} || []} ||
-          @{$pbody->{"childtype"}->{"constant"} || []} ) {
+  unless( @{$pbody->{"childtype"}->{"type"}} ||
+          @{$pbody->{"childtype"}->{"funcproc"}} ||
+          @{$pbody->{"childtype"}->{"constant"}} ) {
     printhtmlfooter(*PACK{IO});
     close PACK;
     return;
@@ -4250,12 +4251,12 @@ sub packagehtml
   printobjhtml(*PACK{IO}, $pbody);
   print PACK "\n<hr>\n\n";
   printlibusehtml(*PACK{IO}, $pbody);
-  if( my @types= @{$pbody->{"childtype"}->{"type"} || []} ) {
+  if( my @types= @{$pbody->{"childtype"}->{"type"}} ) {
     print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
     map { printtypehtml(*PACK{IO}, $_) } @types;
     print PACK "</table>\n\n";
   }
-  if( my @consts= @{$pbody->{"childtype"}->{"constant"} || []} ) {
+  if( my @consts= @{$pbody->{"childtype"}->{"constant"}} ) {
     print PACK "\n<h2>Constants</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*PACK{IO}, $_) } @consts;
     print PACK "</table>\n\n";
@@ -4969,8 +4970,10 @@ my @alsotypes= qw(record units protected protectedbody);
 for my $lib (keys(%libraries)) {
   my $decls= $libraries{$lib};
   for (@$decls) {       # create these entries to avoid "undefined" warnings
+    $_->{"children"} ||= [];
     $_->{"allinstances"} ||= [];
     $_->{"allprocesses"} ||= [];
+    $_->{"allpsldefs"} ||= [];
   }
   my @ents= grep $_->{"type"} eq "entity", @$decls;
   $duplicate += uniq_objs(\@ents);
@@ -4999,9 +5002,9 @@ for my $lib (keys(%libraries)) {
   push @packages, @packs;
   push @packagebodies, @pbods;
   push @userdeclids, map lc($_->{"name"}),
-        map( ($_, @{$_->{"childtype"}->{"function"} || []},
-                  @{$_->{"childtype"}->{"procedure"} || []},
-                  @{$_->{"childtype"}->{"component"} || []},
+        map( ($_, @{$_->{"childtype"}->{"function"} ||= []},
+                  @{$_->{"childtype"}->{"procedure"} ||= []},
+                  @{$_->{"childtype"}->{"component"} ||= []},
                   @{$_->{"allinstances"}} ),
             (@archs, @packs, @pbods) );
   push @userdeclids, map lc($_->{"name"}), grep $_->{"name"},
@@ -5019,7 +5022,9 @@ for my $lib (keys(%libraries)) {
       push @{$obj->{"childtype"}->{"type"}}, @{$obj->{"childtype"}->{$ty}};
       undef $obj->{"childtype"}->{$ty};
     }
-    push @usertypes, map lc($_->{"name"}), @{$obj->{"childtype"}->{"type"} || []};
+    push @usertypes, map lc($_->{"name"}), @{$obj->{"childtype"}->{"type"} ||= []};
+    $obj->{"childtype"}->{"constant"} ||= [];
+    $obj->{"childtype"}->{"funcproc"} ||= [];
   }
 }
 
@@ -5050,11 +5055,13 @@ for my $ent (@entities)
           grep lc($_->{"objname"}) eq lc($ent->{"fullname"}), @configurations;
   map $_->{"entity"}= $ent, @{$ent->{"configurations"}};
 
+  $ent->{"childtype"}->{"generic"} ||= [];
+  $ent->{"childtype"}->{"port"} ||= [];
   # Assign @generic and @port docs to their declarations if legacy mode is on
   if( $config{"compat"} )
   {
-    my @gens= @{$ent->{"childtype"}->{"generic"} || []};
-    my @ports= @{$ent->{"childtype"}->{"port"} || []};
+    my @gens= @{$ent->{"childtype"}->{"generic"}};
+    my @ports= @{$ent->{"childtype"}->{"port"}};
     if( @gens ) {
       # Copy generic documentation from the entity docs to its generic(s)
       for my $docname (keys(%{$ent->{"doc"}->{"generic"}})) {
@@ -5212,18 +5219,18 @@ for my $file (@vhdlfiles)
 
 # Resolve the user-defined types in all kinds of declarations
 for my $obj (@architectures, @packages, @packagebodies) {
-  my @typed= (@{$obj->{"childtype"}->{"constant"} || []},
-              @{$obj->{"childtype"}->{"type"} || []},
+  my @typed= (@{$obj->{"childtype"}->{"constant"}},
+              @{$obj->{"childtype"}->{"type"}},
               grep( $_->{"type"} eq "recordelement",
                     map( ( @{$_->{"children"} || []} ),
                          grep( $_->{"subtype"} eq "record",
-                               @{$obj->{"childtype"}->{"type"} || []} ))) );
+                               @{$obj->{"childtype"}->{"type"}} ))) );
   resolve_types($obj, @typed);
 }
 
 for my $ent (@entities) {
-  resolve_types($ent, @{$ent->{"childtype"}->{"port"} || []},
-                      @{$ent->{"childtype"}->{"generic"} || []} );
+  resolve_types($ent, @{$ent->{"childtype"}->{"port"}},
+                      @{$ent->{"childtype"}->{"generic"}} );
 }
 
 
@@ -5232,7 +5239,7 @@ for my $ent (@entities) {
 for my $arch (@architectures, @orphanedarchs)
 {
   my @topuses= reverse grep $_->{"subtype"} eq "package", @{$arch->{"uses"}};
-  my @comps= @{$arch->{"childtype"}->{"component"} || []};
+  my @comps= @{$arch->{"childtype"}->{"component"}};
   # Assign default binding to component declarations
   map { $_->{"binding"}= find_selname($_->{"name"}, "entity",
                                       $arch->{"libname"}); } @comps;
