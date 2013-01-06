@@ -26,6 +26,7 @@ use File::Find;
 use File::Copy;
 use Digest::MD5;
 use Cwd 'abs_path';
+# use Data::Dumper;
 
 # Obtaining the modules:
 # Cwd and File::Spec from http://search.cpan.org/~smueller/PathTools/
@@ -4198,7 +4199,7 @@ sub packagehtml
   if( $pack->{"type"} eq "package" ) {
     $pbody= $pack->{"packagebody"};
     if( $pbody ) {
-      my ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts);
+      my ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts)= ( [], [], [], [] );
       for my $f (@{$pbody->{"childtype"}->{"function"}}) {
         my $el= elem { packsubeq($_, $f) } @{$pack->{"childtype"}->{"function"}};
         if( $el ) {
@@ -5002,6 +5003,7 @@ for my $lib (keys(%libraries)) {
   my $decls= $libraries{$lib};
   for (@$decls) {       # create these entries to avoid "undefined" warnings
     $_->{"children"} ||= [];
+    $_->{"childtype"} ||= {};
     $_->{"allinstances"} ||= [];
     $_->{"allprocesses"} ||= [];
     $_->{"allpsldefs"} ||= [];
