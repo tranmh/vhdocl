@@ -99,7 +99,7 @@ if( !$noop ) {
 
 print $noop? "Rerun without -n to install to these directories.\n" : "Done.\n";
 
-if( $^O eq "MSWin32" ) {
+if( $^O eq "MSWin32" && (!defined($ENV{"VHDOCL_DATADIR"}) || lc($ENV{"VHDOCL_DATADIR"}) ne lc($datadir)) ) {
     print <<EOF;
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 To complete the install, define the environment variable VHDOCL_DATADIR as
@@ -113,7 +113,8 @@ not have administrator privileges or want to install it only for yourself.
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 EOF
 }
-elsif( $datadir ne "/usr/local/share/vhdocl" && $datadir ne "/usr/share/vhdocl" ) {
+elsif( $datadir ne "/usr/local/share/vhdocl" && $datadir ne "/usr/share/vhdocl"
+       && (!defined($ENV{"VHDOCL_DATADIR"}) || $ENV{"VHDOCL_DATADIR"} ne $datadir) ) {
     print <<EOF;
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 To complete the install, define the environment variable VHDOCL_DATADIR as
