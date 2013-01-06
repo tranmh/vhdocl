@@ -339,6 +339,23 @@ sub limitfileerr
 }
 
 
+# Concatenate a word list, separated by a comma and a space, but with the last
+# two words separated by a given string instead.
+# -> String between last two words, including surrounding spaces if applicable
+#    List of words
+sub cswordlist
+{
+  my ($conj, @words)= @_;
+
+  if( @words > 1 ) {
+    return join(", ", @words[0..$#words-1]) . $conj . $words[-1];
+  }
+  elsif( @words ) {
+    return $words[0];
+  }
+}
+
+
 # Another auxiliary function which exits the program with return value 1 after
 # optionally printing a message to STDERR.  Akin to die but without the silly
 # line number output which users don't have any use for.
@@ -2105,39 +2122,53 @@ sub prune_all
 # library.  They are considered equivalent if their names are equal and (for
 # architectures and configurations) if their entity has the same name.  A
 # warning is printed if there are duplicates and unless $config{"quiet"}.
-# -> Reference to the array
+# -> Reference to the array of objects
 # <- 1 if elements were removed
 sub uniq_objs
 {
   my ($ary)= @_;
   return 0 unless @$ary;
   my $type= $ary->[0]->{"type"};
-  my $archtype= $type eq "architecture" || $type eq "configuration";
+  my %byname;
   my $removed= 0;
 
-  for my $elem (@$ary) {
-    for my $elem2 (@$ary) {
-      next unless defined($elem2);
-      last if $elem2 == $elem;
-      if( lc($elem->{"name"}) eq lc($elem2->{"name"}) ) {
-        next if $archtype && lc($elem->{"objname"}) ne lc($elem2->{"objname"});
-        unless( $config{"quiet"} ) {
-          print STDERR ucfirst($type), " ", $elem->{"name"};
-          print STDERR " of ", $elem->{"objname"} if $archtype;
-          print STDERR " was found twice";
-          if( $elem->{"filename"} ne $elem2->{"filename"} ) {
-            print STDERR ", in ", $elem2->{"filename"}, " and ",
-                        $elem->{"filename"}, ".  Discarding the one from ",
-                        $elem->{"filename"}, ".\n";
-          }
-          else {
-            print STDERR " in ", $elem->{"filename"}, ".\n";
-          }
-        }
-        $elem= undef;
+  if( $type eq "architecture" || $type eq "configuration" ) {
+    my $ind= 0;
+    for my $elem (@$ary) {
+      push @{$byname{lc($elem->{"name"})}->{lc($elem->{"objname"})}}, $ind;
+      ++$ind;
+    }
+    for my $name (keys %byname) {
+      for my $objname (keys %{$byname{$name}}) {
+        my @all= @{$byname{$name}->{$objname}};
+        next unless @all > 1;
+        print STDERR ucfirst($type), " ", $$ary[$all[0]]->{"name"},
+             " of ", $$ary[$all[0]]->{"objname"}, " was found ",
+             @all > 2 ? (0+@all)." times" : "twice", ":  in",
+             cswordlist(" and ", map $$ary[$_]->{"filename"}, @all),
+             ".  Keeping the one from ", $$ary[$all[0]]->{"filename"}, ".\n"
+            unless $config{"quiet"};
+        @$ary[@all[1..$#all]]= (undef) x $#all;
         $removed= 1;
-        last;
       }
+    }
+  }
+  else {
+    my $ind= 0;
+    for my $elem (@$ary) {
+      push @{$byname{lc($elem->{"name"})}}, $ind;
+      ++$ind;
+    }
+    for my $name (keys %byname) {
+      my @all= @{$byname{$name}};
+      next unless @all > 1;
+      print STDERR ucfirst($type), " ", $$ary[$all[0]]->{"name"}, " was found ",
+           @all > 2 ? (0+@all)." times" : "twice", ":  in",
+           cswordlist(" and ", map $$ary[$_]->{"filename"}, @all),
+           ".  Keeping the one from ", $$ary[$all[0]]->{"filename"}, ".\n"
+          unless $config{"quiet"};
+      @$ary[@all[1..$#all]]= (undef) x $#all;
+      $removed= 1;
     }
   }
   @$ary= grep defined($_), @$ary;
