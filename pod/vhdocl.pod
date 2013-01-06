@@ -416,13 +416,14 @@ the "big five" top-level declarations (entities, architectures, configurations,
 packages and package bodies) can have descriptions.  (They, and only they, may
 contain special markup codes described below.)  So can ports, generics,
 library and use statements.  Within architectures and packages, constants,
-functions, procedures and component declarations can be documented.  Likewise
-generate and block statements, processes and instantiations inside
-architectures and for ...  use statements in architectures and configurations.
-Local declarations of constants, functions etc. within other functions,
-generate statements of similar declarations with their own declarative part
-cannot be documented and will not be output to the generated HTML pages.  See
-L</OUTPUT> below for a description of what VHDocL generates.
+functions, procedures and component and type declarations (including records
+and units) can be documented.  Likewise generate and block statements,
+processes and instantiations inside architectures and for ...  use statements
+in architectures and configurations.  Local declarations of constants,
+functions etc. within other functions, generate statements of similar
+declarations with their own declarative part cannot be documented and will not
+be output to the generated HTML pages.  See L</OUTPUT> below for a description
+of what VHDocL generates.
 
 The description of entities, architectures, configurations, packages and
 package bodies can contain the following markup codes, which are similar to
@@ -502,12 +503,11 @@ Recent versions of VHDocL support a similar feature for sources stored in a git
 repository.  If the text after a @date, @version, @id or @author markup is just
 "$git$", VHDocL runs a git command on the source file to obtain that
 information.  The date, version and author is from the most recent revision of
-the file according to C<git log>; the version is made more readable by C<git
-describe>.  The file ID is determined by C<git hash-object>.  The same caveats
-as for SVN apply: The author of the most recent revision is not necessarily
-what you want, and a design unit may not be modified even if its file was.
-Also be aware that use of this feature can slow VHDocL down considerably, as
-multiple git commands may have to be run for each file.
+the file according to C<git whatchanged>; the version is made more readable by
+C<git describe>.  The file ID is determined by C<git hash-object>.  The same
+caveats as for SVN apply: The author of the most recent revision is not
+necessarily what you want, and a design unit may not be modified even if its
+file was.
 
 
 =head1 OUTPUT
