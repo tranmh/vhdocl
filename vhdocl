@@ -1649,7 +1649,7 @@ vhdlline:
         $newchild= { "type", "type", "subtype", lc($sub2 || $sub),
                      "name", $name };
         if( $sub2 ) {
-          $newchild->{"type"}= $sub2;
+          $newchild->{"type"}= lc($sub2);
           # This "type" serves only for recognising "end", will be undone later
           if( $newchild->{"subtype"} eq "record" ) {
             $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
