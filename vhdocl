@@ -1419,7 +1419,8 @@ sub parsefile
   my $label= "";
   my ($lastdoccom, $keepdoctype);
 
-  ($vline, $doccomment, $aheaddoccom, $keepdoccom, $keepaheaddoc)= ("") x 5;
+  ($vline, $doccomment, $aheaddoccom, $lastdoccom, $keepdoctype)= ("") x 5;
+  ($keepdoccom, $keepaheaddoc)= (0, 0);
   open($vhandle, $fname) or croak "Could not open $fname!  Aborting.";
   print "Parsing $fname...\n" unless $config{"quiet"};
   benchmark() if $config{"benchmark"};
@@ -1854,6 +1855,7 @@ vhdlline:
     else {
 skipnext:
       skipstatement() or last vhdlline;
+      $keepdoccom= 0;
       next vhdlline;
     }
     if( $newchild ) {
@@ -1881,7 +1883,7 @@ skipnext:
     if( @newentries ) {
       if( !$doccomment && $keepdoccom ) {
         $keepdoccom= 0 unless $newentries[0]->{"type"} eq $keepdoctype;
-        $doccomment ||= $lastdoccom if $keepdoccom;
+        $doccomment= $lastdoccom if $keepdoccom;
       }
       if( $doccomment && !($config{"compat"} && !@parsestack) ) {
         if( $keepdoccom ) {
