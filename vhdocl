@@ -1139,6 +1139,7 @@ sub preprocessline
 
 # Skip until first semicolon outside string literals and comments.
 # (<->) $vline: Remainder of current code line
+# <- 0 on end of file, otherwise 1
 sub skipstatement
 {
   my $comment;
@@ -1150,11 +1151,13 @@ sub skipstatement
       $comment= $2;
       if( $vline =~ s/^(?:|$STUFF);//o ) {
         $vline .= $comment if $vline !~ /^\s*$/ && defined($comment);
-        return;
+        return 1;
       }
     }
     $vline= <$vhandle>;
   }
+  $vline= "";
+  return 0;
 }
 
 
@@ -1746,7 +1749,7 @@ vhdlline:
         my $genmap= [];
         readcommalist($genmap);
         @newentries= ( { "type", "genericmap", "map", $genmap } );
-        skipstatement();
+        skipstatement() or last vhdlline;
         if( $parent->{"children"} && @{$parent->{"children"}} ) {
           $parent->{"children"}->[-1]->{"genericmap"}= $newentries[0];
         }
@@ -1850,7 +1853,7 @@ vhdlline:
     }
     else {
 skipnext:
-      skipstatement();
+      skipstatement() or last vhdlline;
       next vhdlline;
     }
     if( $newchild ) {
