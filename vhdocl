@@ -2145,7 +2145,7 @@ sub uniq_objs
         next unless @all > 1;
         print STDERR ucfirst($type), " ", $$ary[$all[0]]->{"name"},
              " of ", $$ary[$all[0]]->{"objname"}, " was found ",
-             @all > 2 ? (0+@all)." times" : "twice", ":  in",
+             @all > 2 ? (0+@all)." times" : "twice", ":  in ",
              cswordlist(" and ", map $$ary[$_]->{"filename"}, @all),
              ".  Keeping the one from ", $$ary[$all[0]]->{"filename"}, ".\n"
             unless $config{"quiet"};
@@ -2164,7 +2164,7 @@ sub uniq_objs
       my @all= @{$byname{$name}};
       next unless @all > 1;
       print STDERR ucfirst($type), " ", $$ary[$all[0]]->{"name"}, " was found ",
-           @all > 2 ? (0+@all)." times" : "twice", ":  in",
+           @all > 2 ? (0+@all)." times" : "twice", ":  in ",
            cswordlist(" and ", map $$ary[$_]->{"filename"}, @all),
            ".  Keeping the one from ", $$ary[$all[0]]->{"filename"}, ".\n"
           unless $config{"quiet"};
