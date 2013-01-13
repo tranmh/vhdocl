@@ -1417,7 +1417,7 @@ sub parsefile
   my $parent= $file;
   my $inconfiguration= 0;
   my $label= "";
-  my ($lastdoccom, $keepdoctype);
+  my ($prevlevel, $lastdoccom, $keepdoctype);
 
   ($vline, $doccomment, $aheaddoccom, $lastdoccom, $keepdoctype)= ("") x 5;
   ($keepdoccom, $keepaheaddoc)= (0, 0);
@@ -1476,11 +1476,31 @@ vhdlline:
               print STDERR "\"end $enditem\" does not match beginning of block \"",
                             $lastlevel->{"type"};
               print STDERR " ", $lastlevel->{"name"} if $lastlevel->{"name"}; 
-              print STDERR "\" on or before line $. in $fname.\n";
+              print STDERR "\" on or before line $. in $fname.";
+            }
+            # Try to find declaration matching current end statement in parsing
+            # stack and previous (deeper) level.  Resynchronise the stack if
+            # the result is unique.
+            my @matchinds= grep $parsestack[$_]->{"type"} eq $enditem || lc($parsestack[$_]->{"name"} || "") eq $enditem, (0..$#parsestack);
+            if( !@matchinds && $prevlevel &&
+                ($prevlevel->{"type"} eq $enditem || lc($prevlevel->{"name"} || "") eq $enditem) ) {
+              push @parsestack, $lastlevel;
+              $lastlevel= $prevlevel;
+              print STDERR "  Resynchronising to previous \"end $enditem\".\n"
+                unless $config{"quiet"};
+            }
+            elsif( @matchinds == 1 ) {
+              ($lastlevel)= splice(@parsestack, $matchinds[0]);
+              print STDERR "  Resynchronising to outer $$lastlevel{type} block.\n"
+                unless $config{"quiet"};
+            }
+            else {
+              print STDERR "\n" unless $config{"quiet"};
             }
           }
           $inconfiguration= 0 if $parent->{"type"} eq "configuration";
           $parent= $lastlevel->{"backtrack"};
+          $prevlevel= $lastlevel;
           if( $parsdbg ) {
             print "$.: backtracking to ", $parent->{"type"};
             print " ", $parent->{"name"} if $parent->{"name"};
@@ -1872,6 +1892,7 @@ skipnext:
       push @parsestack, { "backtrack", $parent, 
               "type", $newchild->{"type"}, "name", $newchild->{"name"},
               "uses" => [ @parsestack ? @{$parsestack[-1]->{"uses"}} : () ] };
+      $prevlevel= undef;
       $inconfiguration= 1 if $newchild->{"type"} eq "configuration";
       $parent= $newchild;
       if( $parsdbg ) {
