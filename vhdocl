@@ -26,12 +26,14 @@ use File::Find;
 use File::Copy;
 use Digest::MD5;
 use Cwd 'abs_path';
+use Socket;
 # use Data::Dumper;
 
 # Obtaining the modules:
 # Cwd and File::Spec from http://search.cpan.org/~smueller/PathTools/
 # File::Path from http://search.cpan.org/~dland/File-Path/
 # Digest::MD5 from http://search.cpan.org/~gaas/Digest-MD5/
+# Socket from http://search.cpan.org/~pevans/Socket/
 # File::Copy from Perl distribution
 # Time::HiRes (for --benchmark) from http://search.cpan.org/~zefram/Time-HiRes/
 
@@ -370,6 +372,22 @@ sub croak
 }
 
 
+# Count the 1 bits in an integer.
+# -> Integer
+# <- Bit count
+sub countbits
+{
+    my $bits= shift;
+    my $count;
+
+    while( $bits ) {
+        ++$count if $bits & 1;
+        $bits >>= 1;
+    }
+    return $count;
+}
+
+
 {
 my $starttime;
 
@@ -419,6 +437,7 @@ my @options= (
 [ "q", "quiet", "?", "quiet" ],
 [ "c", "cellpadding", "#", "cellpadding" ],
 [ "i", "indentation", "#", "indentation" ],
+[ "j", "jobs", "#", "jobs" ],
 [ "m", "compatibility", "?", "compat" ],
 [ "", "stylesheet", "/", "stylesheet" ],
 [ "", "leftlogo", "/", "leftlogo" ],
@@ -2000,6 +2019,52 @@ sub packsubeq
           (defined($pa->{"value"}) && codecmp($pa->{"value"}, $pb->{"value"}));
   }
   return 1;
+}
+
+
+# Set maximum message size and default number of tasks for parallel parsing.
+# Returns immediately if parallel parsing is disabled.
+sub prepareparallel
+{
+  my $msg="x" x 256;
+  my $sent;
+
+  return if defined($config{"jobs"}) && !$config{"jobs"};
+
+  # Find maximum message size for socketpair by trial and error:
+  if( ! eval { socketpair(SEND, RECV, AF_UNIX, SOCK_DGRAM, PF_UNSPEC) } ) {
+    print STDERR "Cannot use multiple parsing tasks because the socketpair function is not available.  Parsing sequentially.\n"
+      if $config{"jobs"} && !$config{"quiet"};
+    $config{"jobs"}= 0;
+    return;
+  }
+  while( length($msg) < 0x1000000 && 
+      defined($sent= send(SEND, $msg, 0)) && $sent == length($msg) ) {
+    recv(RECV, $_, length($msg), 0);
+    $msg .= $msg;
+  }
+  my $eighth= length($msg) / 4;
+  substr($msg, -$eighth)= "";
+  for (1, 2, 3)  {
+    $sent= send(SEND, $msg, 0);
+    if( defined($sent) && $sent == length($msg) ) {
+      recv(RECV, my $dummy, length($msg), 0);
+      last;
+    }
+    substr($msg, -$eighth)= "";
+  }
+  $config{"maxmsgsize"}= length($msg);
+
+  if( !defined($config{"jobs"}) ) {
+    if( $^O ne "MSWin32" && $^O ne "MacOS" ) {
+      my $tsbits= `taskset -p $$`;
+      $tsbits =~ s/^.*:\s+//;
+      $config{"jobs"}= $? == 0 ? countbits($tsbits) : 3;
+    }
+    else {
+      $config{"jobs"}= 3;
+    }
+  }
 }
 
 
@@ -4975,7 +5040,7 @@ unless( @vhdlfiles ) {
 }
 
 prepareoutput();
-
+prepareparallel();
 
 # This is the only data structure relating to declarative items which does not
 # conform to our canonical format (see parsefile()).  %libraries is a hash
