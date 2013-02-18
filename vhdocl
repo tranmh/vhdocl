@@ -27,6 +27,7 @@ use File::Copy;
 use Digest::MD5;
 use Cwd 'abs_path';
 use Socket;
+use Storable;
 # use Data::Dumper;
 
 # Obtaining the modules:
@@ -385,6 +386,56 @@ sub countbits
         $bits >>= 1;
     }
     return $count;
+}
+
+
+# Send data structure over a socket after serialising it using Storable.  Large
+# data are split into multiple transmissions to be suitable for datagram
+# sockets.
+# -> Socket handle reference
+#    Hash or array references (no non-ref scalars, since Storable does not
+#    work on those)
+# <- 1 OK, 0 error
+sub senddata
+{
+  my ($sock, @refs)= @_;
+  my $msg;
+  my $sent;
+
+  for my $dataref (@refs) {
+    $msg= Storable::freeze($dataref);
+    while( length($msg) >= $config{"maxmsgsize"} ) {
+      $sent= send($sock, substr($msg, 0, $config{"maxmsgsize"}), 0);
+      return 0 unless defined($sent) && $sent == $config{"maxmsgsize"};
+      substr($msg, 0, $config{"maxmsgsize"})= "";
+    }
+    $sent= send($sock, $msg, 0);
+    return 0 unless defined($sent) && $sent == length($msg);
+  }
+  return 1;
+}
+
+
+# Receive data from a (datagram) socket, reassemble large data split by
+# senddata and deserialise it using Storable::thaw().
+# -> Socket handle reference
+# <- Reference to deserialised data structure or undef if an error occurred or
+#    if the socket has been set to non-blocking operation and no data was
+#    available
+sub recvdata
+{
+  my ($sock)= @_;
+  my ($data, $newdata, $status);
+
+  $status= recv($sock, $newdata, $config{"maxmsgsize"}, 0);
+  return undef unless defined($status);
+  $data= $newdata;
+  while( length($newdata) == $config{"maxmsgsize"} ) {
+    $status= recv($sock, $newdata, $config{"maxmsgsize"}, 0);
+    return undef unless defined($status);
+    $data .= $newdata;
+  }
+  return Storable::thaw($data);
 }
 
 
@@ -2065,6 +2116,127 @@ sub prepareparallel
       $config{"jobs"}= 3;
     }
   }
+}
+
+
+# Worker task used when parallelising parsing.  Receives serialised file hashes
+# containing the file name, calls parsefile() and serialises the completed file
+# hashes and transmits them back.
+# -> Task index (unused, possibly usable for error messages)
+#    Socket connected to main task (controller)
+sub parsetask
+{
+  my ($taskind, $sock)= @_;
+
+  while( 13 ) {
+    my $file= recvdata($sock);
+    last if $file->{"die"} && $file->{"die"} eq "yes, really";
+    parsefile($file);
+    senddata($sock, $file);
+  }
+}
+
+
+{
+my @parsetasks;
+my $recvsockmask;
+
+# Fork parsing tasks.  Hash references containing the process ID and
+# communication socket are added to @parsetasks.
+sub createtasks
+{
+  $recvsockmask= "";
+  for my $ind (0..$config{"jobs"}-1)
+  {
+    my ($workersock, $controlsock);
+    if( !eval { socketpair($workersock, $controlsock, AF_UNIX, SOCK_DGRAM, PF_UNSPEC) } ) {
+      print STDERR "Could not create socketpair for communication with parsing task $ind.  Terminating.\n";
+      killslaves();
+      exit 1;
+    }
+    my $pid= fork();
+    if( !defined($pid) ) {
+      print STDERR "Could not fork parsing task $ind.  Terminating.\n";
+      killslaves();
+      exit 1;
+    }
+    if( !$pid ) {       # forked slave process
+      close $controlsock;
+      @parsetasks= ();
+      parsetask($ind, $workersock);
+      exit(0);
+    }
+    close $workersock;
+    push @parsetasks,
+      { "socket" => $controlsock, "fileno" => fileno($controlsock), "pid" => $pid };
+    vec($recvsockmask, $parsetasks[-1]->{"fileno"}, 1)= 1;
+  }
+}
+
+
+# Send a value to all worker tasks to tell them to terminate.
+sub destroytasks
+{
+  for my $ind (0..$#parsetasks) {
+    senddata($parsetasks[$ind]->{"socket"}, { "die" => "yes, really" });
+  }
+  @parsetasks= ();
+}
+
+
+# Test whether any of the parsing tasks has finished its current file by
+# checking if the socket file descriptors are readable.
+# <- Index of the first task that has completed parsing its file, or undef
+sub parsedone
+{
+  my $donemask= $recvsockmask;
+
+  return undef unless select($donemask, undef, undef, undef);
+  for my $ind (0..$#parsetasks) {
+    return $ind if vec($donemask, $parsetasks[$ind]->{"fileno"}, 1);
+  }
+  return undef;
+}
+
+
+my $parsefileind;
+
+# Parse a list of VHDL files and return them one at a time.
+sub parsenext
+{
+  my ($files)= @_;
+
+  if( $config{"jobs"} == 0 ) {
+    $parsefileind= 0 unless defined $parsefileind;
+    return undef if $parsefileind > $#$files;
+    parsefile($$files[$parsefileind]);
+    ++$parsefileind;
+    return $parsefileind - 1;
+  }
+  else {
+    if( !defined($parsefileind) ) {
+      createtasks();
+      $parsefileind= 0;
+    }
+    my $inprogress= 0;
+    for my $task (@parsetasks) {
+      if( !defined($task->{"fileind"}) && $parsefileind < @$files ) {
+        senddata($task->{"socket"}, $$files[$parsefileind]);
+        $task->{"fileind"}= $parsefileind;
+        ++$parsefileind;
+      }
+      ++$inprogress if defined $task->{"fileind"};
+    }
+    return undef unless $inprogress;
+    my $donetaskind;
+    do { $donetaskind= parsedone(); } while( ! defined $donetaskind );
+    my $donefileind= $parsetasks[$donetaskind]->{"fileind"};
+    $$files[$donefileind]= recvdata($parsetasks[$donetaskind]->{"socket"});
+    $parsetasks[$donetaskind]->{"fileind"}= undef;
+    return $donefileind;
+  }
+}
+
 }
 
 
@@ -5051,8 +5223,8 @@ my %libraries;
 {
 my %docfilenames;
 
-for my $file (@vhdlfiles) {
-  parsefile($file);
+while( defined(my $fileind= parsenext(\@vhdlfiles)) ) {
+  my $file= $vhdlfiles[$fileind];
   push @{$libraries{lc($file->{"libname"})}}, @{$file->{"children"}};
   my $trunkname;
   (undef, undef, $trunkname)= File::Spec->splitpath($file->{"name"});
