@@ -5835,3 +5835,4 @@ benchmark("to generate HTML") if $config{"benchmark"};
 
 exit 0;
 
+# vim: set ts=2 sw=2 et:
