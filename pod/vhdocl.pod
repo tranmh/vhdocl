@@ -91,6 +91,15 @@ generating marked-up pages directly.  This will save some CPU time and may
 therefore be faster for large designs.  On the downside, there will be a delay
 loading the HTML pages of large source files as the browser processes them.
 
+=item B<-j> I<n>, B<--jobs>=I<n>
+
+Use I<n> tasks to parse source files in parallel.  I<n>=0 disables forking
+worker tasks for parsing.  The default (when no B<-j> option is provided) is
+the number of bits in the mask returned by C<taskset -p> on Linux, or 3 on
+other systems.  This option is useful mainly when the VHDL sources are located
+on a fast SSD or a RAM disk, so that parsing speed is limited by CPU speed, not
+disk IO.
+
 =item B<--leftlogo>=I<image>
 
 File name or URL of an image to put in the top left of every HTML page
