@@ -1456,6 +1456,8 @@ sub readunitlist
 # Parse VHDL file (to some extent).
 # -> Reference to hash representing file.  It has to have a "type" entry and a 
 #    "name" entry giving the file name.
+#    Optional IO reference to use instead of STDERR (used to prevent
+#    interleaving of messages from different files when parallel parsing)
 # (<-) All top-level declarative items found in the file are entered into the
 #    file object's "children" entry which is an array reference.  All children
 #    receive entries "file" and "filename" which contain a reference to the
@@ -1477,7 +1479,7 @@ sub readunitlist
 # resulting array reference is stored in the item's "doc" entry.
 sub parsefile
 {
-  my ($file)= @_;
+  my ($file, $err)= @_;
 
   my $fname= $file->{"name"};
   my $errflag= 0;
@@ -1489,10 +1491,10 @@ sub parsefile
   my $label= "";
   my ($prevlevel, $lastdoccom, $keepdoctype);
 
+  $err ||= *STDERR{IO};
   ($vline, $doccomment, $aheaddoccom, $lastdoccom, $keepdoctype)= ("") x 5;
   ($keepdoccom, $keepaheaddoc)= (0, 0);
   open($vhandle, $fname) or croak "Could not open $fname!  Aborting.";
-  print "Parsing $fname...\n" unless $config{"quiet"};
   benchmark() if $config{"benchmark"};
 vhdlline:
   while( 13 )
@@ -1530,9 +1532,9 @@ vhdlline:
         if( !@parsestack ) {
           $errflag= 1;
           unless( $config{"quiet"} ) {
-            print STDERR "Spurious \"end";
-            print STDERR " $enditem" if $enditem;
-            print STDERR "\" on or before line $..\n";
+            print $err "Spurious \"end";
+            print $err " $enditem" if $enditem;
+            print $err "\" on or before line $..\n";
           }
         }
         else {
@@ -1543,10 +1545,10 @@ vhdlline:
                             $enditem ne lc($lastlevel->{"name"} || "") ) ) {
             $errflag= 1;
             unless( $config{"quiet"} ) {
-              print STDERR "\"end $enditem\" does not match beginning of block \"",
+              print $err "\"end $enditem\" does not match beginning of block \"",
                             $lastlevel->{"type"};
-              print STDERR " ", $lastlevel->{"name"} if $lastlevel->{"name"}; 
-              print STDERR "\" on or before line $. in $fname.";
+              print $err " ", $lastlevel->{"name"} if $lastlevel->{"name"}; 
+              print $err "\" on or before line $. in $fname.";
             }
             # Try to find declaration matching current end statement in parsing
             # stack and previous (deeper) level.  Resynchronise the stack if
@@ -1556,16 +1558,16 @@ vhdlline:
                 ($prevlevel->{"type"} eq $enditem || lc($prevlevel->{"name"} || "") eq $enditem) ) {
               push @parsestack, $lastlevel;
               $lastlevel= $prevlevel;
-              print STDERR "  Resynchronising to previous \"end $enditem\".\n"
+              print $err "  Resynchronising to previous \"end $enditem\".\n"
                 unless $config{"quiet"};
             }
             elsif( @matchinds == 1 ) {
               ($lastlevel)= splice(@parsestack, $matchinds[0]);
-              print STDERR "  Resynchronising to outer $$lastlevel{type} block.\n"
+              print $err "  Resynchronising to outer $$lastlevel{type} block.\n"
                 unless $config{"quiet"};
             }
             else {
-              print STDERR "\n" unless $config{"quiet"};
+              print $err "\n" unless $config{"quiet"};
             }
           }
           $inconfiguration= 0 if $parent->{"type"} eq "configuration";
@@ -2025,7 +2027,7 @@ done:
   benchmark("to parse", $.) if $config{"benchmark"};
   close $vhandle;
   if( @parsestack ) {
-    print STDERR "Not all blocks were closed - missing one or more \"end\"s.\n";
+    print $err "Not all blocks were closed - missing one or more \"end\"s.\n";
     $errflag= 1;
   }
   $file->{"uses"}= \@topuses;
@@ -2035,7 +2037,7 @@ done:
   prune_all($file, "type", "if");
   prune_all($file, "type", "case");
   map { $_->{"filename"}= $fname; $_->{"file"}= $file; } @{$file->{"children"} ||= []};
-  print STDERR "There were errors parsing $fname.  Continuing regardless.\n"
+  print $err "There were errors parsing $fname.  Continuing regardless.\n"
         if $errflag;
   markgit($file);
 }
@@ -2111,6 +2113,7 @@ sub prepareparallel
       my $tsbits= `taskset -p $$`;
       $tsbits =~ s/^.*:\s+//;
       $config{"jobs"}= $? == 0 ? countbits($tsbits) : 3;
+      $config{"jobs"}= 0 if $config{"jobs"} <= 1;
     }
     else {
       $config{"jobs"}= 3;
@@ -2127,13 +2130,18 @@ sub prepareparallel
 sub parsetask
 {
   my ($taskind, $sock)= @_;
+  my ($errhandle, $errmsg);
 
+  open $errhandle, ">", \$errmsg;
   while( 13 ) {
     my $file= recvdata($sock);
     last if $file->{"die"} && $file->{"die"} eq "yes, really";
-    parsefile($file);
+    $errmsg= "";
+    parsefile($file, $errhandle);
+    $file->{"errmsg"}= $errmsg;
     senddata($sock, $file);
   }
+  close $errhandle;
 }
 
 
@@ -2209,6 +2217,7 @@ sub parsenext
   if( $config{"jobs"} == 0 ) {
     $parsefileind= 0 unless defined $parsefileind;
     return undef if $parsefileind > $#$files;
+    print "Parsing $$files[$parsefileind]->{name}...\n" unless $config{"quiet"};
     parsefile($$files[$parsefileind]);
     ++$parsefileind;
     return $parsefileind - 1;
@@ -2232,6 +2241,11 @@ sub parsenext
     do { $donetaskind= parsedone(); } while( ! defined $donetaskind );
     my $donefileind= $parsetasks[$donetaskind]->{"fileind"};
     $$files[$donefileind]= recvdata($parsetasks[$donetaskind]->{"socket"});
+    my $file= $$files[$donefileind];
+    print "Parsed $file->{name}", ($file->{"errmsg"}? ":\n" : ".\n")
+        unless $config{"quiet"};
+    print STDERR $file->{"errmsg"} if $file->{"errmsg"};
+    delete $file->{"errmsg"};
     $parsetasks[$donetaskind]->{"fileind"}= undef;
     return $donefileind;
   }
