@@ -373,19 +373,22 @@ sub croak
 }
 
 
-# Count the 1 bits in an integer.
-# -> Integer
-# <- Bit count
-sub countbits
-{
-    my $bits= shift;
-    my $count;
+my %digitbits= ( "1" => 1, "2" => 1, "3" => 2, "4" => 1, "5" => 2, "6" => 2,
+        "7" => 3, "8" => 1, "9" => 2, "a" => 2, "b" => 3, "c" => 2, "d" => 3,
+        "e" => 3, "f" => 4 );
 
-    while( $bits ) {
-        ++$count if $bits & 1;
-        $bits >>= 1;
-    }
-    return $count;
+# Count the 1 bits in an integer represented as a hexadecimal string.
+# -> Hex string
+# <- Bit count
+sub counthexbits
+{
+  my $str= shift;
+  my $count= 0;
+
+  for (split "", lc($str)) {
+    $count += $digitbits{$_} || 0;
+  }
+  return $count;
 }
 
 
@@ -2112,7 +2115,7 @@ sub prepareparallel
     if( $^O ne "MSWin32" && $^O ne "MacOS" ) {
       my $tsbits= `taskset -p $$`;
       $tsbits =~ s/^.*:\s+//;
-      $config{"jobs"}= $? == 0 ? countbits($tsbits) : 3;
+      $config{"jobs"}= $? == 0 ? counthexbits($tsbits) : 3;
       $config{"jobs"}= 0 if $config{"jobs"} <= 1;
     }
     else {
