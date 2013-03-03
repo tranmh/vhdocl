@@ -2042,7 +2042,6 @@ done:
   map { $_->{"filename"}= $fname; $_->{"file"}= $file; } @{$file->{"children"} ||= []};
   print $err "There were errors parsing $fname.  Continuing regardless.\n"
         if $errflag;
-  markgit($file);
 }
 
 }   # End of scope of parsing variables
@@ -2222,6 +2221,7 @@ sub parsenext
     return undef if $parsefileind > $#$files;
     print "Parsing $$files[$parsefileind]->{name}...\n" unless $config{"quiet"};
     parsefile($$files[$parsefileind]);
+    markgit($$files[$parsefileind]);
     ++$parsefileind;
     return $parsefileind - 1;
   }
@@ -2249,6 +2249,7 @@ sub parsenext
         unless $config{"quiet"};
     print STDERR $file->{"errmsg"} if $file->{"errmsg"};
     delete $file->{"errmsg"};
+    markgit($file);
     $parsetasks[$donetaskind]->{"fileind"}= undef;
     return $donefileind;
   }
