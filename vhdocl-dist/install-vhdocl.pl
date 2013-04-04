@@ -80,7 +80,7 @@ if( $^O eq "MSWin32" ) {
 if( $mandir ) {
     require Pod::Man;
 
-    my $parser= Pod::Man->new( "stderr" => 1 );
+    my $parser= Pod::Man->new( "center" => "User Commands", "release" => "", "stderr" => 1 );
     print "Installing manual page to $mandir...\n";
     $parser->parse_from_file("vhdocl.pod", "$mandir/vhdocl.1") unless $noop;
 }
