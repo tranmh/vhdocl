@@ -24,6 +24,7 @@ use File::Path;
 use File::Glob;
 use File::Find;
 use File::Copy;
+use Text::Tabs;
 use Digest::MD5;
 use Cwd 'abs_path';
 use Socket;
@@ -35,16 +36,16 @@ use Storable;
 # File::Path from http://search.cpan.org/~dland/File-Path/
 # Digest::MD5 from http://search.cpan.org/~gaas/Digest-MD5/
 # Socket from http://search.cpan.org/~pevans/Socket/
-# File::Copy from Perl distribution
+# File::Copy and Text::Tabs from Perl distribution
 # Time::HiRes (for --benchmark) from http://search.cpan.org/~zefram/Time-HiRes/
 
 my $version= "? (use mkvhdocldist.sh and install-vhdocl.pl to install properly)";
 
-my %config= ( "outputdir" => "doc", "prefix" => "", "curlib" => "work",
+my %config= ( "outputdir" => "doc", "prefix" => "", "libname" => "work",
   "compat" => 0, "cwd" => "", "psl" => 0, "parsedebug" => 0, "quiet" => 0, 
   "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
   "homehtml" => "", "title" => "", "footer" => "", "topmodules" => [],
-  "sourcelinks" => 1 );
+  "sourcelinks" => 1, "tabsize" => 0 );
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "nodeimg" => "node.png", "subtrimg" => "subtree.png",
@@ -482,7 +483,8 @@ my @options= (
 [ "o", "outputdir", "/", "outputdir" ],
 [ "f", "configfile", "<", 0 ],
 [ "p", "prefix", "w", "prefix" ],
-[ "l", "library", "w", "curlib" ],
+[ "l", "library", "w", "libname" ],
+[ "", "tabsize", "#", "tabsize" ],
 [ "r", "recursive", "?", "recursive" ],
 [ "t", "topmodule", "@", "topmodules" ],
 [ "", "psl", "?", "psl" ],
@@ -503,6 +505,10 @@ my @options= (
 [ "", "javasyntax", "?", "javasyntax" ],
 [ "", "sourcelinks", "?", "sourcelinks" ],
 );
+
+# Options that apply only to files following them and may be present multiple
+# times:
+my @fileopts= qw(libname tabsize);
 
 
 # Parse command line argument arrray.
@@ -643,19 +649,20 @@ sub parseopt
   }
   elsif( -d $nextarg ) {
     my @vhdl= searchdirectory($nextarg);
-    push @$filelist, map +{ "type", "file", "name", $_,
-                            "libname", $config{"curlib"} }, @vhdl;
+    my @newfiles= map +{ "type", "file", "name", $_ }, @vhdl;
+    map { @$_{@fileopts}= @config{@fileopts}; } @newfiles;
+    push @$filelist, @newfiles;
     return 1;
   }
   elsif( $nextarg !~ /\.vhdl?$/i && !-e $nextarg ) {
     my ($fname)= grep -f, File::Glob::bsd_glob("$nextarg.[vV][hH][dD]{,[lL]}");
-    push @$filelist, { "type", "file", "name", $fname || $nextarg,
-                        "libname", $config{"curlib"} };
+    push @$filelist, { "type", "file", "name", $fname || $nextarg };
+    @{$$filelist[-1]}{@fileopts}= @config{@fileopts};
     return 1;
   }
   else {
-    push @$filelist, { "type", "file", "name", $nextarg,
-                        "libname", $config{"curlib"} };
+    push @$filelist, { "type", "file", "name", $nextarg };
+    @{$$filelist[-1]}{@fileopts}= @config{@fileopts};
     return 1;
   }
   # Now take care of options with arguments.  Their value may already have been
@@ -764,12 +771,13 @@ sub parsecfgfile
         for my $file (@files) {
           if( -d $file ) {
             my @dirfiles= searchdirectory($file);
-            push @$filelist, map +{ "type", "file", "name", $_,
-                                    "libname", $config{"curlib"} }, @dirfiles;
+            my @newfiles= map +{ "type", "file", "name", $_ }, @dirfiles;
+            map { @$_{@fileopts}= @config{@fileopts}; } @newfiles;
+            push @$filelist, @newfiles;
           }
           else {
-            push @$filelist, { "type", "file", "name", $file,
-                                "libname", $config{"curlib"} };
+            push @$filelist, { "type", "file", "name", $file };
+            @{$$filelist[-1]}{@fileopts}= @config{@fileopts};
           }
         }
       }
@@ -4609,6 +4617,10 @@ sub sourcehtml
       $source= <VHDL>;
   }
   close VHDL;
+  if( $file->{"tabsize"} ) {
+    $tabstop= $file->{"tabsize"};
+    $source= expand($source);
+  }
   my $endnewline= $source =~ /\n$/;
   $source =~ s/[ \t\r]+\n/\n/g;
   $source =~ tr/&<>"/\x01\x02\x03\x04/;
@@ -4775,8 +4787,10 @@ EOF
         if $config{"sourcelinks"};
   print SRCHTML "<table><tr><td><pre id=\"linenumbers\">\n";
   print SRCHTML "</pre></td><td><pre id=\"vhdlcode\" class=\"vhdlcode\">\n";
+  $tabstop= $file->{"tabsize"} if $file->{"tabsize"};
   while( <VHDL> )
   {
+    $_= expand($_) if $file->{"tabsize"};
     s/&/&amp;/g;
 # Don't replace " by entity to facilitate regex string matching in JavaScript.
     s/</&lt;/g;
