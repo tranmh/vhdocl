@@ -185,8 +185,12 @@ sub fixpath
 }
 
 
-{
 my $pathsep;
+
+BEGIN {
+  $pathsep= File::Spec->catdir("","") || "/";
+}
+
 
 # Return a hyperlink to a source file from a top-level HTML file.
 # -> File name (absolute or relative to current directory)
@@ -197,7 +201,6 @@ sub sourcelink
 
   # We convert non-"/" path separators to slashes.  This will work for Windoze,
   # for other systems we would probably have to use URI::file.
-  $pathsep ||= File::Spec->catdir("","") || "/";
   if( File::Spec->file_name_is_absolute($filename) ) {
     $filename =~ s!\Q$pathsep\E!/!g unless $pathsep eq "/";
     return "file://$filename";
@@ -207,8 +210,6 @@ sub sourcelink
     $filename =~ s!\Q$pathsep\E!/!g unless $pathsep eq "/";
     return $filename;
   }
-}
-
 }
 
 
@@ -258,6 +259,26 @@ sub splitfilenames
   pop @words unless length $words[-1];
   map { s/"([^"]*)"|'([^']*)'/defined($1)? $1 : quoteglob($2)/eg; } @words;
   return @words;
+}
+
+
+# Convert a glob pattern given with --exclude to a regex fragment for use on
+# file paths.
+# -> Glob pattern frmo --exclude
+# <- Regex fragment for testing file paths
+sub glob2re
+{
+  my $gl= shift;
+  $gl =~ s/^(?:\Q$pathsep\E)+//;
+  $gl =~ s/(?<!\\)(?=[]\*\?\[\{\}])/\x01/g;
+  $gl= quotemeta($gl);
+  $gl =~ s/(?:\\\x01\\\*)+/[^\Q$pathsep\E]*/go;
+  $gl =~ s/\\\x01\\\?/[^\Q$pathsep\E]/go;
+  $gl =~ s/\\\x01\\([][])/$1/g;
+  1 while $gl =~ s/(\\\x01\\\{[^{},])\\,/$1|/g;
+  $gl =~ s/\\\x01\\{/(/g;
+  $gl =~ s/\\\x01\\}/)/g;
+  return "$gl";
 }
 
 
@@ -486,6 +507,7 @@ my @options= (
 [ "l", "library", "w", "libname" ],
 [ "", "tabsize", "#", "tabsize" ],
 [ "r", "recursive", "?", "recursive" ],
+[ "", "exclude", "*", "exclude" ],
 [ "t", "topmodule", "@", "topmodules" ],
 [ "", "psl", "?", "psl" ],
 [ "", "parsedebug", "?", "parsedebug" ],
@@ -656,11 +678,14 @@ sub parseopt
   }
   elsif( $nextarg !~ /\.vhdl?$/i && !-e $nextarg ) {
     my ($fname)= grep -f, File::Glob::bsd_glob("$nextarg.[vV][hH][dD]{,[lL]}");
-    push @$filelist, { "type", "file", "name", $fname || $nextarg };
+    $fname ||= $nextarg;
+    return 1 unless defined filterfiles($fname);
+    push @$filelist, { "type", "file", "name", $fname };
     @{$$filelist[-1]}{@fileopts}= @config{@fileopts};
     return 1;
   }
   else {
+    return 1 unless defined filterfiles($nextarg);
     push @$filelist, { "type", "file", "name", $nextarg };
     @{$$filelist[-1]}{@fileopts}= @config{@fileopts};
     return 1;
@@ -775,7 +800,7 @@ sub parsecfgfile
             map { @$_{@fileopts}= @config{@fileopts}; } @newfiles;
             push @$filelist, @newfiles;
           }
-          else {
+          elsif( defined filterfiles($file) ) {
             push @$filelist, { "type", "file", "name", $file };
             @{$$filelist[-1]}{@fileopts}= @config{@fileopts};
           }
@@ -858,6 +883,34 @@ sub parsecfgfile
 }
 
 
+# Filter a list of file paths according to the --exclude option currently in
+# effect.  A regex is created out of the option value on demand and a reference
+# to it stored in place of the option value.  If called in scalar context and
+# the single argument is filtered out, a warning message is output.
+# -> List of file paths
+# <- List of filtered file paths
+sub filterfiles
+{
+  my $excludes= $config{"exclude"};
+  return @_ if !@_ || !defined($excludes) || !length($excludes);
+  if( !ref($excludes) ) {
+    my $exclre= "(?i:(?:^|\Q$pathsep\E)(?:" . join("|", map glob2re($_), split /[,\s]+/, $excludes) . ")\$)";
+    eval { "foo" =~ /$exclre/; };
+    if( $@ ) {
+      croak "Error trying regex derived from --exclude glob pattern \`$excludes':\n$@\n";
+    }
+    $excludes= $config{"exclude"}= \$exclre;
+  }
+  if( ! wantarray ) {
+    return $_[0] unless $_[0] =~ /$$excludes/;
+    print STDERR "Warning: Explicit file name $_[0] filtered by --exclude.\n"
+        unless $config{"quiet"};
+    return;
+  }
+  return ( grep ! /$$excludes/, @_ );
+}
+
+
 # Search a directory for VHDL files.  The search is recursive if the recursive
 # option is on (but symlinks are not followed).
 # -> Path to directory
@@ -875,7 +928,7 @@ sub searchdirectory
         my $pattern= File::Spec->catfile($dir, "*.[vV][hH][dD]{,[lL]}");
         @files= grep -f, File::Glob::bsd_glob($pattern);
     }
-    return @files;
+    return filterfiles(@files);
 }
 
 

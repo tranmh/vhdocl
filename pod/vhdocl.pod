@@ -57,6 +57,18 @@ Print how much time B<vhdocl> took for parsing each file and for subsequent
 processing.  Only really useful to the author for identifying hot spots.
 Requires the Perl module Time::HiRes.
 
+=item B<--exclude>=I<glob>
+
+Exclude files matching the I<glob> pattern from processing.  This is primarily
+intended to qualify directory searches, but single file names from the command
+line are also filtered.  The I<glob> argument is a list of shell glob patterns
+separated by commas and/or spaces.  Each pattern has to match the complete file
+name or (if it contains a directory separator) the last part of the path.
+Matching is case insensitive.  This option can occur multiple time but is not
+cumulative; rather, its current values applies to subsequent source files until
+the next B<--exclude> option.  The I<glob> pattern will usually have to be
+escaped from the shell, for example by enclosing it in single quotes.
+
 =item B<-f> I<file.vhdocl>, B<--configfile>=I<file.vhdocl>
 
 Tells VHDocL to interrupt command line argument processing and to read options
@@ -220,9 +232,9 @@ encountered.
 Long options may be abbreviated.  Their arguments may also be separated by
 spaces instead of C<=>.  Boolean-valued short options can be negated by
 replacing the "-" by a "+", long options by prepending "no" to the option name.
-Options other than the B<-l>/B<--library>, B<--tabsize> and
-B<-r>/B<--recursive> options can be mixed freely with input file names.  For
-other options, the last of multiple occurrences overrides the others.
+Options other than the B<-l>/B<--library>, B<--tabsize>, B<-r>/B<--recursive>
+and B<--exclude> options can be mixed freely with input file names, and the
+last of multiple occurrences overrides the others.
 
 
 =head1 USAGE
@@ -248,11 +260,14 @@ subdirectories, give the option B<-r>:
 
     vhdocl -r .
 
-If you want to process only some VHDL files in a directory tree without
-manually making a list, you can use the find command and pipe its results in
-to VHDocL's stdin:
+In order to exclude some source files, you can use the B<--exclude> option:
 
-    find . -iname \*.vhd -a ! -iname \*_tb.vhd | vhdocl -
+    vhdocl --exclude \*_tb.vhd -r .
+
+For more sophisticated selection criteria, you can use the find command and
+pipe its results in to VHDocL's stdin:
+
+    find . -iname \*.vhd -a -mtime +7 | vhdocl -
 
 The argument "-" causes VHDocL to suspend command-line processing and read
 arguments from standard input.
