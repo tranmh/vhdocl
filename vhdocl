@@ -4045,7 +4045,7 @@ sub printtypehtml
     map { print $handle "<tr><td></td><td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
     if( my @elements= @{$type->{"children"} || []} ) {
-      print $handle "<tr><td></td><td>Elements: </td><td colspan=\"3\">$STDTAB\n";
+      print $handle "<tr><td></td><td align=\"right\">$STDTAB<tr><td>Elements: </td></tr></table></td><td colspan=\"3\">$STDTAB\n";
       map { printgenporthtml($handle, $_) } @elements;
       print $handle "</table></td></tr>\n";
     }
