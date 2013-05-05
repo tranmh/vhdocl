@@ -5201,10 +5201,12 @@ EOF
 # Generate the HTML page of the instantiation hierarchy
 # -> Reference to array containing hierarchy nodes of architectures and
 #    configurations
+#    Reference to array of two array references, of user-designated top modules
+#    and other uninstantiated modules
 #    Flag indicating that there are configurations at all
 sub hierarchyhtml
 {
-  my ($hier, $haveconfs)= @_;
+  my ($hier, $topmods, $haveconfs)= @_;
   my $fname= File::Spec->catfile($config{"outputdir"},
                                 $config{"prefix"} . "hierarchy.html");
   my $header;
@@ -5214,9 +5216,8 @@ sub hierarchyhtml
     print STDERR "Cannot create output file $fname - $!\n";
     return;
   }
-  my @topmods= topmodules($hier);
   printhtmlheader(\$header, "Instantiation hierarchy", 1);
-  maketreeviewheader(\$header, (@{$topmods[0]} ? ("topview", "otherview") : ("otherview")));
+  maketreeviewheader(\$header, (@{$$topmods[0]} ? ("topview", "otherview") : ("otherview")));
   print HIER $header;
   print HIER "\n<h1>Instantiation hierarchy</h1>\n\n";
   print HIER "\n<p>Configurations are given in brackets and in <i>italics</i>.</p>\n\n"
@@ -5226,13 +5227,13 @@ sub hierarchyhtml
 <p>Click on <img src="style/$requisites{nodeimg}"> to open or close one level,
 on <img src="style/$requisites{subtrimg}"> to open or close all levels.</p>
 EOF
-  if( @{$topmods[0]} ) {
+  if( @{$$topmods[0]} ) {
     print HIER "<h3>Designated top modules</h3>\n\n";
-    printhierarchy(*HIER{IO}, $topmods[0], 1, "topview");
+    printhierarchy(*HIER{IO}, $$topmods[0], 1, "topview");
     print HIER "<h3>Other uninstantiated modules</h3>\n\n";
   }
   my @leftovers= grep !$_->{"done"}, @$hier;
-  printhierarchy(*HIER{IO}, [@{$topmods[1]}, @leftovers], 1, "otherview");
+  printhierarchy(*HIER{IO}, [@{$$topmods[1]}, @leftovers], 1, "otherview");
   printhtmlfooter(*HIER{IO});
   close HIER;
 }
@@ -5265,6 +5266,89 @@ sub sourcelisthtml
   print SOURCE "</table>\n";
   printhtmlfooter(*SOURCE{IO});
   close LIST;
+}
+
+
+# Output the instantiation hierarchy and lists of top modules to a file in JSON
+# format.  The output is also compatible with YAML.
+# -> Reference to hierarchy array
+#    Reference to array of two array references, of user-designated top modules
+#    and other uninstantiated modules
+sub hierarchyjson
+{
+  my ($hier, $topmods)= @_;
+  my $keycache;
+  my $ind= "  ";
+  my $fname= File::Spec->catfile($config{"outputdir"},
+                                $config{"prefix"} . "hierarchy.json");
+
+  if( !open(JSON, ">$fname") ) {
+    print STDERR "Cannot create output file $fname - $!\n";
+    return;
+  }
+  print JSON "[\n$ind\{\n";
+  my $nr= 0;    # all this fuss just to omit the comma after the last node
+  for my $node (@$hier) {
+    print JSON "$ind$ind\"", jsonnodekey($node, $keycache), "\": {\n";
+    my $real= $node->{"proxy"} || $node;
+    my @fields;
+    print JSON "$ind$ind$ind\"entity\": \"$real->{entname}\",\n"
+        if $real->{"entname"};
+    print JSON "$ind$ind$ind\"architecture\": \"$real->{archname}\",\n"
+        if $real->{"archname"};
+    print JSON "$ind$ind$ind\"configuration\": \"$node->{confname}\",\n"
+        if $node->{"confname"};
+    if( $real->{"architecture"} ) {
+      print JSON "$ind$ind$ind\"file\": \"$node->{architecture}->{filename}\",\n";
+    }
+    elsif( $real->{"entity"} ) {
+      print JSON "$ind$ind$ind\"file\": \"$node->{entity}->{filename}\",\n";
+    }
+    print JSON "$ind$ind$ind\"instantiations\": [\n";
+    print JSON join(",\n", map "$ind$ind$ind$ind\"".jsonnodekey($_, $keycache)."\"", @{$real->{"children"}}), "\n"
+        if @{$real->{"children"}};
+    print JSON "$ind$ind$ind]\n";
+    if( $nr == $#$hier ) {
+      print JSON "$ind$ind}\n";
+    }
+    else {
+      print JSON "$ind$ind},\n";
+    }
+    ++$nr;
+  }
+  print JSON "$ind},\n$ind\[\n";
+  print JSON "$ind$ind", join(",\n$ind$ind", map "\"".jsonnodekey($_, $keycache)."\"", @{$$topmods[0]}), "\n"
+      if @{$$topmods[0]};
+  print JSON "$ind],\n$ind\[\n";
+  print JSON "$ind$ind", join(",\n$ind$ind", map "\"".jsonnodekey($_, $keycache)."\"", @{$$topmods[1]}), "\n"
+      if @{$$topmods[1]};
+  print JSON "$ind]\n]\n";
+  close JSON;
+}
+
+
+# Generate human-readable key for hierarchy node exported to JSON file.
+# -> Reference to hierarchy node hash
+#    Scalar opaque to calling context referencing a data structure caching keys
+# <- Key of the form entity-architecture[-configuration][-number] (the number
+#    may be used to disabiguate equally-named components)
+sub jsonnodekey
+{
+  my ($node, $cache)= @_;
+
+  return $cache->[0]->{$node} if defined $cache->[0]->{$node};
+  my $real= $node->{"proxy"} || $node;
+  my $name= ($real->{"entname"} || "unknown") . "-" . ($real->{"archname"} || "unknown");
+  $name .= "-" . $node->{"confname"} if $node->{"confname"};
+  if( $cache->[1]->{$name} ) {
+    $name .= "-";
+    my $num= 1;
+    ++$num while $cache->[1]->{"$name$num"};
+    $name .= $num;
+  }
+  $cache->[0]->{$node}= $name;
+  $cache->[1]->{$name}= $node;
+  return $name;
 }
 
 
@@ -5814,6 +5898,7 @@ for my $anode (@ahier) {
 }
 
 @hierarchy= sort hier_sort_cmp @hierarchy;
+my @topmods= topmodules(\@hierarchy);
 
 # Create links from modules to hierchy nodes of architectures and
 # configurations instantiating them
@@ -5885,8 +5970,10 @@ for my $obj (@entities, @architectures, @configurations, @packages,
 entitylisthtml(\@entities, \@orphanedarchs, \@orphanedconfs, scalar(@configurations));
 packagelisthtml(\@packages, \@orphanedpbodies);
 instantiationhtml(\@hierarchy, scalar(@chier));
-hierarchyhtml(\@hierarchy, scalar(@chier));
+hierarchyhtml(\@hierarchy, \@topmods, scalar(@chier));
 sourcelisthtml(\@vhdlfiles);
+
+hierarchyjson(\@hierarchy, \@topmods);
 
 for my $ent (@entities) {
   entityhtml($ent);
