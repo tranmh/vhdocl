@@ -5892,7 +5892,7 @@ for my $anode (@ahier) {
     my ($cnode)= grep_hier($child, \@hierarchy);
     if( $cnode ) {
       $child= $cnode;
-      $cnode->{"instantiated"}= 1;
+      $cnode->{"instantiated"}= 1 unless $cnode == $anode;
     }
   }
 }
