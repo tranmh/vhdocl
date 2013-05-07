@@ -5380,21 +5380,17 @@ unless( @vhdlfiles ) {
   exit;
 }
 
-prepareoutput();
-prepareparallel();
-
 # This is the only data structure relating to declarative items which does not
 # conform to our canonical format (see parsefile()).  %libraries is a hash
 # mapping the library name to an array reference containing all (top-level)
 # declarations in that library.
 my %libraries;
 
+# Generate hyperlinks to files and unambiguous names for source HTML files:
 {
 my %docfilenames;
 
-while( defined(my $fileind= parsenext(\@vhdlfiles)) ) {
-  my $file= $vhdlfiles[$fileind];
-  push @{$libraries{lc($file->{"libname"})}}, @{$file->{"children"}};
+for my $file (@vhdlfiles) {
   my $trunkname;
   (undef, undef, $trunkname)= File::Spec->splitpath($file->{"name"});
   $trunkname =~ s/\.[^\.]*$//;
@@ -5402,8 +5398,6 @@ while( defined(my $fileind= parsenext(\@vhdlfiles)) ) {
   $file->{"docfilename"}= $config{"prefix"} . $trunkname . ".html";
   push @{$docfilenames{$file->{"docfilename"}}}, $file;
 }
-
-getgitmeta();
 
 # Disambiguate duplicate source HTML file names
 for my $docfiles (values %docfilenames) {
@@ -5415,6 +5409,16 @@ for my $docfiles (values %docfilenames) {
 }
 
 }
+
+prepareoutput();
+prepareparallel();
+
+while( defined(my $fileind= parsenext(\@vhdlfiles)) ) {
+  my $file= $vhdlfiles[$fileind];
+  push @{$libraries{lc($file->{"libname"})}}, @{$file->{"children"}};
+}
+
+getgitmeta();
 
 print "Scrunching and twisting everything together...\n" unless $config{"quiet"};
 benchmark() if $config{"benchmark"};
