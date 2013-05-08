@@ -3300,6 +3300,25 @@ sub topmodules
       push @uninst, $node;
     }
   }
+  if( ! $config{"quiet"} ) {
+    delete @{$config{"topmodhash"}}{map lc($_->{"entname"}), @tops};
+    if( %{$config{"topmodhash"}} ) {
+      my @misses;
+      for my $ent (keys %{$config{"topmodhash"}}) {
+        if( ref($config{"topmodhash"}->{$ent}) ) {
+          push @misses, map "$ent\($_)", keys %{$config{"topmodhash"}->{$ent}->[0]}
+              if $config{"topmodhash"}->{$ent}->[0];
+          push @misses, map "$ent\[$_]", keys %{$config{"topmodhash"}->{$ent}->[1]}
+              if $config{"topmodhash"}->{$ent}->[1];
+        }
+        else {
+          push @misses, $ent;
+        }
+      }
+      print STDERR "Warning: Designated top module", (@misses > 1 ? "s ":" "),
+            cswordlist(" and ", @misses), " not found.\n";
+    }
+  }
   return (\@tops, \@uninst);
 }
 
