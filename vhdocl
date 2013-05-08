@@ -986,11 +986,12 @@ EOF
 # Parse documentation (--*) comment.  Escape HTML's reserved characters but
 # leave some tags untouched which are allowed in descriptions.
 # -> String containing documentation with --* already removed
+#    Error file handle (IO reference for error messages)
 # <- Reference to hash containing extracted documentation items
 sub parsedoccom
 {
   my %doc;
-  my $dcom= shift;
+  my ($dcom, $err)= @_;
   my $tags= qr/b|i|tt|u|big|small|sub|sup|em|strong|code|var|ul|ol|li|
                 br|center|pre|table|tr|td|th|(?:a|span|img)(?:\s+[^>]+)?/ix;
   my $svnkeys= qr/(?:LastChanged)?(?:Date|Revision)|Rev|Id|Author|(?:Head)?URL/;
@@ -1029,7 +1030,7 @@ sub parsedoccom
       }
       elsif( !$config{"quiet"} ) {
         $line =~ /^(\@\w+)\b/;
-        print STDERR "Unknown markup code $1 on or before line $..\n";
+        print $err "Unknown markup code $1 on or before line $..\n";
       }
     }
     else {
@@ -1350,10 +1351,11 @@ sub readcomplete
 # the main loop in parsefile().
 # -> String to write to the "type" entry of the resulting hashes, "port" or
 #    "generic"
+#    Error file handle (IO reference for error messages)
 # <- List of hashes representing ports or generics
 sub readportlist
 {
-  my ($type)= @_;
+  my ($type, $err)= @_;
   my ($port, @ports);
   my $lastdoccom;
 
@@ -1383,7 +1385,7 @@ sub readportlist
     if( $port =~ /^\s*($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
                                   ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
       $doccomment ||= $lastdoccom if $keepdoccom;
-      my $doc= $doccomment? parsedoccom($doccomment) : undef;
+      my $doc= $doccomment? parsedoccom($doccomment, $err) : undef;
       my @newports= map +{ "type", $type, "name", $_, "doc", $doc,
                           "direction", $type eq "port" ? lc($2 || "in") : "",
                           "subtype", $3, "value", $4 }, split(/\s*,\s*/, $1);
@@ -1812,9 +1814,9 @@ vhdlline:
           $newchild->{"type"}= lc($sub2);
           # This "type" serves only for recognising "end", will be undone later
           if( $newchild->{"subtype"} eq "record" ) {
-            $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
+            $newchild->{"doc"}= parsedoccom($doccomment, $err) if $doccomment;
             $doccomment= "";
-            @newentries= readportlist("recordelement");
+            @newentries= readportlist("recordelement", $err);
           }
         }
         else {
@@ -1824,7 +1826,7 @@ vhdlline:
           if( $newchild->{"definition"} =~ s/\s*\bunits\s+($ID)$//i ) {
             $newchild->{"type"}= $newchild->{"subtype"}= "units";
             $newchild->{"baseunit"}= $1;
-            $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
+            $newchild->{"doc"}= parsedoccom($doccomment, $err) if $doccomment;
             readuntil( qr/;/ ) && $vline =~ s/^\s*;//;
             readunitlist($newchild);
             $doccomment= "";
@@ -1900,7 +1902,7 @@ vhdlline:
       my $type= lc($1);
       last vhdlline unless defined(readuntil( qr/\(/ ));
       if( $vline =~ s/^\s*\(//i ) {
-        @newentries= readportlist($type);
+        @newentries= readportlist($type, $err);
       }
       elsif( $type eq "generic" && $vline =~ s/^\s*map\s*\(//i ) {
         my $genmap= [];
@@ -2016,7 +2018,7 @@ skipnext:
     }
     if( $newchild ) {
       $keepdoccom= 0;
-      $newchild->{"doc"}= parsedoccom($doccomment) if $doccomment;
+      $newchild->{"doc"}= parsedoccom($doccomment, $err) if $doccomment;
       push @{$parent->{"children"}}, $newchild;
       if( @parsestack == 0 ) {
         $newchild->{"uses"}= [ @topuses ];
@@ -2047,7 +2049,7 @@ skipnext:
           $lastdoccom= $doccomment;
           $keepdoctype= $newentries[0]->{"type"};
         }
-        $doccomment= parsedoccom($doccomment);
+        $doccomment= parsedoccom($doccomment, $err);
         foreach (@newentries) { $_->{"doc"}= $doccomment; }
         # non-empty $aheaddoccom occurs only for $newchild blocks
         $doccomment= "";
