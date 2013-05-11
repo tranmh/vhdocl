@@ -5782,7 +5782,7 @@ bindcompinst:
         $inst->{"bindname"}= $inst->{"binding"}->{"fullname"};
         if( $use->{"archname"} ) {
           $inst->{"archname"}= $use->{"archname"};
-          $inst->{"bindarch"}= elem { $_->{"name"} eq $use->{"archname"} }
+          $inst->{"bindarch"}= elem { lc($_->{"name"}) eq lc($use->{"archname"}) }
                                 @{$inst->{"binding"}->{"architectures"}};
         }
         elsif( @{$inst->{"binding"}->{"architectures"}} ) {
@@ -5792,8 +5792,8 @@ bindcompinst:
       }
       elsif( $use->{"archname"} ) {
         $inst->{"archname"}= $use->{"archname"};
-        my @candidates= grep $_->{"name"} eq $inst->{"archname"} &&
-                  $_->{"objname"} eq $inst->{"objname"}, @orphanedarchs;
+        my @candidates= grep lc($_->{"name"}) eq lc($inst->{"archname"}) &&
+                  lc($_->{"objname"}) eq lc($inst->{"objname"}), @orphanedarchs;
         $inst->{"bindarch"}= elem( sub { $_->{"libname"} eq
                         $arch->{"libname"} }, @candidates) || $candidates[0];
       }
@@ -5836,7 +5836,7 @@ bindcompinst:
     next unless $inst->{"subtype"} eq "entity";
     if( $inst->{"binding"} ) {
       if( $inst->{"archname"} ) {
-        $inst->{"bindarch"}= elem { $_->{"name"} eq $inst->{"archname"} }
+        $inst->{"bindarch"}= elem { lc($_->{"name"}) eq lc($inst->{"archname"}) }
                                 @{$inst->{"binding"}->{"architectures"}};
       }
       elsif( @{$inst->{"binding"}->{"architectures"}} ) {
@@ -5845,8 +5845,8 @@ bindcompinst:
       }
     }
     elsif( $inst->{"archname"} ) {
-      my @candidates= grep $_->{"name"} eq $inst->{"archname"} &&
-                      $_->{"objname"} eq $inst->{"objname"}, @orphanedarchs;
+      my @candidates= grep lc($_->{"name"}) eq lc($inst->{"archname"}) &&
+                  lc($_->{"objname"}) eq lc($inst->{"objname"}), @orphanedarchs;
       $inst->{"bindarch"}= elem(sub { $_->{"libname"} eq $arch->{"libname"} },
                                     @candidates) || $candidates[0];
     }
