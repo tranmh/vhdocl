@@ -4915,7 +4915,7 @@ sub entitylisthtml
   push @list, (map { "name", $_->{"fullname"}, "entity", $_, 
                      "architectures", $_->{"architectures"},
                      "configurations", $_->{"configurations"} }, @$ents);
-  @list= sort { $a->{"name"} cmp $b->{"name"} } @list;
+  @list= sort { lc($a->{"name"}) cmp lc($b->{"name"}) } @list;
   printhtmlheader(*LIST{IO}, "Entities, Architectures and Configurations", 1);
   print LIST "\n<h1>List of entities", ($haveconfs?
      ", architectures and configurations" : " and architectures"), "</h1>\n";
@@ -4976,7 +4976,6 @@ sub entitylisthtml
 sub packagelisthtml
 {
   my ($packs, $opbodies)= @_;
-  my @list;
   my $fname= File::Spec->catfile($config{"outputdir"},
                                 $config{"prefix"} . "packages.html");
 
@@ -4994,7 +4993,8 @@ sub packagelisthtml
   }
   if( @$packs ) {
     print LIST "\n<h1>List of packages</h1>\n\n";
-    for my $pack (@$packs) {
+    my @sorted= sort { lc($a->{"fullname"}) cmp lc($b->{"fullname"}) } @$packs;
+    for my $pack (@sorted) {
       print LIST "<p><a href=\"packages/", $pack->{"docfilename"}, "\">",
                   $pack->{"fullname"}, "</a></p>\n";
     }
