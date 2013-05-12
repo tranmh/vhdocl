@@ -2834,7 +2834,7 @@ sub resolve_configuration
   @topfors= grep $_->{"type"} eq "for" && $_->{"subtype"} eq "architecture",
                         @{$conf->{"children"}};
   @topfors= grep { my $for= $_;
-                  ($for->{"object"})= grep $_->{"name"} eq $for->{"objname"},
+                  ($for->{"object"})= grep lc($_->{"name"}) eq lc($for->{"objname"}),
                                         @{$ent->{"architectures"}};
                 } @topfors;
   for my $for (@topfors) {
@@ -2852,7 +2852,7 @@ sub resolve_configuration
     if( $for->{"subtype"} eq "architecture" ) {
       # Configuration of an architecture or of a generate or block statement
       if( $parentdecl->{"type"} eq "architecture" && 
-                        $for->{"objname"} eq $parentdecl->{"name"} ) {
+                        lc($for->{"objname"}) eq lc($parentdecl->{"name"}) ) {
         $for->{"object"}= $parentdecl;
       }
       else {
@@ -3060,7 +3060,7 @@ sub configure_hierarchy
   my $conf= $node->{"configuration"};
 
   $node->{"entity"}= $conf->{"entity"}, 
-  $node->{"entname"}= $conf->{"objname"};
+  $node->{"entname"}= $conf->{"entity"} ? $conf->{"entity"}->{"fullname"} : $conf->{"objname"};
   my ($topfor)= @{$conf->{"childtype"}->{"for"} || []};
   unless( $topfor && $topfor->{"subtype"} eq "architecture" ) {
     # Pathological case #1: empty configuration body - bind entity to its
