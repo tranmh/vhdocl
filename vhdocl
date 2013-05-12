@@ -5867,7 +5867,8 @@ my @ahier;
 
 # Create instantiation hierarchy nodes representing architectures:
 for my $arch (@architectures) {
-  my $node= { "entname" => $arch->{"objname"}, "entity" => $arch->{"entity"},
+  my $node= { "entname" => $arch->{"entity"} ? $arch->{"entity"}->{"fullname"}
+                         : $arch->{"objname"}, "entity" => $arch->{"entity"},
               "architecture" => $arch, "archname" => $arch->{"name"} };
   push @hierarchy, $node;
   push @ahier, $node;
@@ -5878,8 +5879,7 @@ for my $arch (@architectures) {
       my $new;
       if( $inst->{"binding"} ) {
         $new= { "configuration" => $inst->{"binding"},
-                "confname" => ($inst->{"subtype"} eq "configuration"?
-                          $inst->{"objname"} : $inst->{"binding"}->{"name"}) };
+                "confname" => $inst->{"binding"}->{"name"} };
       }
       else {
         $new= { "confname" => $inst->{"objname"} };
