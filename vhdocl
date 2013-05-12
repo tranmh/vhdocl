@@ -1997,6 +1997,8 @@ vhdlline:
                       [ @parsestack ? @{$parsestack[-1]->{"uses"}} : () ] } );
       $newentries[0]->{"objname"} =~ s/\s+//g;
       readcommalist($genmap) if $firstmap eq "generic";
+      $newentries[0]->{"trace"}= [ grep $_->{"type"} eq "generate" || $_->{"type"} eq "block",
+                                   map($_->{"backtrack"}, @parsestack), $parent ];
       if( @parsestack ) {
         # List all instances to avoid recursive searches later
         my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
@@ -4111,19 +4113,16 @@ sub printtypehtml
 # instantiation or PSL statement.
 # -> File handle to print to
 #    Reference to array of hashes representing declarative items (usually
-#    generate or block statements) enclosing the process (etc.) and the process
-#    itself.
-#    Name of the declaration enclosed in blocks; defaults to the type of the
-#    last path element.
+#    generate or block statements) enclosing the process (etc.)
+#    Name of the declaration enclosed in blocks
 sub printtracehtml
 {
   my ($handle, $path, $declname)= @_;
 
-  return unless $#$path;
-  $declname ||= $path->[-1]->{"type"};
+  return unless @$path;
   print $handle "<tr>$TDI<td colspan=\"4\">This $declname is inside the ",
-                "following construct", ($#$path>1? "s":""), ":</td></tr>\n";
-  for my $trc (@$path[0..$#$path-1]) {
+                "following construct", (@$path>1? "s":""), ":</td></tr>\n";
+  for my $trc (@$path) {
     if( $trc->{"type"} eq "generate" ) {
       print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID$trc->{name}",
           "$SP_</b> : $SPWD", $trc->{"subtype"}, "$SP_ ",
@@ -4148,11 +4147,12 @@ sub printtracehtml
 
 # Print HTML fragment describing a process
 # -> File handle to print to
-#    Reference to array containing the path to the process
+#    Reference to array containing the path to and including the process (will
+#    be modified by removing the reference to the process hash from the end)
 sub printprochtml
 {
   my ($handle, $path)= @_;
-  my $proc= $$path[$#$path];
+  my $proc= pop @$path;
 
   print $handle "<tr$CCO><td colspan=\"5\"><b>", ($proc->{"name"} ?
             $SPDID.$proc->{"name"}.$SP_ : "<i>${SPNC}unnamed$SP_</i>"), "</b>",
@@ -4161,18 +4161,17 @@ sub printprochtml
   print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}postponed$SP_</b></td></tr>\n"
         if $proc->{"postponed"};
   printcommonhtml($handle, $proc);
-  printtracehtml($handle, $path);
+  printtracehtml($handle, $path, "process");
 }
 
 
 
 # Print HTML fragment describing an instantiation
 # -> File handle to print to
-#    Reference to array containing the path to the instance
+#    Reference to hash representing the instance
 sub printinsthtml
 {
-  my ($handle, $path)= @_;
-  my $inst= $$path[$#$path];
+  my ($handle, $inst)= @_;
 
   print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"", $labels{"instance"},
               $inst->{"name"}, "\">$SPDID", $inst->{"name"}, "$SP_</a></b> : ";
@@ -4258,7 +4257,7 @@ sub printinsthtml
       print $handle "</table></td></tr>\n";
     }
   }
-  printtracehtml($handle, $path, "instantiation");
+  printtracehtml($handle, $inst->{"trace"}, "instantiation");
 }
 
 
@@ -4285,7 +4284,7 @@ sub printpslhtml
   if( @psldefs ) {
     print $handle "\n<h2>PSL definitions</h2>\n\n$STDTAB\n";
     for my $trc (@psldefs) {
-      my $def= $trc->[-1];
+      my $def= pop @$trc;
       print $handle "<tr$CCO><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ";
       print $handle "<a name=\"$labels{psl}$def->{name}\">$SPPID$def->{name}$SP_</a> "
           if $def->{"name"};
@@ -4302,7 +4301,7 @@ sub printpslhtml
   if( @psldirs ) {
     print $handle "\n<h2>PSL directives</h2>\n\n$STDTAB\n";
     for my $trc (@psldirs) {
-      my $dir= $trc->[-1];
+      my $dir= pop @$trc;
       print $handle "<tr$CCO><td>";
       print $handle "$SPPID$dir->{name}$SP_ : " if $dir->{"name"};
       print $handle "</td><td colspan=\"4\"><b>$SPPSL$dir->{subtype}$SP_</b> ",
@@ -4388,7 +4387,7 @@ sub architecturehtml
     map { printprochtml(*ARCH{IO}, $_) } @procs;
     print ARCH "</table>\n\n";
   }
-  if( my @insts= trace_all($arch, "type", "instance") ) {
+  if( my @insts= @{$arch->{"allinstances"}} ) {
     print ARCH "\n<h2>Instantiations</h2>\n\n$STDTAB\n";
     map { printinsthtml(*ARCH{IO}, $_) } @insts;
     print ARCH "</table>\n\n";
