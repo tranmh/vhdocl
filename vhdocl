@@ -2428,29 +2428,6 @@ sub find_all
 }
 
 
-# Finds all nodes of a certain type in a subtree and returns their paths in the
-# tree
-# -> Reference to hash representing root node
-#    Key of entry to be compared
-#    Value of that key in the searched-for nodes (case insensitive string 
-#    comparison)
-# <- Array of references to arrays of hash (node) references
-sub trace_all
-{
-  my ($root, $key, $val)= @_;
-  my @all;
-
-  $val= lc($val);
-  push @all, [ ] if lc($root->{$key}) eq $val;
-  for my $child (@{$root->{"children"}}) {
-    my @new= trace_all($child, $key, $val);
-    map { unshift @$_, $child } @new;
-    push @all, @new;
-  }
-  return @all;
-}
-
-
 # Deletes all nodes of a certain type in a subtree, including their children
 # -> Reference to hash representing root node
 #    Key of entry to be compared
@@ -4116,17 +4093,17 @@ sub printtypehtml
 # Print HTML fragment describing the constructs surrounding a process,
 # instantiation or PSL statement.
 # -> File handle to print to
-#    Reference to array of hashes representing declarative items (usually
-#    generate or block statements) enclosing the process (etc.)
+#    Reference to hash representing declarative item, which has to contain a
+#    "trace" element, an array ref of the enclosing declarations
 #    Name of the declaration enclosed in blocks
 sub printtracehtml
 {
-  my ($handle, $path, $declname)= @_;
+  my ($handle, $obj, $declname)= @_;
 
-  return unless @$path;
+  return unless @{$obj->{"trace"}};
   print $handle "<tr>$TDI<td colspan=\"4\">This $declname is inside the ",
-                "following construct", (@$path>1? "s":""), ":</td></tr>\n";
-  for my $trc (@$path) {
+                "following construct", (@{$obj->{"trace"}}>1? "s":""), ":</td></tr>\n";
+  for my $trc (@{$obj->{"trace"}}) {
     if( $trc->{"type"} eq "generate" ) {
       print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID$trc->{name}",
           "$SP_</b> : $SPWD", $trc->{"subtype"}, "$SP_ ",
@@ -4163,7 +4140,7 @@ sub printprochtml
   print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}postponed$SP_</b></td></tr>\n"
         if $proc->{"postponed"};
   printcommonhtml($handle, $proc);
-  printtracehtml($handle, $proc->{"trace"}, "process");
+  printtracehtml($handle, $proc, "process");
 }
 
 
@@ -4259,7 +4236,7 @@ sub printinsthtml
       print $handle "</table></td></tr>\n";
     }
   }
-  printtracehtml($handle, $inst->{"trace"}, "instantiation");
+  printtracehtml($handle, $inst, "instantiation");
 }
 
 
@@ -4293,7 +4270,7 @@ sub printpslhtml
       print $handle "${SPWD}is$SP_ ", markvhdl($def->{"value"}), "</td></tr>\n";
       printcommonhtml($handle, $def);
       printpslrefhtml($handle, $def);
-      printtracehtml($handle, $def->{"trace"}, "definition");
+      printtracehtml($handle, $def, "definition");
     }
     print $handle "</table>\n\n";
   }
@@ -4310,7 +4287,7 @@ sub printpslhtml
           if $dir->{"report"};
       printcommonhtml($handle, $dir);
       printpslrefhtml($handle, $dir);
-      printtracehtml($handle, $dir->{"trace"}, "directive");
+      printtracehtml($handle, $dir, "directive");
     }
     print $handle "</table>\n\n";
   }
