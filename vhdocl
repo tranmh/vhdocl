@@ -1773,6 +1773,8 @@ vhdlline:
       }
       else {
         @$newchild{qw(postponed sensitivity)}= ($post, $list);
+        $newchild->{"trace"}= [ grep $_->{"type"} =~ /^(?:generate|block)$/,
+                                map($_->{"backtrack"}, @parsestack), $parent ];
         if( @parsestack && $newchild->{"type"} eq "process" ) {
           # List all processes to avoid recursive searches later
           my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
@@ -1946,6 +1948,8 @@ vhdlline:
         }
         getnextline(0) or last vhdlline;
       }
+      $newentries[0]->{"trace"}= [ grep $_->{"type"} =~ /^(?:generate|block)$/,
+                                   map($_->{"backtrack"}, @parsestack), $parent ];
       if( @parsestack ) {
         # List all PSL definitions to avoid recursive searches
         my $top= @parsestack > 1? $parsestack[1]->{"backtrack"} : $parent;
@@ -1997,7 +2001,7 @@ vhdlline:
                       [ @parsestack ? @{$parsestack[-1]->{"uses"}} : () ] } );
       $newentries[0]->{"objname"} =~ s/\s+//g;
       readcommalist($genmap) if $firstmap eq "generic";
-      $newentries[0]->{"trace"}= [ grep $_->{"type"} eq "generate" || $_->{"type"} eq "block",
+      $newentries[0]->{"trace"}= [ grep $_->{"type"} =~ /^(?:generate|block)$/,
                                    map($_->{"backtrack"}, @parsestack), $parent ];
       if( @parsestack ) {
         # List all instances to avoid recursive searches later
@@ -4147,12 +4151,10 @@ sub printtracehtml
 
 # Print HTML fragment describing a process
 # -> File handle to print to
-#    Reference to array containing the path to and including the process (will
-#    be modified by removing the reference to the process hash from the end)
+#    Reference to hash representing the process
 sub printprochtml
 {
-  my ($handle, $path)= @_;
-  my $proc= pop @$path;
+  my ($handle, $proc)= @_;
 
   print $handle "<tr$CCO><td colspan=\"5\"><b>", ($proc->{"name"} ?
             $SPDID.$proc->{"name"}.$SP_ : "<i>${SPNC}unnamed$SP_</i>"), "</b>",
@@ -4161,7 +4163,7 @@ sub printprochtml
   print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}postponed$SP_</b></td></tr>\n"
         if $proc->{"postponed"};
   printcommonhtml($handle, $proc);
-  printtracehtml($handle, $path, "process");
+  printtracehtml($handle, $proc->{"trace"}, "process");
 }
 
 
@@ -4267,14 +4269,12 @@ sub printinsthtml
 sub printpslhtml
 {
   my ($handle, $obj)= @_;
-  my @allpsl;
   my @psldefs;
   my @psldirs;
 
-  @allpsl= trace_all($obj, "type", "psl");
-  return unless @allpsl;
-  for (@allpsl) {
-    if( $_->[-1]->{"subtype"} =~ /^(?:property|sequence|endpoint|default clock)$/ ) {
+  return unless @{$obj->{"allpsldefs"}};
+  for (@{$obj->{"allpsldefs"}}) {
+    if( $_->{"subtype"} =~ /^(?:property|sequence|endpoint|default clock)$/ ) {
         push @psldefs, $_;
     }
     else {
@@ -4283,8 +4283,7 @@ sub printpslhtml
   }
   if( @psldefs ) {
     print $handle "\n<h2>PSL definitions</h2>\n\n$STDTAB\n";
-    for my $trc (@psldefs) {
-      my $def= pop @$trc;
+    for my $def (@psldefs) {
       print $handle "<tr$CCO><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ";
       print $handle "<a name=\"$labels{psl}$def->{name}\">$SPPID$def->{name}$SP_</a> "
           if $def->{"name"};
@@ -4294,14 +4293,13 @@ sub printpslhtml
       print $handle "${SPWD}is$SP_ ", markvhdl($def->{"value"}), "</td></tr>\n";
       printcommonhtml($handle, $def);
       printpslrefhtml($handle, $def);
-      printtracehtml($handle, $trc, "definition");
+      printtracehtml($handle, $def->{"trace"}, "definition");
     }
     print $handle "</table>\n\n";
   }
   if( @psldirs ) {
     print $handle "\n<h2>PSL directives</h2>\n\n$STDTAB\n";
-    for my $trc (@psldirs) {
-      my $dir= pop @$trc;
+    for my $dir (@psldirs) {
       print $handle "<tr$CCO><td>";
       print $handle "$SPPID$dir->{name}$SP_ : " if $dir->{"name"};
       print $handle "</td><td colspan=\"4\"><b>$SPPSL$dir->{subtype}$SP_</b> ",
@@ -4312,7 +4310,7 @@ sub printpslhtml
           if $dir->{"report"};
       printcommonhtml($handle, $dir);
       printpslrefhtml($handle, $dir);
-      printtracehtml($handle, $trc, "directive");
+      printtracehtml($handle, $dir->{"trace"}, "directive");
     }
     print $handle "</table>\n\n";
   }
@@ -4382,7 +4380,7 @@ sub architecturehtml
     print ARCH "</table>\n\n";
   }
   printpslhtml(*ARCH{IO}, $arch);
-  if( my @procs= trace_all($arch, "type", "process") ) {
+  if( my @procs= @{$arch->{"allprocesses"}} ) {
     print ARCH "\n<h2>Processes</h2>\n\n$STDTAB\n";
     map { printprochtml(*ARCH{IO}, $_) } @procs;
     print ARCH "</table>\n\n";
