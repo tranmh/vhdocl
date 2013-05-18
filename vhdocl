@@ -1557,7 +1557,10 @@ sub parsefile
   $err ||= *STDERR{IO};
   ($vline, $doccomment, $aheaddoccom, $lastdoccom, $keepdoctype)= ("") x 5;
   ($keepdoccom, $keepaheaddoc)= (0, 0);
-  open($vhandle, $fname) or croak "Could not open $fname!  Aborting.";
+  if( !open($vhandle, $fname) ) {
+    $file->{"fatal"}= "Could not open $fname!  Aborting.";
+    return;
+  }
   benchmark() if $config{"benchmark"};
 vhdlline:
   while( 13 )
@@ -2200,6 +2203,7 @@ sub parsetask
   my ($taskind, $sock)= @_;
   my ($errhandle, $errmsg);
 
+  $config{"maintask"}= 0;
   open $errhandle, ">", \$errmsg;
   while( 13 ) {
     my $file= recvdata($sock);
@@ -2221,19 +2225,20 @@ my $recvsockmask;
 # communication socket are added to @parsetasks.
 sub createtasks
 {
+  $config{"maintask"}= 1;
   $recvsockmask= "";
   for my $ind (0..$config{"jobs"}-1)
   {
     my ($workersock, $controlsock);
     if( !eval { socketpair($workersock, $controlsock, AF_UNIX, SOCK_DGRAM, PF_UNSPEC) } ) {
       print STDERR "Could not create socketpair for communication with parsing task $ind.  Terminating.\n";
-      killslaves();
+      endtasks();
       exit 1;
     }
     my $pid= fork();
     if( !defined($pid) ) {
       print STDERR "Could not fork parsing task $ind.  Terminating.\n";
-      killslaves();
+      endtasks();
       exit 1;
     }
     if( !$pid ) {       # forked slave process
@@ -2250,13 +2255,22 @@ sub createtasks
 }
 
 
-# Send a value to all worker tasks to tell them to terminate.
-sub destroytasks
+# Send a value to all worker tasks to tell them to terminate and waits until
+# they do.
+sub endtasks
 {
   for my $ind (0..$#parsetasks) {
     senddata($parsetasks[$ind]->{"socket"}, { "die" => "yes, really" });
   }
+  for my $ind (0..$#parsetasks) {
+    waitpid($parsetasks[$ind]->{"pid"}, 0);
+  }
   @parsetasks= ();
+}
+
+
+END {
+  endtasks() if $config{"maintask"};
 }
 
 
@@ -2287,6 +2301,7 @@ sub parsenext
     return undef if $parsefileind > $#$files;
     print "Parsing $$files[$parsefileind]->{name}...\n" unless $config{"quiet"};
     parsefile($$files[$parsefileind]);
+    croak $$files[$parsefileind]->{"fatal"} if $$files[$parsefileind]->{"fatal"};
     markgit($$files[$parsefileind]);
     ++$parsefileind;
     return $parsefileind - 1;
@@ -2311,6 +2326,7 @@ sub parsenext
     my $donefileind= $parsetasks[$donetaskind]->{"fileind"};
     $$files[$donefileind]= recvdata($parsetasks[$donetaskind]->{"socket"});
     my $file= $$files[$donefileind];
+    croak $file->{"fatal"} if $file->{"fatal"};
     if( $file->{"errmsg"} ) {
       print STDERR "Parsed $file->{name}:\n$file->{errmsg}";
     }
