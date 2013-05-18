@@ -206,6 +206,24 @@ sub fileext
 }
 
 
+# Find common prefix of several file names.  The prefix is a partial path, i.e.
+# always ends with a path separator.
+# -> List of file names
+# <- Path prefix
+sub commonprepath
+{
+  my $pre= shift;
+
+  for (@_) {
+    my $cmp= $pre ^ substr($_, 0, length($pre));
+    $cmp =~ /^(\x00*)/;
+    $pre= substr($pre, 0, length($1));
+  }
+  $pre =~ s/[^\Q$pathsep\E]+$//;
+  return $pre;
+}
+
+
 # Quote glob characters in a string by prepending '\x01'.
 # -> String
 # <- Quoted string
@@ -3698,12 +3716,13 @@ sub printobjhtml
     print $handle "<p>Defined in ";
     if( $obj->{"file"} ) {
       print $handle "<a href=\"../sources/", $obj->{"file"}->{"docfilename"},
-            "\">", $obj->{"filename"}, "</a>&nbsp;&nbsp;&nbsp;<a href=\"",
+            "\">", substr($obj->{"filename"}, $config{"prepathlen"}),
+            "</a>&nbsp;&nbsp;&nbsp;<a href=\"",
             ($obj->{"file"}->{"link"} =~ /^\w+:\/\// ? "":"../"),
             $obj->{"file"}->{"link"}, "\">[source file]</a></p>\n";
     }
     else {
-      print $handle $obj->{"filename"}, "</p>\n"
+      print $handle substr($obj->{"filename"}, $config{"prepathlen"}), "</p>\n"
     }
   }
   for (qw(synthesis simulation testbench deprecated internal)) {
@@ -4663,7 +4682,7 @@ sub sourcehtml
   ++$nlines unless $endnewline;
 
   printhtmlheader(*SRCHTML{IO}, $file->{"name"});
-  print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
+  print SRCHTML "\n<h1>Source file ", substr($file->{"name"}, $config{"prepathlen"}), "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
                                 $file->{"link"}, "\">Link to file</a></p>\n"
         if $config{"sourcelinks"};
@@ -4808,7 +4827,7 @@ sub sourcehtml_js
     <script type="text/javascript" src="../style/$config{prefix}vhdlmarkup.js"></script>
 EOF
   print SRCHTML $header;
-  print SRCHTML "\n<h1>Source file ", $file->{"name"}, "</h1>\n";
+  print SRCHTML "\n<h1>Source file ", substr($file->{"name"}, $config{"prepathlen"}), "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
                                 $file->{"link"}, "\">Link to file</a></p>\n"
         if $config{"sourcelinks"};
@@ -5232,7 +5251,7 @@ sub sourcelisthtml
   print SOURCE "\n<table border=\"0\">\n";
   for my $file (@srclist) {
     print SOURCE "<tr><td><a href=\"sources/", $file->{"docfilename"}, "\">",
-                $file->{"name"}, "</a>";
+                substr($file->{"name"}, $config{"prepathlen"}), "</a>";
     print SOURCE "&nbsp;&nbsp;&nbsp;</td><td><a href=\"" . $file->{"link"}, "\">[source file]</a>"
         if $config{"sourcelinks"};
     print SOURCE "</td></tr>\n";
@@ -5273,10 +5292,10 @@ sub hierarchyjson
     print JSON "$ind$ind$ind\"configuration\": \"$node->{confname}\",\n"
         if $node->{"confname"};
     if( $real->{"architecture"} ) {
-      print JSON "$ind$ind$ind\"file\": \"$node->{architecture}->{filename}\",\n";
+      print JSON "$ind$ind$ind\"file\": \"", substr($node->{"architecture"}->{"filename"}, $config{"prepathlen"}), "\",\n";
     }
     elsif( $real->{"entity"} ) {
-      print JSON "$ind$ind$ind\"file\": \"$node->{entity}->{filename}\",\n";
+      print JSON "$ind$ind$ind\"file\": \"", substr($node->{"entity"}->{"filename"}, $config{"prepathlen"}), "\",\n";
     }
     print JSON "$ind$ind$ind\"instantiations\": [\n";
     print JSON join(",\n", map "$ind$ind$ind$ind\"".jsonnodekey($_, $keycache)."\"", @{$real->{"children"}}), "\n"
@@ -5372,6 +5391,9 @@ for my $file (@vhdlfiles) {
   $file->{"docfilename"}= $config{"prefix"} . $trunkname . ".html";
   push @{$docfilenames{$file->{"docfilename"}}}, $file;
 }
+
+$config{"prepathlen"}= @vhdlfiles == 1 ? 0 :
+                       length(commonprepath(map $_->{"name"}, @vhdlfiles));
 
 # Disambiguate duplicate source HTML file names
 for my $docfiles (values %docfilenames) {
