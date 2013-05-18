@@ -2201,19 +2201,18 @@ sub prepareparallel
 sub parsetask
 {
   my ($taskind, $sock)= @_;
-  my ($errhandle, $errmsg);
 
   $config{"maintask"}= 0;
-  open $errhandle, ">", \$errmsg;
   while( 13 ) {
+    my ($errhandle, $errmsg);
     my $file= recvdata($sock);
     last if $file->{"die"} && $file->{"die"} eq "yes, really";
-    $errmsg= "";
+    open $errhandle, ">", \$errmsg;
     parsefile($file, $errhandle);
+    close $errhandle;
     $file->{"errmsg"}= $errmsg;
     senddata($sock, $file);
   }
-  close $errhandle;
 }
 
 
