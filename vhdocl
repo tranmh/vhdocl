@@ -387,7 +387,7 @@ sub croak
 {
   my ($msg)= @_;
 
-  print STDERR "$msg\n" if defined($msg) && "$msg";
+  print STDERR "$msg\n" if defined($msg) && length($msg);
   exit 1;
 }
 
