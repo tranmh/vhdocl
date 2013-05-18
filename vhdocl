@@ -2164,7 +2164,7 @@ sub prepareparallel
     recv(RECV, $_, length($msg), 0);
     $msg .= $msg;
   }
-  my $eighth= length($msg) / 4;
+  my $eighth= length($msg) / 8;
   substr($msg, -$eighth)= "";
   for (1, 2, 3)  {
     $sent= send(SEND, $msg, 0);
