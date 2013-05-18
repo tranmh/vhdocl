@@ -2466,15 +2466,17 @@ sub prune_all
 # architectures and configurations) if their entity has the same name.  A
 # warning is printed if there are duplicates and unless $config{"quiet"}.
 # -> Reference to the array of objects
+#    Library name (for messages) or undef
 # <- 1 if elements were removed
 sub uniq_objs
 {
-  my ($ary)= @_;
+  my ($ary, $lib)= @_;
   return 0 unless @$ary;
   my $type= $ary->[0]->{"type"};
   my %byname;
   my $removed= 0;
 
+  $lib= $lib ? "$lib." : "";
   if( $type eq "architecture" || $type eq "configuration" ) {
     my $ind= 0;
     for my $elem (@$ary) {
@@ -2486,7 +2488,7 @@ sub uniq_objs
         my @all= @{$byname{$name}->{$objname}};
         next unless @all > 1;
         print STDERR ucfirst($type), " ", $$ary[$all[0]]->{"name"},
-             " of ", $$ary[$all[0]]->{"objname"}, " was found ",
+             " of $lib", $$ary[$all[0]]->{"objname"}, " was found ",
              @all > 2 ? (0+@all)." times" : "twice", ", in:\n   ",
              join("\n   ", map $$ary[$_]->{"filename"}, @all),
              "\nKeeping the one from ", $$ary[$all[0]]->{"filename"}, ".\n"
@@ -2505,7 +2507,7 @@ sub uniq_objs
     for my $name (keys %byname) {
       my @all= @{$byname{$name}};
       next unless @all > 1;
-      print STDERR ucfirst($type), " ", $$ary[$all[0]]->{"name"}, " was found ",
+      print STDERR ucfirst($type), " $lib", $$ary[$all[0]]->{"name"}, " was found ",
            @all > 2 ? (0+@all)." times" : "twice", ", in:\n   ",
            join("\n   ", map $$ary[$_]->{"filename"}, @all),
            "\nKeeping the one from ", $$ary[$all[0]]->{"filename"}, ".\n"
@@ -5459,15 +5461,15 @@ for my $lib (keys(%libraries)) {
     $_->{"allpsldefs"} ||= [];
   }
   my @ents= grep $_->{"type"} eq "entity", @$decls;
-  $duplicate += uniq_objs(\@ents);
+  $duplicate += uniq_objs(\@ents, $lib);
   my @archs= grep $_->{"type"} eq "architecture", @$decls;
-  $duplicate += uniq_objs(\@archs);
+  $duplicate += uniq_objs(\@archs, $lib);
   my @confs= grep $_->{"type"} eq "configuration", @$decls;
-  $duplicate += uniq_objs(\@confs);
+  $duplicate += uniq_objs(\@confs, $lib);
   my @packs= grep $_->{"type"} eq "package", @$decls;
-  $duplicate += uniq_objs(\@packs);
+  $duplicate += uniq_objs(\@packs, $lib);
   my @pbods= grep $_->{"type"} eq "packagebody", @$decls;
-  $duplicate += uniq_objs(\@pbods);
+  $duplicate += uniq_objs(\@pbods, $lib);
   for my $ac (@archs, @confs) {
     $ac->{"libname"} = $lib;
     next if $ac->{"objname"} =~ /\..*\./ || 
