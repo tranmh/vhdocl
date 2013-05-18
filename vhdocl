@@ -2311,9 +2311,12 @@ sub parsenext
     my $donefileind= $parsetasks[$donetaskind]->{"fileind"};
     $$files[$donefileind]= recvdata($parsetasks[$donetaskind]->{"socket"});
     my $file= $$files[$donefileind];
-    print "Parsed $file->{name}", ($file->{"errmsg"}? ":\n" : ".\n")
-        unless $config{"quiet"};
-    print STDERR $file->{"errmsg"} if $file->{"errmsg"};
+    if( $file->{"errmsg"} ) {
+      print STDERR "Parsed $file->{name}:\n$file->{errmsg}";
+    }
+    else {
+      print "Parsed $file->{name}.\n" unless $config{"quiet"};
+    }
     delete $file->{"errmsg"};
     markgit($file);
     $parsetasks[$donetaskind]->{"fileind"}= undef;
