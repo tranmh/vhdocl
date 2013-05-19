@@ -2507,17 +2507,49 @@ sub uniq_objs
     for my $name (keys %byname) {
       my @all= @{$byname{$name}};
       next unless @all > 1;
-      print STDERR ucfirst($type), " $lib", $$ary[$all[0]]->{"name"}, " was found ",
-           @all > 2 ? (0+@all)." times" : "twice", ", in:\n   ",
+      if( !$config{"quiet"} && ($type ne "entity" || !sameentities(map $$ary[$_], @all)) ) {
+        print STDERR ucfirst($type), " $lib", $$ary[$all[0]]->{"name"},
+           " was found ", @all > 2 ? (0+@all)." times" : "twice", ", in:\n   ",
            join("\n   ", map $$ary[$_]->{"filename"}, @all),
-           "\nKeeping the one from ", $$ary[$all[0]]->{"filename"}, ".\n"
-          unless $config{"quiet"};
+           "\nKeeping the one from ", $$ary[$all[0]]->{"filename"}, ".\n";
+      }
       @$ary[@all[1..$#all]]= (undef) x $#all;
       $removed= 1;
     }
   }
   @$ary= grep defined($_), @$ary;
   return $removed;
+}
+
+
+# Find out if a set of entity declarations describe the same entity.  The
+# number, names, types and directions of ports and generics are compared.  The
+# documentation markup is not.
+# -> List of references to hashes representing entities
+# <- 1 if all are equal, 0 otherwise
+sub sameentities
+{
+  my $first= shift;
+
+  return 1 unless @_;
+  my @fports= sort { $a->{"name"} cmp $b->{"name"} } @{$first->{"childtype"}->{"port"} || []};
+  my @fgens= sort { $a->{"name"} cmp $b->{"name"} } @{$first->{"childtype"}->{"generic"} || []};
+  for my $ent (@_) {
+    return 0 unless @fports == @{$ent->{"childtype"}->{"port"} || []} &&
+                    @fgens == @{$ent->{"childtype"}->{"generic"} || []};
+    my @ports= sort { $a->{"name"} cmp $b->{"name"} } @{$ent->{"childtype"}->{"port"} || []};
+    for my $ind (0..$#ports) {
+      return 0 unless $fports[$ind]->{"name"} eq $ports[$ind]->{"name"} &&
+               $fports[$ind]->{"direction"} eq $ports[$ind]->{"direction"} &&
+               !codecmp($fports[$ind]->{"subtype"}, $ports[$ind]->{"subtype"});
+    }
+    my @gens= sort { $a->{"name"} cmp $b->{"name"} } @{$ent->{"childtype"}->{"generic"} || []};
+    for my $ind (0..$#gens) {
+      return 0 unless $fgens[$ind]->{"name"} eq $gens[$ind]->{"name"} &&
+               !codecmp($fgens[$ind]->{"subtype"}, $gens[$ind]->{"subtype"});
+    }
+  }
+  return 1;
 }
 
 
