@@ -740,6 +740,22 @@ The default VHDocL style file vhdocl.css contains examples of all the available
 CSS classes.
 
 
+=head1 MACHINE-READABLE OUTPUT
+
+The instantiation hierarchy is also output to a machine-readable text file in
+JSON format that is compatible with YAML 1.2.  This allows other tools to make
+use of the information VHDocL extracts.
+
+The top-level data structure is an array with three elements, the hierarchy
+itself, an array of designated top modules and an array of other uninstantiated
+modules.  The hierarchy itself is an object (called a dictionary or hash in
+other languages) that maps the names of nodes to objects describing their
+instantiations and other properties.  Node names are constructed from the
+template "library.entity-architecture[-configuration]".  Each node object has
+the entries "entity", "architecture" and possibly "configuration" as well as
+"file" (the file name where it is defined).  The "instantiations" entry has as
+its value an array of node names instantiated in it.
+
 
 =head1 BUGS AND LIMITATIONS
 
