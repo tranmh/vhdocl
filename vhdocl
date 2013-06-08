@@ -2201,17 +2201,32 @@ sub prepareparallel
 sub parsetask
 {
   my ($taskind, $sock)= @_;
+  my @myfiles;
 
   $config{"maintask"}= 0;
   while( 13 ) {
     my ($errhandle, $errmsg);
     my $file= recvdata($sock);
-    last if $file->{"die"} && $file->{"die"} eq "yes, really";
+    return if $file->{"die"} && $file->{"die"} eq "yes, really";
+    last if $file->{"parsing done"};
+    push @myfiles, { map { $_ => $file->{$_}; } qw(name docfilename link tabsize) };
     open $errhandle, ">", \$errmsg;
     parsefile($file, $errhandle);
     close $errhandle;
     $file->{"errmsg"}= $errmsg;
     senddata($sock, $file);
+  }
+  for my $file (@myfiles) {
+    if( $config{"javasyntax"} ) {
+      sourcehtml_js($file);
+    }
+    else {
+      sourcehtml($file);
+    }
+  }
+  while( 13 ) {
+    my $file= recvdata($sock);
+    return if $file->{"die"} && $file->{"die"} eq "yes, really";
   }
 }
 
@@ -2319,7 +2334,12 @@ sub parsenext
       }
       ++$inprogress if defined $task->{"fileind"};
     }
-    return undef unless $inprogress;
+    unless( $inprogress ) {
+      for my $task (@parsetasks) {
+        senddata($task->{"socket"}, { "parsing done" => 1 } );
+      }
+      return undef;
+    }
     my $donetaskind;
     do { $donetaskind= parsedone(); } while( ! defined $donetaskind );
     my $donefileind= $parsetasks[$donetaskind]->{"fileind"};
@@ -4718,7 +4738,7 @@ sub sourcehtml
   }
   close VHDL;
   if( $file->{"tabsize"} ) {
-    $tabstop= $file->{"tabsize"};
+    local $Text::Tabs::tabstop= $file->{"tabsize"};
     $source= expand($source);
   }
   my $endnewline= $source =~ /\n$/;
@@ -4887,7 +4907,7 @@ EOF
         if defined $file->{"link"};
   print SRCHTML "<table><tr><td><pre id=\"linenumbers\">\n";
   print SRCHTML "</pre></td><td><pre id=\"vhdlcode\" class=\"vhdlcode\">\n";
-  $tabstop= $file->{"tabsize"} if $file->{"tabsize"};
+  local $Text::Tabs::tabstop= $file->{"tabsize"} if $file->{"tabsize"};
   while( <VHDL> )
   {
     $_= expand($_) if $file->{"tabsize"};
@@ -6047,14 +6067,6 @@ for my $pack (@packages, @orphanedpbodies) {
 
 if( $config{"javasyntax"} ) {
   makemarkupjs();
-}
-for my $file (@vhdlfiles) {
-  if( $config{"javasyntax"} ) {
-    sourcehtml_js($file);
-  }
-  else {
-    sourcehtml($file);
-  }
 }
 
 benchmark("to generate HTML") if $config{"benchmark"};
