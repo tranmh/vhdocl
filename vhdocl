@@ -3768,10 +3768,12 @@ sub printobjhtml
     print $handle "<p>Defined in ";
     if( $obj->{"file"} ) {
       print $handle "<a href=\"../sources/", $obj->{"file"}->{"docfilename"},
-            "\">", substr($obj->{"filename"}, $config{"prepathlen"}),
-            "</a>&nbsp;&nbsp;&nbsp;<a href=\"",
+            "\">", substr($obj->{"filename"}, $config{"prepathlen"}), "</a>";
+      print $handle "&nbsp;&nbsp;&nbsp;<a href=\"",
             ($obj->{"file"}->{"link"} =~ /^\w+:\/\// ? "":"../"),
-            $obj->{"file"}->{"link"}, "\">[source file]</a></p>\n";
+             $obj->{"file"}->{"link"}, "\">[source file]</a>"
+          if defined $obj->{"file"}->{"link"};
+      print $handle "</p>\n";
     }
     else {
       print $handle substr($obj->{"filename"}, $config{"prepathlen"}), "</p>\n"
@@ -4737,7 +4739,7 @@ sub sourcehtml
   print SRCHTML "\n<h1>Source file ", substr($file->{"name"}, $config{"prepathlen"}), "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
                                 $file->{"link"}, "\">Link to file</a></p>\n"
-        if $config{"sourcelinks"};
+        if defined $file->{"link"};
   print SRCHTML "<table border=\"0\" cellpadding=\"0\"><tr><td><pre>\n";
   my $nrwidth= length($nlines);
   for my $nr (1..$nlines) {
@@ -4882,7 +4884,7 @@ EOF
   print SRCHTML "\n<h1>Source file ", substr($file->{"name"}, $config{"prepathlen"}), "</h1>\n";
   print SRCHTML "\n<p><a href=\"", ($file->{"link"} =~ /^\w+:\/\// ? "":"../"),
                                 $file->{"link"}, "\">Link to file</a></p>\n"
-        if $config{"sourcelinks"};
+        if defined $file->{"link"};
   print SRCHTML "<table><tr><td><pre id=\"linenumbers\">\n";
   print SRCHTML "</pre></td><td><pre id=\"vhdlcode\" class=\"vhdlcode\">\n";
   $tabstop= $file->{"tabsize"} if $file->{"tabsize"};
@@ -5305,7 +5307,7 @@ sub sourcelisthtml
     print SOURCE "<tr><td><a href=\"sources/", $file->{"docfilename"}, "\">",
                 substr($file->{"name"}, $config{"prepathlen"}), "</a>";
     print SOURCE "&nbsp;&nbsp;&nbsp;</td><td><a href=\"" . $file->{"link"}, "\">[source file]</a>"
-        if $config{"sourcelinks"};
+        if defined $file->{"link"};
     print SOURCE "</td></tr>\n";
   }
   print SOURCE "</table>\n";
@@ -5439,7 +5441,7 @@ for my $file (@vhdlfiles) {
   my $trunkname;
   (undef, undef, $trunkname)= File::Spec->splitpath($file->{"name"});
   $trunkname =~ s/\.[^\.]*$//;
-  $file->{"link"}= sourcelink($file->{"name"});
+  $file->{"link"}= sourcelink($file->{"name"}) if $config{"sourcelinks"};
   $file->{"docfilename"}= $config{"prefix"} . $trunkname . ".html";
   push @{$docfilenames{$file->{"docfilename"}}}, $file;
 }
