@@ -3412,6 +3412,8 @@ my $SPNC= "<span class=\"nocode\">";        # non-code within class vhdlcode
 my $SP_= "</span>";
 
 # other tags that allow CSS customisation:
+my $DIVDESC= "<div class=\"bigdesc\">";     # description of major design element
+my $SPSDESC= "<span class=\"smdesc\">";     # description of declaration
 my $TDI= "<td class=\"vhdoclind\" width=\"50\"></td>";  # indentation in tables
 my $STDTAB= "<table class=\"vhdocltab\" border=\"0\" cellpadding=\"3\">";   # major layout table
 
@@ -3761,6 +3763,7 @@ sub printdescription
   my ($handle, $desc)= @_;
   my $listnow= 0;
 
+  print $handle "$DIVDESC\n";
   for my $line (@$desc)
   {
     if( $line =~ s/^\@li\s*//i ) {
@@ -3768,17 +3771,18 @@ sub printdescription
         print $handle "<ul>\n";
         $listnow= 1;
       }
-      print $handle "<li>$SPDOC$line$SP_</li>\n";
+      print $handle "<li>$line</li>\n";
     }
     else {
       if( $listnow ) {
         print $handle "</ul>\n";
         $listnow= 0;
       }
-      print $handle "<p>$SPDOC\n$line\n$SP_</p>\n";
+      print $handle "<p>\n$line\n</p>\n";
     }
   }
   print $handle "</ul>\n" if $listnow;
+  print $handle "</div>\n";
 }
 
 
@@ -3869,7 +3873,7 @@ sub printlibusehtml
     my $markedname= markvhdl($libs{$lib}->{"name"});
     print $handle "<tr$CCO><td colspan=\"2\"><b>${SPDCL}library$SP_ ",
                   $markedname, "</b></td></tr>\n";
-    map { print $handle "<tr>$TDI<td>$SPDOC$_$SP_</td></tr>\n"; }
+    map { print $handle "<tr>$TDI<td>$SPSDESC$_$SP_</td></tr>\n"; }
                           @{$libs{$lib}->{"doc"}->{"description"}};
     for my $usename (grep $_ =~ /^$lib\b/, @sortuses) {
       printusehtml($handle, $uses{$usename});
@@ -3904,7 +3908,7 @@ sub printusehtml
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ", $markedname,
                   "</td></tr>\n";
   }
-  map { print $handle "<tr>$TDI<td>$SPDOC$_$SP_</td></tr>\n"; }
+  map { print $handle "<tr>$TDI<td>$SPSDESC$_$SP_</td></tr>\n"; }
                         @{$use->{"doc"}->{"description"}};
 }
 
@@ -3924,7 +3928,7 @@ sub printgenporthtml
   print $handle "<td align=\"left\">:= ", markvhdl($gp->{"value"}), "</td>\n"
         if $gp->{"value"};
   print $handle "</tr>\n";
-  map { print $handle "<tr><td></td><td align=\"left\" colspan=\"3\">$SPDOC$_",
+  map { print $handle "<tr><td></td><td align=\"left\" colspan=\"3\">$SPSDESC$_",
                       "$SP_</td></tr>\n" }
                         @{$gp->{"doc"}->{"description"}};
 }
@@ -4007,7 +4011,7 @@ sub printcommonhtml
 {
   my ($handle, $obj)= @_;
 
-  map { print $handle "<tr>$TDI<td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n" }
+  map { print $handle "<tr>$TDI<td colspan=\"4\">$SPSDESC$_$SP_</td></tr>\n" }
                         @{$obj->{"doc"}->{"description"}};
   if( $obj->{"attributes"} && keys(%{$obj->{"attributes"}}) ) {
     print $handle "<tr>$TDI<td colspan=\"4\">Attributes:</td></tr>\n",
@@ -4036,12 +4040,12 @@ sub printattrhtml
                 "</td><td> := ", markvhdl($aspec->{"value"}), "</td></tr>\n";
     if( $attr->{"doc"}->{"description"} &&
                               @{$attr->{"doc"}->{"description"}} ) {
-      map { print $handle "<tr>$TDI<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
+      map { print $handle "<tr>$TDI<td colspan=\"2\">$SPSDESC$_$SP_</td></tr>\n" }
                 @{$attr->{"doc"}->{"description"}};
     }
     if( $aspec->{"doc"}->{"description"} &&
                               @{$aspec->{"doc"}->{"description"}} ) {
-      map { print $handle "<tr>$TDI<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
+      map { print $handle "<tr>$TDI<td colspan=\"2\">$SPSDESC$_$SP_</td></tr>\n" }
                 @{$aspec->{"doc"}->{"description"}};
     }
   }
@@ -4128,7 +4132,7 @@ sub printtypehtml
                 "$SP_</b></a></td><td>${SPWD}is$SP_</td>\n<td>";
   if( $type->{"subtype"} eq "record" ) {
     print $handle "${SPWD}record$SP_</td></tr>\n";
-    map { print $handle "<tr><td></td><td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n"; }
+    map { print $handle "<tr><td></td><td colspan=\"4\">$SPSDESC$_$SP_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
     if( my @elements= @{$type->{"children"} || []} ) {
       print $handle "<tr><td></td><td align=\"right\">$STDTAB<tr><td>Elements: </td></tr></table></td><td colspan=\"3\">$STDTAB\n";
@@ -4140,7 +4144,7 @@ sub printtypehtml
   if( $type->{"subtype"} eq "units" ) {
     print $handle marktype($type->{"definition"}), " ${SPWD}units$SP_ $SPID",
                   $type->{"baseunit"}, "$SP_</td></tr>\n";
-    map { print $handle "<tr><td></td><td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n"; }
+    map { print $handle "<tr><td></td><td colspan=\"4\">$SPSDESC$_$SP_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
     for my $chain (@{$type->{"chains"}}) {
       print $handle "<tr><td></td><td></td><td colspan=\"3\">";
@@ -4167,7 +4171,7 @@ sub printtypehtml
   else {
     print $handle "???</td></tr>\n";
   }
-  map { print $handle "<tr><td></td><td colspan=\"4\">$SPDOC$_$SP_</td></tr>\n"; }
+  map { print $handle "<tr><td></td><td colspan=\"4\">$SPSDESC$_$SP_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
 }
 
@@ -4202,7 +4206,7 @@ sub printtracehtml
                                               "<i>${SPNC}unnamed$SP_</i>"),
                  "</b></td></tr>\n";
     }
-    map { print $handle "<tr>$TDI$TDI$TDI<td colspan=\"2\">$SPDOC$_$SP_</td></tr>\n" }
+    map { print $handle "<tr>$TDI$TDI$TDI<td colspan=\"2\">$SPSDESC$_$SP_</td></tr>\n" }
                           @{$trc->{"doc"}->{"description"}};
   }
 }
@@ -4307,7 +4311,7 @@ sub printinsthtml
       }
     }
     print $handle "$SP_</td></tr>\n";
-    map { print $handle "<tr>$TDI$TDI<td colspan=\"3\">$SPDOC$_$SP_</td></tr>\n" }
+    map { print $handle "<tr>$TDI$TDI<td colspan=\"3\">$SPSDESC$_$SP_</td></tr>\n" }
                         @{$inst->{"binddoc"}};
     if( $inst->{"bindgen"} ) {
       my $map= $inst->{"bindgen"}->{"map"};
@@ -4478,7 +4482,7 @@ sub printconfightml
       else {
         print $handle $SPID, $for->{"objname"}, "$SP_</b></td></tr>\n";
       }
-      map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\">$SPDOC",
+      map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\">$SPSDESC",
                    "$_$SP_</td></tr>\n" }    @{$for->{"doc"}->{"description"}};
     }
     else {
@@ -4531,9 +4535,9 @@ sub printconfightml
       else {
         print $handle "</td>$SP_</tr>\n";
       }
-      map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\">$SPDOC",
+      map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\">$SPSDESC",
                    "$_$SP_</td></tr>\n" }    @{$for->{"doc"}->{"description"}};
-      map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\">$SPDOC",
+      map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\">$SPSDESC",
            "$_$SP_</td></tr>\n" }    @{$for->{"use"}->{"doc"}->{"description"}};
       if( $for->{"bindgen"} ) {
         my $map= $for->{"bindgen"}->{"map"};
