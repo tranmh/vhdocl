@@ -4114,6 +4114,8 @@ sub printfunchtml
         "</td></tr>\n";
   print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}impure$SP_</b></td></tr>\n"
         if $func->{"pure"} && $func->{"pure"} eq "impure";
+  print $handle "<tr>$TDI<td colspan=\"4\">$SPSDESC$func->{doc}->{brief}$SP_</td></tr>\n"
+                        if $func->{"doc"}->{"brief"};
   printcommonhtml($handle, $func);
 }
 
