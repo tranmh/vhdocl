@@ -533,6 +533,7 @@ my @options= (
 [ "", "homehtml", "/", "homehtml" ],
 [ "", "javasyntax", "?", "javasyntax" ],
 [ "", "sourcelinks", "?", "sourcelinks" ],
+[ "", "packagesummary", "?", "packagesummary" ],
 );
 
 # Options that apply only to files following them and may be present multiple
@@ -3414,6 +3415,7 @@ my $SP_= "</span>";
 # other tags that allow CSS customisation:
 my $DIVDESC= "<div class=\"bigdesc\">";     # description of major design element
 my $SPSDESC= "<span class=\"smdesc\">";     # description of declaration
+my $DIVPSUM= "<div class=\"packsum\">";     # package summary section
 my $TDI= "<td class=\"vhdoclind\" width=\"50\"></td>";  # indentation in tables
 my $STDTAB= "<table class=\"vhdocltab\" border=\"0\" cellpadding=\"3\">";   # major layout table
 
@@ -3845,8 +3847,8 @@ sub printobjhtml
 }
 
 
-my %labels= ( "function" => "func:", "procedure" => "proc:", "psl" => "psl:",
-            "component" => "comp:", "instance" => "inst:", "type" => "type:" );
+my %labels= ( "component" => "comp:", "instance" => "inst:", "type" => "type:",
+              "psl" => "psl:" );
 
 # Print HTML fragment describing the libraries and package use clauses
 # affecting and object.
@@ -3916,12 +3918,16 @@ sub printusehtml
 # Print HTML fragment describing a generic, port or constant
 # -> File handle to print to
 #    Reference to hash representing the generic/port/...
+#    Optional hyperlink label to insert
 sub printgenporthtml
 {
-  my ($handle, $gp)= @_;
+  my ($handle, $gp, $label)= @_;
 
-  print $handle "<tr$CCO><td align=\"left\"><b>$SPID", $gp->{"name"},
-                "$SP_</b></td>\n";
+  $label= $label ? "<a name=\"$label\">" : "";
+  my $aclose= $label ? "</a>" : "";
+
+  print $handle "<tr$CCO><td align=\"left\"><b>$label$SPID$gp->{name}",
+                "$SP_$aclose</b></td>\n";
   print $handle "<td align=\"center\"><i><b>$SPIO", $gp->{"direction"}, 
                 "$SP_</b></i></td>" if $gp->{"direction"};
   print $handle "<td align=\"left\">", marktype($gp->{"subtype"}, $gp), "</td>\n";
@@ -4080,38 +4086,33 @@ sub printfuncprochtml
 {
   my ($handle, $obj)= @_;
   my @funcprocs;
-  my @headwords;
-  my $headline;
 
   @funcprocs= @{$obj->{"childtype"}->{"funcproc"}};
   return unless @funcprocs;
-  push @headwords, "functions" if $obj->{"childtype"}->{"function"} &&
-                                 @{$obj->{"childtype"}->{"function"}};
-  push @headwords, "procedures" if $obj->{"childtype"}->{"procedure"} &&
-                                  @{$obj->{"childtype"}->{"procedure"}};
-  $headline= ucfirst join " and ", @headwords;
-  print $handle "\n<h2>$headline</h2>\n\n$STDTAB\n";
+  print $handle "\n<h2>Functions and procedures</h2>\n\n$STDTAB\n";
   map { printfunchtml($handle, $_) } @funcprocs;
   print $handle "</table>\n\n";
 }
 
 
-# Print HTML fragment describing a function or procedure declaration
+# Print HTML fragment describing a function or procedure declaration.  If the
+# "label" field of the function hash exists, this string is inserted as a
+# hyperlink label (this is only needed for package summaries).
 # -> File handle to print to
 #    Reference to hash representing the function/procedure
 sub printfunchtml
 {
   my ($handle, $func)= @_;
-  my $label= $labels{$func->{"type"}} . $func->{"name"};
+  my $label= $func->{"label"} ? "<a name=\"$func->{label}\">" : "";
+  my $aclose= $func->{"label"} ? "</a>" : "";
   my $arglist= $func->{"parlist"} ?
                 " (" . markvhdl($func->{"parlist"}) . ")" : "";
 
-  print $handle "<tr$CCO><td colspan=\"5\">$SPDCL", $func->{"type"},
-                "$SP_ <b><a name=\"$label\">$SPDID",
-                $func->{"name"}, "$SP_</a></b>", $arglist,
+  print $handle "<tr$CCO><td colspan=\"5\">$SPDCL$func->{type}$SP_ ",
+                "<b>$label$SPDID$func->{name}$SP_$aclose</b>", $arglist,
                 ($func->{"subtype"}? " ${SPWD}return$SP_ " .
                                 markvhdl($func->{"subtype"}) : ""),
-        "</td></tr>\n";
+                "</td></tr>\n";
   print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}impure$SP_</b></td></tr>\n"
         if $func->{"pure"} && $func->{"pure"} eq "impure";
   print $handle "<tr>$TDI<td colspan=\"4\">$SPSDESC$func->{doc}->{brief}$SP_</td></tr>\n"
@@ -4599,6 +4600,120 @@ sub configurationhtml
 }
 
 
+{
+my $summaxdesc= 100;
+
+# Print summary of declarations in a package.  The included declarations are
+# type declarations, constants, functions / procedures and component
+# declarations.  Each section is printed only if the description of any item
+# exceeds what would be printed in the summary (see printpacksumbrief() below).
+# If this is true for none of the sections, nothing is printed.
+# -> File handle to print to
+#    Reference to hash representing package
+sub printpackagesummary
+{
+  my ($handle, $pack)= @_;
+  my %needsummary;
+
+  for my $decl (qw(type constant funcproc component)) {
+    $needsummary{$decl}= elem { $_->{"doc"}->{"description"} && 
+        ((@{$_->{"doc"}->{"description"}} && (defined($_->{"doc"}->{"brief"})
+              || length($_->{"doc"}->{"description"}->[0]) > $summaxdesc ))
+         || @{$_->{"doc"}->{"description"}} > 1) }
+                        @{$pack->{"childtype"}->{$decl}};
+  }
+  return unless %needsummary;
+  print $handle "$DIVPSUM\n<h2>Summary</h2>\n\n";
+  if( $needsummary{"type"} ) {
+    print $handle "\n<h3>Types</h3>\n$STDTAB";
+    for my $type (@{$pack->{"childtype"}->{"type"}}) {
+      my $href= "#$labels{type}$type->{name}";
+      print $handle "<tr><td align=\"right\"><a href=\"$href\">", $type->{"subtype"} || "type",
+                " <b>$type->{name}</b></a></td>";
+      printpacksumbrief($handle, $type, $href);
+    }
+    print $handle "</table>\n";
+  }
+  if( $needsummary{"constant"} ) {
+    print $handle "\n<h3>Constants</h3>\n$STDTAB";
+    for my $const (@{$pack->{"childtype"}->{"constant"}}) {
+      my $href= "#const:$const->{name}";
+      print $handle "<tr><td align=\"right\"><a href=\"$href\">",
+                    "<b>$const->{name}</b></a></td>";
+      printpacksumbrief($handle, $const, $href);
+    }
+    print $handle "</table>\n";
+  }
+  if( $needsummary{"funcproc"} ) {
+    print $handle "\n<h3>Functions and procedures</h3>\n$STDTAB";
+    for my $func (@{$pack->{"childtype"}->{"funcproc"}}) {
+      $func->{"label"}= substr($func->{"type"},0,4) . ":" . $func->{"name"} .
+                  "-" . substr(Digest::MD5::md5_hex($func->{"parlist"} . 
+                                            ($func->{"subtype"} || "")), 0, 8);
+      my $href= "#" . $func->{"label"};
+      print $handle "<tr><td align=\"right\"><a href=\"$href\">$func->{type}",
+                    " <b>$func->{name}</b>";
+      print $handle " ($func->{parlist})" if $func->{parlist};
+      print $handle " return $func->{subtype}" if $func->{subtype};
+      print $handle "</a></td>";
+      printpacksumbrief($handle, $func, $href);
+    }
+    print $handle "</table>\n";
+  }
+  if( $needsummary{"component"} ) {
+    print $handle "\n<h3>Components</h3>\n$STDTAB";
+    for my $comp (@{$pack->{"childtype"}->{"component"}}) {
+      my $href= "#$labels{component}$comp->{name}";
+      print $handle "<tr><td align=\"right\"><a href=\"$href\">",
+                    "<b>$comp->{name}</b></a></td>";
+      printpacksumbrief($handle, $comp, $href);
+    }
+    print $handle "</table>\n";
+  }
+  print $handle "</div>\n";
+  print $handle "\n<hr>\n";
+}
+
+
+# Print brief description in package summary table.  If the "brief" entry in
+# the declaration's documentation hash exists, this is printed in full,
+# otherwise the first paragraph of the description is printed in full if it
+# does not exceed $summaxdesc characters, or truncated to $summaxdesc-3
+# characters.  If what was printed does not constitute all the description, the
+# word "More..." is added which links to the full description.  This function
+# also outputs the closing tag of the layout table line.
+# -> File handle to print to
+#    Reference to hash of declaration to document
+#    Hyperlink to full description (usually to an anchor on the same HTML page)
+sub printpacksumbrief
+{
+  my ($handle, $decl, $href)= @_;
+  my $briefdesc= "";
+
+  if( defined $decl->{"doc"}->{"brief"} ) {
+    $briefdesc= $decl->{"doc"}->{"brief"};
+    $href= "" unless @{$decl->{"doc"}->{"description"}};
+  }
+  elsif( $decl->{"doc"}->{"description"} && @{$decl->{"doc"}->{"description"}} ) {
+    if( length($decl->{"doc"}->{"description"}->[0]) > $summaxdesc ) {
+      $briefdesc= substr($decl->{"doc"}->{"description"}->[0], 0, $summaxdesc-3) . "...";
+    }
+    else {
+      $briefdesc= $decl->{"doc"}->{"description"}->[0];
+      $href= "" unless @{$decl->{"doc"}->{"description"}} > 1;
+    }
+  }
+  else {
+    $href= "";
+  }
+  print $handle "\n  <td>$briefdesc";
+  print $handle "&nbsp;&nbsp;<a href=\"$href\">More...</a>" if $href;
+  print $handle "</td></tr>\n";
+}
+
+}
+
+
 my $packhtmlerr= 0;
 
 # Write the HTML documentation for a package or orphaned package body.  The
@@ -4667,6 +4782,7 @@ sub packagehtml
     print PACK "<h1>Package ", $pack->{"fullname"}, "</h1>\n\n";
     printobjhtml(*PACK{IO}, $pack);
     print PACK "\n<hr>\n\n";
+    printpackagesummary(*PACK{IO}, $pack) if $config{"packagesummary"};
     printlibusehtml(*PACK{IO}, $pack);
     if( my @types= @{$pack->{"childtype"}->{"type"}} ) {
       print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
@@ -4675,7 +4791,7 @@ sub packagehtml
     }
     if( my @consts= @{$pack->{"childtype"}->{"constant"}} ) {
       print PACK "\n<h2>Constants</h2>\n\n$STDTAB\n";
-      map { printgenporthtml(*PACK{IO}, $_) } @consts;
+      map { printgenporthtml(*PACK{IO}, $_, "const:$_->{name}") } @consts;
       print PACK "</table>\n\n";
     }
     printfuncprochtml(*PACK{IO}, $pack);
