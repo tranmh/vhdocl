@@ -46,6 +46,9 @@
 *.shaded {
     background-color:#f8f8f8;
 }
+*.packsum {
+    font-size:90%;
+}
 table.vhdocltab td {
     vertical-align:top;
 }
