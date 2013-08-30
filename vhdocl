@@ -55,7 +55,7 @@ my %config= ( "outputdir" => "doc", "prefix" => "", "libname" => "work",
   "compat" => 0, "cwd" => "", "psl" => 0, "parsedebug" => 0, "quiet" => 0, 
   "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
   "homehtml" => "", "title" => "", "footer" => "", "topmodules" => [],
-  "sourcelinks" => 1, "tabsize" => 0 );
+  "sourcelinks" => 1, "tabsize" => 0, "packagesummary" => "never" );
 
 my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "nodeimg" => "node.png", "subtrimg" => "subtree.png",
@@ -533,7 +533,7 @@ my @options= (
 [ "", "homehtml", "/", "homehtml" ],
 [ "", "javasyntax", "?", "javasyntax" ],
 [ "", "sourcelinks", "?", "sourcelinks" ],
-[ "", "packagesummary", "?", "packagesummary" ],
+[ "", "packagesummary", [ qw(always never auto section) ], "packagesummary" ],
 );
 
 # Options that apply only to files following them and may be present multiple
@@ -708,6 +708,24 @@ sub parseopt
       return 0;
     }
   }
+  if( ref $opt->[2] ) {
+    my @vals= grep /^\Q$value\E/i, @{$opt->[2]};
+    if( !@vals ) {
+      print STDERR "Unrecognised value `$value' for option ",
+                  ($opt->[0]? " -".$opt->[0]." /": ""), " --", $opt->[1],
+                  ".  Legal values are ", cswordlist(" and ", @{$opt->[2]}),
+                  ".  Aborting.\n";
+      croak;
+    }
+    elsif( @vals > 1 ) {
+      print STDERR "Ambiguous value `$value' for option ",
+                  ($opt->[0]? " -".$opt->[0]." /": ""), " --", $opt->[1],
+                  ".  (Could be ", cswordlist(" or ", @vals), ".)  Aborting.\n";
+      croak;
+    }
+    $config{$opt->[3]}= $vals[0];
+    return 1;
+  }
   if( $opt->[2] eq "w" ) {
     unless( $value =~ /^\w*$/ ) {
       print STDERR "The argument of", ($opt->[0]? " -".$opt->[0]." /": ""),
@@ -829,7 +847,23 @@ sub parsecfgfile
                    $opts[$#opts]->[1], ".)  Aborting.\n";
       croak;
     }
-    if( $opts[0]->[2] eq "&" ) {
+    if( ref $opts[0]->[2] ) {
+      my @vals= grep /^\Q$value\E/i, @{$opts[0]->[2]};
+      if( !@vals ) {
+        print STDERR "Unrecognised value `$value' for option $optname in ",
+                    "$fname, line $..  Legal values are ",
+                    cswordlist(" and ", @{$opts[0]->[2]}), ".  Aborting.\n";
+        croak;
+      }
+      elsif( @vals > 1 ) {
+        print STDERR "Ambiguous value `$value' for option $optname in ",
+                    "$fname, line $..  (Could be ",
+                    cswordlist(" or ", @vals), ".)  Aborting.\n";
+        croak;
+      }
+      $config{$opts[0]->[3]}= $vals[0];
+    }
+    elsif( $opts[0]->[2] eq "&" ) {
       print STDERR "Ignoring option $optname in $fname.\n";
     }
     elsif( $opts[0]->[2] eq "<" ) {     # configfile option
@@ -4615,14 +4649,24 @@ sub printpackagesummary
   my ($handle, $pack)= @_;
   my %needsummary;
 
-  for my $decl (qw(type constant funcproc component)) {
-    $needsummary{$decl}= elem { $_->{"doc"}->{"description"} && 
-        ((@{$_->{"doc"}->{"description"}} && (defined($_->{"doc"}->{"brief"})
-              || length($_->{"doc"}->{"description"}->[0]) > $summaxdesc ))
-         || @{$_->{"doc"}->{"description"}} > 1) }
-                        @{$pack->{"childtype"}->{$decl}};
+  if( $config{"packagesummary"} eq "always" ) {
+    %needsummary= map { $_ => 0+@{$pack->{"childtype"}->{$_}}; }
+                      qw(type constant funcproc component);
   }
-  return unless %needsummary;
+  else {
+    for my $decl (qw(type constant funcproc component)) {
+      $needsummary{$decl}= 1 if elem { $_->{"doc"}->{"description"} && 
+          ((@{$_->{"doc"}->{"description"}} && (defined($_->{"doc"}->{"brief"})
+                || length($_->{"doc"}->{"description"}->[0]) > $summaxdesc ))
+           || @{$_->{"doc"}->{"description"}} > 1) }
+                          @{$pack->{"childtype"}->{$decl}};
+    }
+    return unless %needsummary;
+    %needsummary= map { $_ => 0+@{$pack->{"childtype"}->{$_}}; }
+                      qw(type constant funcproc component)
+      if $config{"packagesummary"} eq "auto";
+      # sum up all non-empty sections if any is needed
+  }
   print $handle "\n<h2>Summary</h2>\n\n$DIVPSUM";
   if( $needsummary{"type"} ) {
     print $handle "\n<h3>Types</h3>\n$SUMTAB";
@@ -4782,7 +4826,7 @@ sub packagehtml
     print PACK "<h1>Package ", $pack->{"fullname"}, "</h1>\n\n";
     printobjhtml(*PACK{IO}, $pack);
     print PACK "\n<hr>\n\n";
-    printpackagesummary(*PACK{IO}, $pack) if $config{"packagesummary"};
+    printpackagesummary(*PACK{IO}, $pack) if $config{"packagesummary"} ne "never";
     printlibusehtml(*PACK{IO}, $pack);
     if( my @types= @{$pack->{"childtype"}->{"type"}} ) {
       print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
