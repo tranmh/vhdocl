@@ -602,24 +602,23 @@ sub parseopt
     $value= $2;
     croak "Unknown long option $nextarg.  Aborting."
         unless $optname =~ /^\w+$/;
-    my @opts= grep($_->[1] =~ /^$optname/i, @options);
+    my @opts= grep($_->[1] =~ /^\Q$optname\E/i, @options);
     if( !@opts && $optname =~ s/^no(.)/$1/i ) {
-      @opts= grep($_->[2] eq "?" && $_->[1] =~ /^$optname/i, @options);
+      @opts= grep($_->[2] eq "?" && $_->[1] =~ /^\Q$optname\E/i, @options);
       $onoff= 0;
     }
     croak "Unknown long option $nextarg.  Aborting."
         unless @opts;
     if( @opts > 1 ) {
-      print STDERR "Ambiguous long option $nextarg.  (Could be --",
-                join(", --", map($_->[1], @opts[0..$#opts-1])), " or --",
-                $opts[$#opts]->[1], ".)  Aborting.\n";
+      print STDERR "Ambiguous long option $nextarg.  (Could be ",
+                cswordlist(" or ", map("--$_->[1]", @opts)), ".)  Aborting.\n";
       croak;
     }
-    if( $opts[0]->[2] eq "?" ) {
+    if( !ref($opts[0]->[2]) && $opts[0]->[2] eq "?" ) {
       $config{$opts[0]->[3]}= $onoff;
       return 1;
     }
-    elsif( $opts[0]->[2] eq "&" ) {
+    elsif( !ref($opts[0]->[2]) && $opts[0]->[2] eq "&" ) {
       &{$opts[0]->[3]}();
       return 1;
     }
@@ -645,10 +644,10 @@ sub parseopt
         ($thisopt)= grep($_->[0] eq $optchar, @options);
         croak "Unknown short option -$optchar.  Aborting."
           unless $thisopt;
-        if( $thisopt->[2] eq "?" ) {
+        if( !ref($thisopt->[2]) && $thisopt->[2] eq "?" ) {
           $config{$thisopt->[3]}= $onoff;
         }
-        elsif( $thisopt->[2] eq "&" ) {
+        elsif( !ref($thisopt->[2]) && $thisopt->[2] eq "&" ) {
           &{$thisopt->[3]}();
         }
         else {
@@ -724,30 +723,29 @@ sub parseopt
       croak;
     }
     $config{$opt->[3]}= $vals[0];
-    return 1;
   }
-  if( $opt->[2] eq "w" ) {
-    unless( $value =~ /^\w*$/ ) {
-      print STDERR "The argument of", ($opt->[0]? " -".$opt->[0]." /": ""),
-                   " --", $opt->[1], " may only contain letters, digits and ",
-                   "the underscore.  Aborting.\n";
-      croak;
-    }
-  }
-  elsif( $opt->[2] eq "#" ) {
-    unless( $value =~ /^\d+$/ ) {
-      print STDERR "The argument of", ($opt->[0]? " -".$opt->[0]." /": ""),
-                   " --", $opt->[1], " must be numerical.  Aborting.\n";
-      croak;
-    }
-  }
-  if( $opt->[2] eq "<" ) {
+  elsif( $opt->[2] eq "<" ) {
     parsecfgfile($value, $filelist);
   }
   elsif( $opt->[2] eq "@" ) {
     push @{$config{$opt->[3]}}, split /\s+/, $value;
   }
   else {
+    if( $opt->[2] eq "w" ) {
+      unless( $value =~ /^\w*$/ ) {
+        print STDERR "The argument of", ($opt->[0]? " -".$opt->[0]." /": ""),
+                     " --", $opt->[1], " may only contain letters, digits and ",
+                     "the underscore.  Aborting.\n";
+        croak;
+      }
+    }
+    elsif( $opt->[2] eq "#" ) {
+      unless( $value =~ /^\d+$/ ) {
+        print STDERR "The argument of", ($opt->[0]? " -".$opt->[0]." /": ""),
+                     " --", $opt->[1], " must be numerical.  Aborting.\n";
+        croak;
+      }
+    }
     $config{$opt->[3]}= $value;
   }
   return 1;
@@ -834,17 +832,16 @@ sub parsecfgfile
       }
       next;
     }
-    my @opts= grep($_->[1] =~ /^$optname/i, @options);
+    my @opts= grep($_->[1] =~ /^\Q$optname\E/i, @options);
     if( !@opts && $optname =~ s/^no(.)/$1/i ) {
-      @opts= grep($_->[2] eq "?" && $_->[1] =~ /^$optname/i, @options);
+      @opts= grep($_->[2] eq "?" && $_->[1] =~ /^\Q$optname\E/i, @options);
       $onoff= 0;
     }
     croak "Unknown option $optname in $fname, line $..  Aborting."
         unless @opts;
     if( @opts > 1 ) {
       print STDERR "Ambiguous option $optname in $fname, line $..  (Could be ",
-                   join(", ", map($_->[1], @opts[0..$#opts-1])), " or ",
-                   $opts[$#opts]->[1], ".)  Aborting.\n";
+                   cswordlist(" or ", map($_->[1], @opts)), ".)  Aborting.\n";
       croak;
     }
     if( ref $opts[0]->[2] ) {
