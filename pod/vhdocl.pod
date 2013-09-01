@@ -637,64 +637,100 @@ source pages (unless you choose B<--nosourcelinks>), so you can edit it by
 clicking on the link if you have the file associations of your browser set
 accordingly.
 
-The following CSS classes are available for syntax markup:
+
+=head1 CUSTOMISING APPEARANCE
+
+Numerous CSS classes are assigned to the HTML elements of the output.  Most of
+them apply to the VHDL syntax, both in the source file pages and the code
+fragments in the documentation pages.  Others control the indentation of the
+layout tables used for most lists and the appearance of descriptions from the
+documentation comments.  The default VHDocL style file vhdocl.css defines the
+standard syntax markup style and contains examples of some other CSS classes.
 
 =over
 
-=item B<vhdlcode>
+=item B<bigdesc>
 
-Encloses all code quotes, allowing for example to set a monospace font.
+Description of major design element (entity, architecture, configuration,
+package or package body).  See also B<smdesc>.
+
+=item B<declid>
+
+Identifier of a declarative item documented by VHDocL.  Applies to entities,
+architectures, packages, configurations, functions, procedures, components,
+and instances.  By default, the appearance is the same as for B<identifier>.
+
+=item B<doccom>
+
+Appearance of VHDocL documentation comments in the source HTML pages.  Up to
+version 0.2.4, this also applied to descriptions in documentation pages, but
+for that purpose it has now been superseded by B<bigdesc> and B<smdesc>.
+
+=item B<identifier>
+
+VHDL identifier, other than those marked by the classes B<declid>, B<pslid>,
+B<typeid> or B<vhdlieee>.
 
 =item B<nocode>
 
 Non-code words inside quoted code, such as the "unnamed" notice for nameless
 processes.  Not used in source pages.
 
-=item B<doccom>
+=item B<packsum>
 
-VHDocL documentation comments.
+Package summary section.  Only effective if B<--packagesummary> is enabled.
+
+=item B<pslid>
+
+Identifier of PSL named sequence, endpoint or property.  Only effective if
+B<--psl> was enabled.
+
+=item B<pslword>
+
+Keyword of PSL (Property Specification Language).  Only effective if B<--psl>
+was enabled.
+
+=item B<shaded>
+
+Applies to every other line in the source HTML pages.  Defaults to light grey
+background colour.
+
+=item B<smdesc>
+
+Description of subordinate declaration.  Applies to all declarations except the
+five major design elements.  See also B<bigdesc>.
+
+=item B<typeid>
+
+VHDL type identifier.  Standard IEEE types belong to both this class and
+B<vhdlieee>.  The C<!important> directive can be used in the CSS style file to
+choose which its appearance will be.
+
+=item B<vhdlcode>
+
+Encloses all code quotes, allowing for example to set a monospace font.  All
+other classes related to syntax markup occur within this class.
 
 =item B<vhdlcom>
 
-Other comments.
+Non-documentation comments in the source HTML pages.
+
+=item B<vhdldecl>
+
+VHDL keyword denoting a declaration documented by VHDocL.
 
 =item B<vhdlieee>
 
 Identifier from IEEE standard package.
 
-=item B<typeid>
-
-Type identifier.  Standard IEEE types belong to both this class and
-B<vhdlieee>.  The C<!important> directive can be used in the CSS style file to
-choose which its appearance will be.
-
-=item B<declid>
-
-Identifier of a declarative item documented by VHDocL.  Applies to entities,
-architectures, packages, configurations, functions, procedures, components,
-and instances.  In most cases, the style file will treat this as B<identifier>.
-
-=item B<pslid>
-
-Identifier of PSL named sequence, endpoint or property.  Only if B<--psl> was
-enabled.
-
-=item B<identifier>
-
-Other identifier.
-
 =item B<vhdlio>
 
-I/O direction indicator such as C<in>, C<out> and C<inout>.
+VHDL I/O direction indicator such as C<in>, C<out> and C<inout>.
 
 =item B<vhdlvar>
 
 VHDL declaration keyword C<variable>, C<signal>, C<constant>, C<attribute> or
 C<file>.
-
-=item B<vhdldecl>
-
-VHDL keyword denoting a declaration documented by VHDocL.
 
 =item B<vhdlword>
 
@@ -703,25 +739,6 @@ Other VHDL reserved word.
 =item B<vhdlstr>
 
 Quoted VHDL (bit) string or character or bit.
-
-=item B<pslword>
-
-Keyword of PSL (Property Specification Language).  Only if B<--psl> was
-enabled.
-
-=back
-
-The assignment of classes is based solely on word recognition, and as a
-consequence is not perfect.  For example, the word C<in> occurring in
-C<for...generate> statements will be misidentified as belonging to the
-B<vhdlio> class.
-
-In addition to syntax markup, the indentation of most lists (of entities,
-instances, processes etc.) can also be controlled by CSS.  Indentation is
-created by the use of layout tables.  The following two CSS classes determine
-their size:
-
-=over
 
 =item B<vhdoclind>
 
@@ -736,8 +753,10 @@ tables themselves).
 
 =back
 
-The default VHDocL style file vhdocl.css contains examples of all the available
-CSS classes.
+The assignment of classes to source listings is based solely on word
+recognition, and as a consequence is not perfect.  For example, the word C<in>
+occurring in C<for...generate> statements will be misidentified as belonging to
+the B<vhdlio> class.
 
 
 =head1 MACHINE-READABLE OUTPUT
