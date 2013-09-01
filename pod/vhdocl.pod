@@ -135,6 +135,17 @@ documentation.
 Set the output directory.  It (and the required subdirectories) will be
 created if it does not yet exist.  The default output directory is "./doc".
 
+=item B<--packagesummary> I<mode>
+
+Print a summary of declarations at the top of package documentation.  The
+summary shows the C<@brief> description if available, or the first paragraph
+(at most 100 characters) of the full description.  Possible modes are:
+C<always>, C<never>, C<auto> and C<section>.  For C<auto> and C<section>, the
+summary is printed only if one of the declarations has sufficient documentation
+that the full description is not identical to the summary.  For C<section> this
+is decided for type declarations, constants, functions/procedures and
+components separately, for C<auto> either everything or nothing is summarised.
+
 =item B<--parsedebug>
 
 Switch on debugging of the VHDL parser.  Prints out every declarative item
