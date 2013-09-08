@@ -665,6 +665,11 @@ standard syntax markup style and contains examples of some other CSS classes.
 Description of major design element (entity, architecture, configuration,
 package or package body).  See also B<smdesc>.
 
+=item B<bigbrief>
+
+Brief description at the top of the pages describing design elements.  (Not
+when brief description is printed in lists.)
+
 =item B<declid>
 
 Identifier of a declarative item documented by VHDocL.  Applies to entities,
@@ -710,6 +715,11 @@ background colour.
 
 Description of subordinate declaration.  Applies to all declarations except the
 five major design elements.  See also B<bigdesc>.
+
+=item B<smbrief>
+
+Brief descriptions of declarations that are not major design elements.  (Not
+when brief description is printed in summary for B<--packagesummary>.)
 
 =item B<typeid>
 

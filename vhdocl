@@ -3445,7 +3445,9 @@ my $SP_= "</span>";
 
 # other tags that allow CSS customisation:
 my $DIVDESC= "<div class=\"bigdesc\">";     # description of major design element
+my $SPBRIEF= "<span class=\"bigbrief\">";    # brief description of design element
 my $CLSDESC= " class=\"smdesc\"";           # description of declaration
+my $CLSBRF= " class=\"smbrief\"";           # brief description of declaration
 my $DIVPSUM= "<div class=\"packsum\">";     # package summary section
 my $STDTAB= "<table class=\"vhdocltab\" border=\"0\" cellpadding=\"3\">";   # major layout table
 my $SUMTAB= "<table class=\"vhdocltab packsum\" border=\"0\" cellpadding=\"3\">";   # package summary table
@@ -3828,9 +3830,9 @@ sub printobjhtml
 {
   my ($handle, $obj)= @_;
 
-  print $handle "<p><b>", $obj->{"doc"}->{"brief"}, "</b></p>\n" 
+  print $handle "<p><b>$SPBRIEF", $obj->{"doc"}->{"brief"}, "$SP_</b></p>\n" 
         if $obj->{"doc"}->{"brief"};
-  print $handle "<p><b>", $obj->{"doc"}->{"short"}, "</b></p>\n" 
+  print $handle "<p><b>$SPBRIEF", $obj->{"doc"}->{"short"}, "$SP_</b></p>\n" 
         if $obj->{"doc"}->{"short"};
   if( $obj->{"filename"} ) {
     print $handle "<p>Defined in ";
@@ -3966,7 +3968,7 @@ sub printgenporthtml
   print $handle "<td align=\"left\">:= ", markvhdl($gp->{"value"}), "</td>\n"
         if $gp->{"value"};
   print $handle "</tr>\n";
-  print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>$gp->{doc}->{brief}</td></tr>\n"
+  print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$gp->{doc}->{brief}</td></tr>\n"
       if $gp->{"doc"}->{"brief"};
   map { print $handle "<tr><td></td><td align=\"left\" colspan=\"3\"$CLSDESC>$_</td></tr>\n" }
                         @{$gp->{"doc"}->{"description"}};
@@ -4050,7 +4052,7 @@ sub printcommonhtml
 {
   my ($handle, $obj)= @_;
 
-  print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>$obj->{doc}->{brief}</td></tr>\n"
+  print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$obj->{doc}->{brief}</td></tr>\n"
       if $obj->{"doc"}->{"brief"};
   map { print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>$_</td></tr>\n" }
                         @{$obj->{"doc"}->{"description"}};
@@ -4168,7 +4170,7 @@ sub printtypehtml
                 "$SP_</b></a></td><td>${SPWD}is$SP_</td>\n<td>";
   if( $type->{"subtype"} eq "record" ) {
     print $handle "${SPWD}record$SP_</td></tr>\n";
-    print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>$type->{doc}->{brief}</td></tr>\n"
+    print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$type->{doc}->{brief}</td></tr>\n"
         if $type->{"doc"}->{"brief"};
     map { print $handle "<tr><td></td><td colspan=\"4\"$CLSDESC>$_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
@@ -4182,7 +4184,7 @@ sub printtypehtml
   if( $type->{"subtype"} eq "units" ) {
     print $handle marktype($type->{"definition"}), " ${SPWD}units$SP_ $SPID",
                   $type->{"baseunit"}, "$SP_</td></tr>\n";
-    print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>$type->{doc}->{brief}</td></tr>\n"
+    print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$type->{doc}->{brief}</td></tr>\n"
         if $type->{"doc"}->{"brief"};
     map { print $handle "<tr><td></td><td colspan=\"4\"$CLSDESC>$_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
@@ -4211,7 +4213,7 @@ sub printtypehtml
   else {
     print $handle "???</td></tr>\n";
   }
-  print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>$type->{doc}->{brief}</td></tr>\n"
+  print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$type->{doc}->{brief}</td></tr>\n"
       if $type->{"doc"}->{"brief"};
   map { print $handle "<tr><td></td><td colspan=\"4\"$CLSDESC>$_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
