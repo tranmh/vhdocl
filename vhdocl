@@ -1049,14 +1049,14 @@ sub parsedoccom
   {
     next if $line =~ /^$/;
     if( $line =~ /^\@/ ) {
-      if( $line =~ /^\@(brief|date|version|id)\s+(.*)$/is ) {
+      if( $line =~ /^\@(brief|date|version|id|return)\s+(.*)$/is ) {
         $doc{$1}= $2;
       }
       elsif( $line =~ /^\@short\s+(.*)$/is ) {
         $doc{"brief"}= $1;
       }
-      elsif( $line =~ /^\@author\s+(.*)$/is ) {
-        push @{$doc{"author"}}, $1;
+      elsif( $line =~ /^\@(param|author)\b\s*(.*)$/is ) {
+        push @{$doc{$1}}, $2;
       }
       elsif( $line =~ /^\@see\s+(.*)$/is ) {
         push @{$doc{"see"}}, map( [ $_ ], split(/\s*,\s*/, $1));
@@ -1071,7 +1071,7 @@ sub parsedoccom
         $doc{$1}->{$2}= $3;
       }
       elsif( !$config{"quiet"} ) {
-        $line =~ /^(\@\w+)\b/;
+        $line =~ /^(\@\w*)\b/;
         print $err "Unknown markup code $1 on or before line $..\n";
       }
     }
@@ -4154,6 +4154,15 @@ sub printfunchtml
   print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}impure$SP_</b></td></tr>\n"
         if $func->{"pure"} && $func->{"pure"} eq "impure";
   printcommonhtml($handle, $func);
+  if( $func->{"doc"}->{"param"} && @{$func->{"doc"}->{"param"}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>Parameters:</td></tr>\n";
+    for my $par (@{$func->{"doc"}->{"param"}}) {
+      $par =~ /^(?:\[(\w+)\]\s*)?(\w+)\s+(.*)$/s or next;
+      print $handle "<tr>$TDI$TDI<td align=\"left\">$SPID$2$SP_</td><td colspan=\"2\" align=\"left\"$CLSDESC>$3</td></tr>\n";
+    }
+  }
+  print $handle "<tr>$TDI<td$CLSDESC>Return value:</td><td colspan=\"3\"$CLSDESC>$func->{doc}->{return}</td></tr>\n"
+      if $func->{"doc"}->{"return"};
 }
 
 
