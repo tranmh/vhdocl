@@ -1049,8 +1049,11 @@ sub parsedoccom
   {
     next if $line =~ /^$/;
     if( $line =~ /^\@/ ) {
-      if( $line =~ /^\@(short|brief|date|version|id)\s+(.*)$/is ) {
+      if( $line =~ /^\@(brief|date|version|id)\s+(.*)$/is ) {
         $doc{$1}= $2;
+      }
+      elsif( $line =~ /^\@short\s+(.*)$/is ) {
+        $doc{"brief"}= $1;
       }
       elsif( $line =~ /^\@author\s+(.*)$/is ) {
         push @{$doc{"author"}}, $1;
@@ -3832,8 +3835,6 @@ sub printobjhtml
 
   print $handle "<p><b>$SPBRIEF", $obj->{"doc"}->{"brief"}, "$SP_</b></p>\n" 
         if $obj->{"doc"}->{"brief"};
-  print $handle "<p><b>$SPBRIEF", $obj->{"doc"}->{"short"}, "$SP_</b></p>\n" 
-        if $obj->{"doc"}->{"short"};
   if( $obj->{"filename"} ) {
     print $handle "<p>Defined in ";
     if( $obj->{"file"} ) {
@@ -5164,8 +5165,7 @@ sub entitylisthtml
       print LIST "<tr><td colspan=\"2\"><a href=\"entities/",
                 $item->{"entity"}->{"docfilename"}, 
                 "\"><b>", $item->{"name"}, "</b></a></td>";
-      if( my $brief= ($item->{"entity"}->{"doc"}->{"brief"} ||
-                      $item->{"entity"}->{"doc"}->{"short"}) ) {
+      if( my $brief= $item->{"entity"}->{"doc"}->{"brief"} ) {
         print LIST "<td>$brief</td>\n";
       }
       print LIST "</tr>\n";
@@ -5176,8 +5176,7 @@ sub entitylisthtml
     for my $arch (@{$item->{"architectures"}}) {
       print LIST "<tr>$TDI<td><a href=\"architectures/",$arch->{"docfilename"},
                  "\">", $arch->{"name"}, "</a></td>";
-      if( my $brief= ($arch->{"doc"}->{"brief"} ||
-                      $arch->{"doc"}->{"short"}) ) {
+      if( my $brief= $arch->{"doc"}->{"brief"} ) {
         print LIST "<td>$brief</td>\n";
       }
       print LIST "</tr>\n";
@@ -5185,8 +5184,7 @@ sub entitylisthtml
     for my $conf (@{$item->{"configurations"}}) {
       print LIST "<tr>$TDI<td><a href=\"configurations/",
             $conf->{"docfilename"}, "\"><i>", $conf->{"name"}, "</i></a></td>";
-      if( my $brief= ($conf->{"doc"}->{"brief"} ||
-                      $conf->{"doc"}->{"short"}) ) {
+      if( my $brief= $conf->{"doc"}->{"brief"} ) {
         print LIST "<td>$brief</td>\n";
       }
       print LIST "</tr>\n";
@@ -5321,11 +5319,9 @@ sub printhiernodehtml
     $recursion= 1;
   }
   elsif( ($real->{"architecture"} &&
-       ($brief= $real->{"architecture"}->{"doc"}->{"brief"} ||
-                $real->{"architecture"}->{"doc"}->{"short"}))
+       ($brief= $real->{"architecture"}->{"doc"}->{"brief"}))
         || ($real->{"entity"} &&
-       ($brief= $real->{"entity"}->{"doc"}->{"brief"} ||
-                $real->{"entity"}->{"doc"}->{"short"})) ) {
+       ($brief= $real->{"entity"}->{"doc"}->{"brief"})) ) {
   }
   my $nodehtml= nodehtml($node);
   $node->{"done"}= 1;
