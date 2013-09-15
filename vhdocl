@@ -1112,14 +1112,16 @@ sub doxconvert
     my @vblocks;
     while( s/\@verbatim\b(.*?)\@endverbatim/\x05/i ) {
       my $verb= $1;
-      $verb =~ s/(^|\s)\@/$1\x00\@/g;    # prevent interpretation by parsedoccom()
+      $verb =~ s/(^|\s)\@/$1&#x40;/g;    # prevent interpretation by parsedoccom()
       push @vblocks, "<pre>$verb</pre>";
     }
-    s/\\\\/\\/g;
+    s/[@\\]\@/&#x40;/g;
+    s/[@\\]([\\&\$#<>%".:\|])/$1/g;
     s/(\@(?:return|author))s\b/$1/ig;
     s/\@result\b/\@return/ig;
     s/\@code\b/<code>/ig;
     s/\@endcode\b/<\/code>/ig;
+    s/\@n\b/<br>/ig;
     s/\@($doxwordstylere)\b\s+([-+.=!:^~'`$\/\w]+)/"<$doxwordstyles{lc $1}>$2<\/$doxwordstyles{lc $1}>"/gieo;
     s/\@private\b/\@internal/ig;
     s/\@arg\b/\@li/ig;
