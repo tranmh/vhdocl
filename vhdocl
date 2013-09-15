@@ -1035,6 +1035,7 @@ sub parsedoccom
                 br|center|pre|table|tr|td|th|(?:a|span|img)(?:\s+[^>]+)?/ix;
   my $svnkeys= qr/(?:LastChanged)?(?:Date|Revision)|Rev|Id|Author|(?:Head)?URL/;
 
+  $dcom= doxconvert($dcom) if $dcom =~ /\x03/;
   $dcom =~ s/<(\/?$tags)>/\x01$1\x02/go;
   $dcom =~ s/&/&amp;/g;
   $dcom =~ s/</&lt;/g;
@@ -1064,7 +1065,9 @@ sub parsedoccom
       elsif( $line =~ /^\@(deprecated|internal|simulation|synthesis|testbench)\b/is ) {
         $doc{$1}= 1;
       }
-      elsif( $config{"compat"} && $line =~ /^\@li\s/is ) {
+      elsif( $line =~ /^\@li\s/is ) {
+        # This used to be for vhdldoc compatibility only, but doxygen also uses
+        # it, so we omit the qualification with $config{"compat"} now.
         push @{$doc{"description"}}, $line;
       }
       elsif( $config{"compat"} && $line =~ /^\@(generic|port)\s+(\S*)\s+(.*)$/is ) {
@@ -1081,6 +1084,50 @@ sub parsedoccom
   }
   $doc{"author"}= join(", ", @{$doc{"author"}}) if $doc{"author"};
   return \%doc;
+}
+
+
+my %doxwordstyles= ( "c" => "tt", "p" => "tt", "e" => "em", "em" => "em", "b" => "b" );
+my $doxwordstylere= "(?i:" . join("|", keys %doxwordstyles) . ")";
+my $doxunsuppre= qr/\@(?!(?:$doxwordstylere|param|return|brief|short|author
+                    |date|version|li|deprecated|internal|see)\b)\w+/iox;
+
+# Preprocess documentation comment text that may contain both VHDocL and
+# doxygen markup.  Doxygen comments are expected to be framed by "\x03" and
+# "\x04" from preprocessline().  Backslashes indicating markup are converted to
+# "@" characters.  The most common doxygen markup codes are converted to their
+# VHDocL equivalent (where not identical) or to HTML (for font style markup).
+# -> Documentation comment string
+# <- Converted documentation comment string
+sub doxconvert
+{
+  my ($dcom)= @_;
+
+  $dcom =~ s/\x04\x03//g;
+  my @blocks= split /(?=\x03)|(?<=\x04)/, $dcom;
+  for (@blocks) {
+    next unless s/^\x03//;
+    s/\x04$//;
+    s/\\\b/\@/g;
+    my @vblocks;
+    while( s/\@verbatim\b(.*?)\@endverbatim/\x05/i ) {
+      my $verb= $1;
+      $verb =~ s/(^|\s)\@/$1\x00\@/g;    # prevent interpretation by parsedoccom()
+      push @vblocks, "<pre>$verb</pre>";
+    }
+    s/\\\\/\\/g;
+    s/(\@(?:return|author))s\b/$1/ig;
+    s/\@result\b/\@return/ig;
+    s/\@code\b/<code>/ig;
+    s/\@endcode\b/<\/code>/ig;
+    s/\@($doxwordstylere)\b\s+([-+.=!:^~'`$\/\w]+)/"<$doxwordstyles{lc $1}>$2<\/$doxwordstyles{lc $1}>"/gieo;
+    s/\@private\b/\@internal/ig;
+    s/\@arg\b/\@li/ig;
+    s/\@sa\b/\@see/ig;
+    s/$doxunsuppre//go;     # Discard unsupported doxygen codes
+    s/\x05/shift @vblocks/eg;
+  }
+  return join("", @blocks);
 }
 
 
@@ -1301,9 +1348,10 @@ sub preprocessline
 
   $new =~ s/^\s*//;
   $new =~ s/^($MANY)--(.*)$/$1/o;
-  if( $2 && $2 =~ /^([+*])([^+*].*|)$/ ) {
+  if( $2 && $2 =~ /^([+*!])([^+*].*|)$/ ) {
     ($ahead ? $keepaheaddoc : $keepdoccom) = $1 eq "+" unless $config{"compat"};
-    ($ahead ? $aheaddoccom : $doccomment) .= $2 . "\n";
+    my $doc= $1 eq "!" ? "\x03$2\n\x04" : "$2\n";
+    ($ahead ? $aheaddoccom : $doccomment) .= $doc;
   }
   chomp $new;
   $vline .= " " . $new;
