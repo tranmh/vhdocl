@@ -1037,7 +1037,7 @@ sub parsedoccom
 
   $dcom= doxconvert($dcom) if $dcom =~ /\x03/;
   $dcom =~ s/<(\/?$tags)>/\x01$1\x02/go;
-  $dcom =~ s/&/&amp;/g;
+  $dcom =~ s/&(?!\w+;|#\d+;|#x[\da-f]+;)/&amp;/gi;
   $dcom =~ s/</&lt;/g;
   $dcom =~ s/>/&gt;/g;
   $dcom =~ s/"/&quot;/g;
