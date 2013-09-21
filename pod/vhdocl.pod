@@ -57,6 +57,13 @@ Print how much time B<vhdocl> took for parsing each file and for subsequent
 processing.  Only really useful to the author for identifying hot spots.
 Requires the Perl module Time::HiRes.
 
+=item B<--custom>=I<text>|I<file.html>
+
+Add link to custom page to the navigation row at the top.  The I<text> is the
+text of the hyperlink, the file or URL the destination.  Multiple B<--custom>
+options create multiple links.  On the command line, the vertical bar may have
+to be escaped from the shell.
+
 =item B<--exclude>=I<glob>
 
 Exclude files matching the I<glob> pattern from processing.  This is primarily

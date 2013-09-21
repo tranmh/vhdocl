@@ -53,7 +53,7 @@ my $version= "? (use mkvhdocldist.sh and install-vhdocl.pl to install properly)"
 
 my %config= ( "outputdir" => "doc", "prefix" => "", "libname" => "work",
   "compat" => 0, "cwd" => "", "psl" => 0, "parsedebug" => 0, "quiet" => 0, 
-  "stylesheet" => "", "leftlogo" => "", "rightlogo" => "", "toplink" => "",
+  "stylesheet" => "", "leftlogo" => "", "rightlogo" => "",
   "homehtml" => "", "title" => "", "footer" => "", "topmodules" => [],
   "sourcelinks" => 1, "tabsize" => 0, "packagesummary" => "never" );
 
@@ -529,8 +529,9 @@ my @options= (
 [ "", "rightlogo", "/", "rightlogo" ],
 [ "", "title", "*", "title" ],
 [ "", "footer", "*", "footer" ],
-[ "", "toplink", "/", "toplink" ],
+[ "", "toplink", "|", "toplink" ],
 [ "", "homehtml", "/", "homehtml" ],
+[ "", "custom", "|", "custom" ],
 [ "", "javasyntax", "?", "javasyntax" ],
 [ "", "sourcelinks", "?", "sourcelinks" ],
 [ "", "packagesummary", [ qw(always never auto section) ], "packagesummary" ],
@@ -724,6 +725,11 @@ sub parseopt
     }
     $config{$opt->[3]}= $vals[0];
   }
+  elsif( $opt->[2] eq "|" ) {
+    push @{$config{$opt->[1]}}, [ split(/\s*\|\s*/, $value, 2) ];
+    unshift @{$config{$opt->[1]}->[-1]}, undef
+        unless @{$config{$opt->[1]}->[-1]} == 2;
+  }
   elsif( $opt->[2] eq "<" ) {
     parsecfgfile($value, $filelist);
   }
@@ -892,6 +898,12 @@ sub parsecfgfile
       else {
         $config{$opts[0]->[3]}= $onoff;
       }
+    }
+    elsif( $opts[0]->[2] eq "|" ) {
+      push @{$config{$opts[0]->[1]}}, [ split(/\s*\|\s*/, $value, 2) ];
+      unshift @{$config{$opts[0]->[1]}->[-1]}, undef
+          unless @{$config{$opts[0]->[1]}->[-1]} == 2;
+      $config{$opts[0]->[1]}->[-1]->[1]= fixpath($config{$opts[0]->[1]}->[-1]->[1], $basedir);
     }
     elsif( $opts[0]->[2] eq "@" ) {
       push @{$config{$opts[0]->[3]}}, split /\s+/, $value;
@@ -3595,11 +3607,29 @@ EOF
       }
     }
   }
+  if( $config{"custom"} ) {
+    my $ind= 1;
+    for my $cus (@{$config{"custom"}}) {
+      if( ! defined $$cus[0] ) {
+        print STDERR "Warning: No link text given for custom page \`$$cus[1]'.\n"
+            unless $config{"quiet"};
+        $$cus[0]= "Custom $ind";
+      }
+      $$cus[2]= $$cus[1] =~ /^\w+:\/\// || File::Spec->file_name_is_absolute($$cus[1]);
+      if( $$cus[2] && $$cus[1] !~ /^\w+:\/\// ) {
+        print STDERR "Warning: Absolute file name for custom page \`$$cus[1]'",
+             " will not be portable across systems.\n" unless $config{"quiet"};
+      }
+      $$cus[1]= File::Spec->abs2rel($$cus[1], $dir)
+          unless $$cus[2];
+      ++$ind;
+    }
+  }
   if( $config{"toplink"} ) {
     print STDERR "Warning: --homehtml is pointless when --toplink is present.  The home page will not be generated.\n"
         if $config{"homehtml"} && !$config{"quiet"};
-    $config{"toplink"} =~ s/^([^|]*)\|//;
-    $config{"toplinktext"}= $1 || "Home";
+    $config{"toplinktext"}= $config{"toplink"}->[-1]->[0] || "Home";
+    $config{"toplink"}= $config{"toplink"}->[-1]->[1];
     $config{"toplinkabs"}= $config{"toplink"} =~ /^\w+:\/\// ||
              File::Spec->file_name_is_absolute($config{"toplink"});
     if( $config{"toplinkabs"} && $config{"toplink"} !~ /^\w+:\/\// ) {
@@ -3657,6 +3687,7 @@ sub printhtmlheader
   my $leftlogo;
   my $rightlogo;
   my $toplink;
+  my $custom;
   my $html;
 
   $doctitle= length($config{"title"})?
@@ -3680,6 +3711,7 @@ sub printhtmlheader
   $toplink= $config{"toplink"}?  "<a href=\"" . $top . $config{"toplink"} .
                 "\">" .  $config{"toplinktext"} .
                 "</a>\n&nbsp;&nbsp; -- &nbsp;&nbsp;" : "";
+  $custom= join "", map "&nbsp;&nbsp; -- &nbsp;&nbsp;<a href=\"" . ($$_[2] ? "" : $prepre) . "$$_[1]\">$$_[0]</a>", @{$config{"custom"} || []};
 
   $html= <<EOF;
 <html>
@@ -3702,6 +3734,7 @@ $toplink
 <a href="${prefix}hierarchy.html">Hierarchy</a>
 &nbsp;&nbsp; -- &nbsp;&nbsp;
 <a href="${prefix}sources.html">Sources</a>
+$custom
 </td><td align="right">
 $rightlogo
 </td></tr></table>
