@@ -49,7 +49,7 @@ use Storable;
 # File::Copy and Text::Tabs from Perl distribution
 # Time::HiRes (for --benchmark) from http://search.cpan.org/~zefram/Time-HiRes/
 
-my $version= "? (use mkvhdocldist.sh and install-vhdocl.pl to install properly)";
+my $version= "? (use install script to install properly)";
 
 my %config= ( "outputdir" => "doc", "prefix" => "", "libname" => "work",
   "compat" => 0, "cwd" => "", "psl" => 0, "parsedebug" => 0, "quiet" => 0, 
@@ -3671,6 +3671,9 @@ EOF
 }
 
 
+{
+my ($commonhead_pre, $commonhead_global, $commonhead_nonglobal);
+
 # Print the header of an HTML documentation file
 # -> File handle or scalar reference to print to
 #    Page title
@@ -3679,44 +3682,42 @@ EOF
 sub printhtmlheader
 {
   my ($handle, $title, $global)= @_;
-  my $prepre= ($global? "": "../");
-  my $prefix= $prepre . $config{"prefix"};
-  my $top;
-  my $doctitle;
-  my $stylesheet;
-  my $leftlogo;
-  my $rightlogo;
-  my $toplink;
-  my $custom;
-  my $html;
 
-  $doctitle= length($config{"title"})?
-                "\n<center>" . $config{"title"} . "</center><hr>\n" : "";
-  $stylesheet= "<link rel=\"stylesheet\" type=\"text/css\" " .
-               "href=\"${prepre}style/" .  $requisites{"basestyle"} . "\">";
-  if( $config{"stylesheet"} ) {
-    $top= $config{"stylesheeturl"}? "" : $prepre;
-    $stylesheet .= "\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"" .
-                   $top . $config{"stylesheet"} . "\">";
+  if( ! defined $commonhead_pre ) {
+    $commonhead_pre= "<html>\n<head>\n    <title>";
   }
-  $top= $config{"leftlogourl"}? "" : $prepre;
-  $leftlogo= $config{"leftlogo"}?
-                "<img style=\"vertical-align:middle\" src=\"" . $top .
-                $config{"leftlogo"} . "\">" : "";
-  $top= $config{"rightlogourl"}? "" : $prepre;
-  $rightlogo= $config{"rightlogo"}?
-                "<img style=\"vertical-align:middle\" src=\"" . $top .
-                $config{"rightlogo"} . "\">" : "";
-  $top= $config{"toplinkabs"}? "" : $prepre;
-  $toplink= $config{"toplink"}?  "<a href=\"" . $top . $config{"toplink"} .
-                "\">" .  $config{"toplinktext"} .
-                "</a>\n&nbsp;&nbsp; -- &nbsp;&nbsp;" : "";
-  $custom= join "", map "&nbsp;&nbsp; -- &nbsp;&nbsp;<a href=\"" . ($$_[2] ? "" : $prepre) . "$$_[1]\">$$_[0]</a>", @{$config{"custom"} || []};
+  if( ! defined ($global ? $commonhead_global : $commonhead_nonglobal) ) {
+    my $prepre= ($global? "": "../");
+    my $prefix= $prepre . $config{"prefix"};
+    my ($top, $doctitle, $stylesheet, $leftlogo, $rightlogo, $toplink, $custom, $common);
 
-  $html= <<EOF;
-<html>
-<head>
-    <title>$title</title>
+    $doctitle= length($config{"title"})?
+                  "\n<center>" . $config{"title"} . "</center><hr>\n" : "";
+    $stylesheet= "<link rel=\"stylesheet\" type=\"text/css\" " .
+                 "href=\"${prepre}style/" .  $requisites{"basestyle"} . "\">";
+    if( $config{"stylesheet"} ) {
+      $top= $config{"stylesheeturl"}? "" : $prepre;
+      $stylesheet .= "\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"" .
+                     $top . $config{"stylesheet"} . "\">";
+    }
+    $top= $config{"leftlogourl"}? "" : $prepre;
+    $leftlogo= $config{"leftlogo"}?
+                  "<img style=\"vertical-align:middle\" src=\"" . $top .
+                  $config{"leftlogo"} . "\">" : "";
+    $top= $config{"rightlogourl"}? "" : $prepre;
+    $rightlogo= $config{"rightlogo"}?
+                  "<img style=\"vertical-align:middle\" src=\"" . $top .
+                  $config{"rightlogo"} . "\">" : "";
+    $top= $config{"toplinkabs"}? "" : $prepre;
+    $toplink= $config{"toplink"}?  "<a href=\"" . $top . $config{"toplink"} .
+                  "\">" .  $config{"toplinktext"} .
+                  "</a>\n&nbsp;&nbsp; -- &nbsp;&nbsp;" : "";
+    $custom= join "", map "&nbsp;&nbsp; -- &nbsp;&nbsp;<a href=\"" .
+                          ($$_[2] ? "" : $prepre) . "$$_[1]\">$$_[0]</a>",
+                      @{$config{"custom"} || []};
+
+    $common= <<EOF;
+</title>
     $stylesheet
 </head>
 <body>
@@ -3742,6 +3743,9 @@ $rightlogo
 <hr>
 
 EOF
+    ($global ? $commonhead_global : $commonhead_nonglobal) = $common;
+  }
+  my $html= $commonhead_pre . $title . ($global ? $commonhead_global : $commonhead_nonglobal);
   if( ref($handle) eq "SCALAR" ) {
     $$handle= $html;
   }
@@ -3750,8 +3754,12 @@ EOF
   }
 }
 
+}
 
+
+{
 my @monthname= qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
+my $footer;
 
 # Print the footer of a HTML documentation file
 # -> File handle to print to
@@ -3759,14 +3767,15 @@ my @monthname= qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
 sub printhtmlfooter
 {
   my ($handle, $nobar)= @_;
-  my ($sec,$min,$hour,$mday,$mon,$year)= localtime(time);
 
-  $year += 1900;
-  $mon= $monthname[$mon];
-  $min= sprintf("%02d", $min);
-  $sec= sprintf("%02d", $sec);
-  print $handle "\n<hr>\n" unless $nobar;
-  print $handle <<EOF
+  if( ! defined $footer ) {
+    my ($sec,$min,$hour,$mday,$mon,$year)= localtime(time);
+
+    $year += 1900;
+    $mon= $monthname[$mon];
+    $min= sprintf("%02d", $min);
+    $sec= sprintf("%02d", $sec);
+    $footer= <<EOF;
 
 $config{"footer"}
 Generated on $mday $mon $year $hour:$min:$sec with <a
@@ -3776,6 +3785,11 @@ V$version
 </body>
 </html>
 EOF
+  }
+  print $handle "\n<hr>\n" unless $nobar;
+  print $handle $footer;
+}
+
 }
 
 
