@@ -1079,6 +1079,7 @@ sub parsedoccom
       }
     }
     else {
+      markcodetag($line);
       push @{$doc{"description"}}, $line;
     }
   }
@@ -3823,6 +3824,19 @@ sub markvhdl
   $code =~ s/\x03/&gt;/g;
   $code =~ s/\x04/&quot;/g;
   return $code;
+}
+
+
+# Mark up VHDL code between <code> .. </code> tags in HTML.  If some <code>
+# tags are not closed, a start or end tag is added at the start or end of the
+# string.
+# <-> HTML string
+sub markcodetag
+{
+  return unless $_[0] =~ /<\/?code>/i;
+  $_[0] =~ s/^((.*?)<(\/?)code>)/$3 ? "<code$CCO>" . markvhdl($2) . "<\/code>" : $1/ie;
+  $_[0] =~ s/<code>(.*?)<\/code>/"<code$CCO>" . markvhdl($1) . "<\/code>"/ieg;
+  $_[0] =~ s/<code>(.*)$/"<code$CCO>" . markvhdl($1) . "<\/code>"/ie;
 }
 
 
