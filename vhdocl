@@ -1034,6 +1034,9 @@ EOF
 ##############################################################################
 ##############################################################################
 
+my $VID;    # <var> tag belonging to VHDL code and identifier CSS classes;
+            # initialised in the output section (sectionoutput)
+
 # Parse documentation (--*) comment.  Escape HTML's reserved characters but
 # leave some tags untouched which are allowed in descriptions.
 # -> String containing documentation with --* already removed
@@ -1043,8 +1046,8 @@ sub parsedoccom
 {
   my %doc;
   my ($dcom, $err)= @_;
-  my $tags= qr/b|i|tt|u|big|small|sub|sup|em|strong|code|var|ul|ol|li|
-                br|center|pre|table|tr|td|th|(?:a|span|img)(?:\s+[^>]+)?/ix;
+  my $tags= qr/b|i|tt|u|big|small|sub|sup|em|strong|ul|ol|li|br|center|
+                pre|table|tr|td|th|(?:code|var|a|span|img)(?:\s+[^>]+)?/ix;
   my $svnkeys= qr/(?:LastChanged)?(?:Date|Revision)|Rev|Id|Author|(?:Head)?URL/;
   my $insidepretag;
 
@@ -1093,6 +1096,7 @@ sub parsedoccom
     }
     else {
       markcodetag($line);
+      $line =~ s/<var>/$VID/ig;
       if( $insidepretag ) {
         $doc{"description"}->[-1] .= "\n\n" . $line;
       }
@@ -3500,6 +3504,7 @@ sub topmodules
 my $SPDOC= "<span class=\"doccom\">";       # documentation comment text
 my $SPDO= "<span class=\"vhdlcom\">";       # other comment text
 my $SPID= "<span class=\"identifier\">";    # identifier
+$VID= "<var class=\"vhdlcode identifier\">";# identifier in <var> tag
 my $SPTYID= "<span class=\"typeid\">";      # type identifier
 my $SPDID= "<span class=\"declid\">";       # identifier of this declaration
 my $SPPID= "<span class=\"pslid\">";        # PSL identifier

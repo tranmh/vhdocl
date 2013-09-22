@@ -39,6 +39,7 @@
 }
 *.vhdlcode {
     font-family:monospace;
+    font-style:normal;
 }
 *.nocode {
     color:navy;
