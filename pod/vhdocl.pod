@@ -418,17 +418,19 @@ you want to create a separator in the documentation, insert a space between --*
 and the row of asterisks.
 
 The description text in the documentation comments can contain certain HTML
-tags.  The original plan was to allow just any tags, but certain people I<have>
-to use < and > for other purposes...  The following tags are allowed without
-attributes: C<b>, C<i>, C<tt>, C<u>, C<big>, C<small>, C<sub>, C<sup>, C<em>,
-C<strong>, C<code>, C<var>, C<ul>, C<ol>, C<li>, C<br>, C<center>, C<pre>,
-C<table>, C<tr>, C<td>, and C<th>.  The tags C<a>, C<span> and C<img> are
-allowed with attributes.  Note that the URLs in the C<a> and C<img> tags will
-not be transformed in any way, so they have to be either an absolute URL or a
-path relative to the future location of the documentation HTML file in which
-they will appear.
+tags.  The following tags are allowed without attributes: C<b>, C<i>, C<tt>,
+C<u>, C<big>, C<small>, C<sub>, C<sup>, C<em>, C<strong>, C<ul>, C<ol>, C<li>,
+C<br>, C<center>, C<pre>, C<table>, C<tr>, C<td>, and C<th>.  The tags C<a>,
+C<span> and C<img> are allowed with attributes.  Note that the URLs in the C<a>
+and C<img> tags will not be transformed in any way, so they have to be either
+an absolute URL or a path relative to the future location of the documentation
+HTML file in which they will appear.  The tags C<code> and C<var> are a special
+case: VHDocL will mark up text inside C<code> tags as VHDL source code, and
+within C<var> as VHDL identifiers.  This will not be done if these tags have
+any attributes already, allowing the user to override the default and apply CSS
+classes in custom style files.
 
-For instance, the C<pre> tag can be used to create ASCII graphics:
+For example, the C<pre> tag can be used to create ASCII graphics:
 
     --* This entity represents an adder tree with four inputs:
     --*
@@ -464,11 +466,10 @@ a further "+".
 
 This brings us to the question which declarations can be documented.  First,
 the "big five" top-level declarations (entities, architectures, configurations,
-packages and package bodies) can have descriptions.  (They, and only they, may
-contain special markup codes described below.)  So can ports, generics,
-library and use statements.  Within architectures and packages, constants,
-functions, procedures and component and type declarations (including records
-and units) can be documented.  Likewise generate and block statements,
+packages and package bodies) can have descriptions.  Also documented are ports,
+generics, library and use statements.  Within architectures and packages,
+constants, functions, procedures and component and type declarations (including
+records and units) can be documented.  Likewise generate and block statements,
 processes and instantiations inside architectures and for ...  use statements
 in architectures and configurations.  Local declarations of constants,
 functions etc. within other functions, generate statements of similar
@@ -477,24 +478,23 @@ be output to the generated HTML pages.  See L</OUTPUT> below for a description
 of what VHDocL generates.
 
 The description of entities, architectures, configurations, packages and
-package bodies can contain the following markup codes, which are similar to
-vhdldoc, kdoc and javadoc.  Their arguments extend up to the next empty line or
-the next markup code.  Markup codes have to be preceded by white space or the
-beginning of a line, so e-mail addresses can be given without risk of
-misinterpretation.
+package bodies can contain the following markup codes, some of which are also
+valid for constants, types, functions, procedures and components (called "small
+declarations" below).  Their arguments extend up to the next empty line or the
+next markup code.
 
 =over
 
 =item B<@author> I<name>, ...
 
-Author or list of authors separated by commas.  May occur several times.
+Author or list of authors separated by commas.  Cumulative if it occurs several
+times.
 
 =item B<@brief> I<description> or B<@short> I<description>
 
 Brief description to be printed at the top of the item's HTML page and in the
-global lists.  Don't use both @short and @brief for the same item.  In places
-where only one of these two can be used (such as the entity list), @brief takes
-precedence.
+global lists.  Use only one of @short and @brief, and only once.  This is also
+available for "small" declarations.
 
 =item B<@date> I<date>
 
@@ -503,11 +503,19 @@ Modification date of this item.
 =item B<@deprecated>, B<@internal>, B<@simulation>, B<@synthesis>, B<@testbench>
 
 Causes that word to be printed prominently in the top region of the item's HTML
-file.
+file.  B<@deprecated> and B<@internal> are also valid for "small" declarations.
 
 =item B<@id> I<ID>
 
 Revision control system ID of the item.
+
+=item B<@param> I<name> I<description>
+
+Description of function or procedure parameter I<name>.
+
+=item B<@return> I<description>
+
+Description of function return value.
 
 =item B<@see> I<reference1>, I<reference2>, ...
 
@@ -522,6 +530,9 @@ Revision of the item.
 
 =back
 
+Markup codes have to be preceded by white space or the beginning of a line, so
+e-mail addresses can be given without risk of misinterpretation.  If this is
+not sufficient, you can use the HTML entity C<&#x40;> to insert a verbatim "@".
 
 @date, @id and @version tally nicely with keywords automatically substituted by
 revision management systems such as Subversion
