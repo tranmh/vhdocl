@@ -4096,6 +4096,10 @@ sub printgenporthtml
       if $gp->{"doc"}->{"brief"};
   map { print $handle "<tr><td></td><td align=\"left\" colspan=\"3\"$CLSDESC>$_</td></tr>\n" }
                         @{$gp->{"doc"}->{"description"}};
+  for( qw(deprecated internal) ) {
+    print $handle "<tr>$TDI<td colspan=\"4\"><b>", ucfirst($_), "</b></td></tr>\n"
+        if $gp->{"doc"}->{$_};
+  }
 }
 
 
@@ -4180,6 +4184,10 @@ sub printcommonhtml
       if $obj->{"doc"}->{"brief"};
   map { print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>$_</td></tr>\n" }
                         @{$obj->{"doc"}->{"description"}};
+  for( qw(deprecated internal) ) {
+    print $handle "<tr>$TDI<td colspan=\"4\"><b>", ucfirst($_), "</b></td></tr>\n"
+        if $obj->{"doc"}->{$_};
+  }
   if( $obj->{"attributes"} && keys(%{$obj->{"attributes"}}) ) {
     print $handle "<tr>$TDI<td colspan=\"4\">Attributes:</td></tr>\n",
                   "<tr>$TDI$TDI<td colspan=\"3\">";
@@ -4295,18 +4303,23 @@ sub printfunchtml
 sub printtypehtml
 {
   my ($handle, $type)= @_;
+  my $desc= "";
 
   my $label= $labels{"type"} . $type->{"name"};
   print $handle "<tr$CCO><td>$SPDCL",
                 ($type->{"subtype"} eq "subtype"? "subtype": "type"),
                 "$SP_</td><td><a name=\"$label\"><b>$SPTYID", $type->{"name"},
                 "$SP_</b></a></td><td>${SPWD}is$SP_</td>\n<td>";
-  if( $type->{"subtype"} eq "record" ) {
-    print $handle "${SPWD}record$SP_</td></tr>\n";
-    print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$type->{doc}->{brief}</td></tr>\n"
-        if $type->{"doc"}->{"brief"};
-    map { print $handle "<tr><td></td><td colspan=\"4\"$CLSDESC>$_</td></tr>\n"; }
+  $desc .= "<tr>$TDI<td colspan=\"4\"$CLSBRF>$type->{doc}->{brief}</td></tr>\n"
+      if $type->{"doc"}->{"brief"};
+  map { $desc .= "<tr><td></td><td colspan=\"4\"$CLSDESC>$_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
+  for( qw(deprecated internal) ) {
+    $desc .= "<tr>$TDI<td colspan=\"4\"><b>" . ucfirst($_) . "</b></td></tr>\n"
+        if $type->{"doc"}->{$_};
+  }
+  if( $type->{"subtype"} eq "record" ) {
+    print $handle "${SPWD}record$SP_</td></tr>\n$desc";
     if( my @elements= @{$type->{"children"} || []} ) {
       print $handle "<tr><td></td><td align=\"right\">$STDTAB<tr><td>Elements: </td></tr></table></td><td colspan=\"3\">$STDTAB\n";
       map { printgenporthtml($handle, $_) } @elements;
@@ -4316,11 +4329,7 @@ sub printtypehtml
   }
   if( $type->{"subtype"} eq "units" ) {
     print $handle marktype($type->{"definition"}), " ${SPWD}units$SP_ $SPID",
-                  $type->{"baseunit"}, "$SP_</td></tr>\n";
-    print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$type->{doc}->{brief}</td></tr>\n"
-        if $type->{"doc"}->{"brief"};
-    map { print $handle "<tr><td></td><td colspan=\"4\"$CLSDESC>$_</td></tr>\n"; }
-                        @{$type->{"doc"}->{"description"}};
+                  $type->{"baseunit"}, "$SP_</td></tr>\n$desc";
     for my $chain (@{$type->{"chains"}}) {
       print $handle "<tr><td></td><td></td><td colspan=\"3\">";
       my $u= $chain;
@@ -4346,10 +4355,7 @@ sub printtypehtml
   else {
     print $handle "???</td></tr>\n";
   }
-  print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$type->{doc}->{brief}</td></tr>\n"
-      if $type->{"doc"}->{"brief"};
-  map { print $handle "<tr><td></td><td colspan=\"4\"$CLSDESC>$_</td></tr>\n"; }
-                        @{$type->{"doc"}->{"description"}};
+  print $handle $desc;
 }
 
 
