@@ -4785,15 +4785,16 @@ my $summaxdesc= 100;
 
 # Print summary of declarations in a package.  The included declarations are
 # type declarations, constants, functions / procedures and component
-# declarations.  Each section is printed only if the description of any item
-# exceeds what would be printed in the summary (see printpacksumbrief() below).
-# If this is true for none of the sections, nothing is printed.
+# declarations.  Depending on the value of the --packagesummary option, a
+# section may be printed only if the description of any item exceeds what would
+# be printed in the summary (see printpacksumitem() below).
 # -> File handle to print to
 #    Reference to hash representing package
 sub printpackagesummary
 {
   my ($handle, $pack)= @_;
   my %needsummary;
+  my $save;
 
   if( $config{"packagesummary"} eq "always" ) {
     %needsummary= map { $_ => 0+@{$pack->{"childtype"}->{$_}}; }
@@ -4818,20 +4819,21 @@ sub printpackagesummary
     print $handle "\n<h3>Types</h3>\n$SUMTAB";
     for my $type (@{$pack->{"childtype"}->{"type"}}) {
       my $href= "#$labels{type}$type->{name}";
-      print $handle "<tr><td align=\"right\"><a href=\"$href\">", $type->{"subtype"} || "type",
-                " <b>$type->{name}</b></a></td>";
-      printpacksumbrief($handle, $type, $href);
+      my $declstr= "<tr><td align=\"right\"><a href=\"$href\">" .
+            ($type->{"subtype"} || "type") . " <b>$type->{name}</b></a></td>";
+      printpacksumitem($handle, $type, $href, $declstr, \$save);
     }
+    printpacksumitem($handle, undef, undef, undef, \$save);
     print $handle "</table>\n";
   }
   if( $needsummary{"constant"} ) {
     print $handle "\n<h3>Constants</h3>\n$SUMTAB";
     for my $const (@{$pack->{"childtype"}->{"constant"}}) {
       my $href= "#const:$const->{name}";
-      print $handle "<tr><td align=\"right\"><a href=\"$href\">",
-                    "<b>$const->{name}</b></a></td>";
-      printpacksumbrief($handle, $const, $href);
+      my $declstr= "<tr><td align=\"right\"><a href=\"$href\"><b>$const->{name}</b></a></td>";
+      printpacksumitem($handle, $const, $href, $declstr, \$save);
     }
+    printpacksumitem($handle, undef, undef, undef, \$save);
     print $handle "</table>\n";
   }
   if( $needsummary{"funcproc"} ) {
@@ -4841,23 +4843,24 @@ sub printpackagesummary
                   "-" . substr(Digest::MD5::md5_hex($func->{"parlist"} . 
                                             ($func->{"subtype"} || "")), 0, 8);
       my $href= "#" . $func->{"label"};
-      print $handle "<tr><td align=\"right\"><a href=\"$href\">$func->{type}",
+      my $declstr= "<tr><td align=\"right\"><a href=\"$href\">$func->{type}" .
                     " <b>$func->{name}</b>";
-      print $handle " ($func->{parlist})" if $func->{parlist};
-      print $handle " return $func->{subtype}" if $func->{subtype};
-      print $handle "</a></td>";
-      printpacksumbrief($handle, $func, $href);
+      $declstr .= " ($func->{parlist})" if $func->{parlist};
+      $declstr .= " return $func->{subtype}" if $func->{subtype};
+      $declstr .= "</a></td>";
+      printpacksumitem($handle, $func, $href, $declstr, \$save);
     }
+    printpacksumitem($handle, undef, undef, undef, \$save);
     print $handle "</table>\n";
   }
   if( $needsummary{"component"} ) {
     print $handle "\n<h3>Components</h3>\n$SUMTAB";
     for my $comp (@{$pack->{"childtype"}->{"component"}}) {
       my $href= "#$labels{component}$comp->{name}";
-      print $handle "<tr><td align=\"right\"><a href=\"$href\">",
-                    "<b>$comp->{name}</b></a></td>";
-      printpacksumbrief($handle, $comp, $href);
+      my $declstr= "<tr><td align=\"right\"><a href=\"$href\"><b>$comp->{name}</b></a></td>";
+      printpacksumitem($handle, $comp, $href, $declstr, \$save);
     }
+    printpacksumitem($handle, undef, undef, undef, \$save);
     print $handle "</table>\n";
   }
   print $handle "</div>\n";
@@ -4865,21 +4868,37 @@ sub printpackagesummary
 }
 
 
-# Print brief description in package summary table.  If the "brief" entry in
-# the declaration's documentation hash exists, this is printed in full,
-# otherwise the first paragraph of the description is printed in full if it
-# does not exceed $summaxdesc characters, or truncated to $summaxdesc-3
-# characters.  If what was printed does not constitute all the description, the
-# word "More..." is added which links to the full description.  This function
-# also outputs the closing tag of the layout table line.
+# Print row in package summary table.  If the "brief" entry in the
+# declaration's documentation hash exists, this is printed in full, otherwise
+# the first paragraph of the description is printed in full if it does not
+# exceed $summaxdesc characters, or truncated to $summaxdesc-3 characters.  If
+# what was printed does not constitute all the description, the word "More..."
+# is added which links to the full description.  This function also outputs the
+# closing tag of the layout table line.
 # -> File handle to print to
-#    Reference to hash of declaration to document
+#    Reference to hash of declaration to document (or undef to print saved items)
 #    Hyperlink to full description (usually to an anchor on the same HTML page)
-sub printpacksumbrief
+#    Text describing the declaration, including opening <tr> tag
+#    Reference to scalar for saving summaries of deprecated and internal
+#    declarations for later
+sub printpacksumitem
 {
-  my ($handle, $decl, $href)= @_;
+  my ($handle, $decl, $href, $declstr, $save)= @_;
   my $briefdesc= "";
 
+  if( !defined $decl ) {
+    return unless ref($$save) eq "HASH";
+    if( $$save->{"deprecated"} ) {
+      print $handle "<tr><td colspan=\"2\"><b>Deprecated:</b></td></tr>\n";
+      print $handle $$save->{"deprecated"};
+    }
+    if( $$save->{"internal"} ) {
+      print $handle "<tr><td colspan=\"2\"><b>For internal use only:</b></td></tr>\n";
+      print $handle $$save->{"internal"};
+    }
+    $$save= undef;
+    return;
+  }
   if( defined $decl->{"doc"}->{"brief"} ) {
     $briefdesc= $decl->{"doc"}->{"brief"};
     $href= "" unless $decl->{"doc"}->{"description"} && @{$decl->{"doc"}->{"description"}};
@@ -4896,9 +4915,18 @@ sub printpacksumbrief
   else {
     $href= "";
   }
-  print $handle "\n  <td>$briefdesc";
-  print $handle "&nbsp;&nbsp;<a href=\"$href\">More...</a>" if $href;
-  print $handle "</td></tr>\n";
+  $declstr .= "\n  <td>$briefdesc";
+  $declstr .= "&nbsp;&nbsp;<a href=\"$href\">More...</a>" if $href;
+  $declstr .= "</td></tr>\n";
+  if( $decl->{"doc"}->{"internal"} ) {
+    $$save->{"internal"} .= $declstr;
+  }
+  elsif( $decl->{"doc"}->{"deprecated"} ) {
+    $$save->{"deprecated"} .= $declstr;
+  }
+  else {
+    print $handle $declstr;
+  }
 }
 
 }
