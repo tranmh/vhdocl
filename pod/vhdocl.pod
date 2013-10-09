@@ -572,6 +572,18 @@ necessarily what you want, and a design unit may not be modified even if its
 file was.
 
 
+=head2 Doxygen compatibility
+
+B<vhdocl> can parse B<doxygen> markup comments starting with C<--!>.  It
+supports the documentation markup codes C<\author>, C<\brief>, C<\date>,
+C<\deprecated>, C<\internal>, C<\param>, C<\private>, C<\result>, C<\sa>,
+C<\see>, C<\short>, C<\return> and C<\version> by replacing them with its
+corresponding own.  The codes C<\arg>, C<\b>, C<\c>, C<\code> / C<\endcode>,
+C<\e>, C<\em>, C<\i>, C<\li>, C<\n>, C<\p>, C<\verbatim> / C<\endverbatim> are
+transformed to their HTML equivalent.  All doxygen markup codes may start with
+C<@> as well as C<\>.
+
+
 =head1 OUTPUT
 
 VHDocL generates five top-level documentation pages which are located in the
