@@ -61,6 +61,7 @@ my %requisites= ( "treestyle" => "treeview.css", "treejava" => "treeview.js",
     "nodeimg" => "node.png", "subtrimg" => "subtree.png",
     "leafimg" => "leaf.png", "basestyle" => "vhdocl.css" );
 
+my @vhdlfiles;
 
 #sectionaux###################################################################
 ##############################################################################
@@ -1075,6 +1076,9 @@ sub parsedoccom
       elsif( $line =~ /^\@(param|author)\b\s*(.*)$/is ) {
         push @{$doc{$1}}, $2;
       }
+      elsif( $line =~ /^\@example\s+(.*)$/is ) {
+        push @{$doc{"example"}}, map examplefilehtml($_, $err), split(/\s*,\s*/, $1);
+      }
       elsif( $line =~ /^\@see\s+(.*)$/is ) {
         push @{$doc{"see"}}, map( [ $_ ], split(/\s*,\s*/, $1));
       }
@@ -1114,7 +1118,7 @@ sub parsedoccom
 my %doxwordstyles= ( "c" => "tt", "p" => "tt", "e" => "em", "em" => "em", "b" => "b" );
 my $doxwordstylere= "(?i:" . join("|", keys %doxwordstyles) . ")";
 my $doxunsuppre= qr/\@(?!(?:$doxwordstylere|param|return|brief|short|author
-                    |date|version|li|deprecated|internal|see)\b)\w+/iox;
+                  |example|date|version|li|deprecated|internal|see)\b)\w+/iox;
 
 # Preprocess documentation comment text that may contain both VHDocL and
 # doxygen markup.  Doxygen comments are expected to be framed by "\x03" and
@@ -1154,6 +1158,45 @@ sub doxconvert
     s/\x05/shift @vblocks/eg;
   }
   return join("", @blocks);
+}
+
+
+{
+my %filerefcache;
+
+# Return HTML text of an @example file reference, if possible with hyperlink to
+# the source file.
+# -> File name from @example markup code
+# <- HTML text of file reference with hyperlink
+sub examplefilehtml
+{
+  my ($fileref, $err)= @_;
+  my $link;
+
+  $fileref =~ s/^\s+//;
+  $fileref =~ s/\s+$//;
+  if( exists $filerefcache{$fileref} ) {
+    $link= $filerefcache{$fileref};
+  }
+  else {
+    my @files= grep $_->{"name"} =~ /(?:^|\Q$pathsep\E)\Q$fileref\E$/, @vhdlfiles;
+    if( @files != 1 && ! $config{"quiet"} ) {
+      if( ! @files ) {
+        print $err "Example file \`$fileref' on or before line $. not found.\n";
+      }
+      else {
+        print $err "Ambiguous example file \`$fileref' on or before line $.:  Could be ",
+                    cswordlist(" or ", map $_->{"name"}, @files), ".\n";
+      }
+    }
+    $link= @files ? "../sources/" . $files[0]->{"docfilename"} : undef;
+    $filerefcache{$fileref}= $link;
+    $fileref =~ s!^.*/!! if $link;
+  }
+  $fileref= html_esc($fileref);
+  return $link ? "<a href=\"$link\">$fileref</a>" : $fileref;
+}
+
 }
 
 
@@ -3993,6 +4036,10 @@ sub printobjhtml
     print $handle "<hr>\n\n<h2>Detailed description</h2>\n\n";
     printdescription($handle, $obj->{"doc"}->{"description"});
   }
+  if( $obj->{"doc"}->{"example"} && @{$obj->{"doc"}->{"example"}} ) {
+    print $handle "<b>Example", (@{$obj->{"doc"}->{"example"}} > 1 ? "s":""), ":</b> ";
+    print $handle join(", ", @{$obj->{"doc"}->{"example"}}), "\n";
+  }
   if( $obj->{"doc"}->{"see"} && @{$obj->{"doc"}->{"see"}} ) {
     print $handle "<p>See also: ", join(", ", map( ($_->[2]?
             "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
@@ -4009,7 +4056,7 @@ my %labels= ( "component" => "comp:", "instance" => "inst:", "type" => "type:",
               "psl" => "psl:" );
 
 # Print HTML fragment describing the libraries and package use clauses
-# affecting and object.
+# affecting an object.
 # -> File handle to print to
 #    Reference to hash representing entity, architecture, configuration,
 #    package or package body
@@ -4187,6 +4234,10 @@ sub printcommonhtml
   for( qw(deprecated internal) ) {
     print $handle "<tr>$TDI<td colspan=\"4\"><b>", ucfirst($_), "</b></td></tr>\n"
         if $obj->{"doc"}->{$_};
+  }
+  if( $obj->{"doc"}->{"example"} && @{$obj->{"doc"}->{"example"}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$obj->{"doc"}->{"example"}} > 1 ? "s":""), ": ";
+    print $handle join(", ", @{$obj->{"doc"}->{"example"}}), "</td></tr>\n";
   }
   if( $obj->{"attributes"} && keys(%{$obj->{"attributes"}}) ) {
     print $handle "<tr>$TDI<td colspan=\"4\">Attributes:</td></tr>\n",
@@ -5770,7 +5821,7 @@ sub jsonnodekey
 ##############################################################################
 ##############################################################################
 
-my @vhdlfiles= @{parseargv(\@ARGV)};
+@vhdlfiles= @{parseargv(\@ARGV)};
 
 if( $config{"benchmark"} ) {
   eval { require Time::HiRes; };
