@@ -4147,6 +4147,10 @@ sub printgenporthtml
     print $handle "<tr>$TDI<td colspan=\"4\"><b>", ucfirst($_), "</b></td></tr>\n"
         if $gp->{"doc"}->{$_};
   }
+  if( $gp->{"doc"}->{"example"} && @{$gp->{"doc"}->{"example"}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$gp->{"doc"}->{"example"}} > 1 ? "s":""), ": ";
+    print $handle join(", ", @{$gp->{"doc"}->{"example"}}), "</td></tr>\n";
+  }
 }
 
 
@@ -4231,6 +4235,15 @@ sub printcommonhtml
       if $obj->{"doc"}->{"brief"};
   map { print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>$_</td></tr>\n" }
                         @{$obj->{"doc"}->{"description"}};
+  if( $obj->{"doc"}->{"param"} && @{$obj->{"doc"}->{"param"}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>Parameters:</td></tr>\n";
+    for my $par (@{$obj->{"doc"}->{"param"}}) {
+      $par =~ /^(?:\[(\w+)\]\s*)?(\w+)\s+(.*)$/s or next;
+      print $handle "<tr>$TDI$TDI<td align=\"left\">$SPID$2$SP_</td><td colspan=\"2\" align=\"left\"$CLSDESC>$3</td></tr>\n";
+    }
+  }
+  print $handle "<tr>$TDI<td$CLSDESC>Return value:</td><td colspan=\"3\"$CLSDESC>$obj->{doc}->{return}</td></tr>\n"
+      if $obj->{"doc"}->{"return"};
   for( qw(deprecated internal) ) {
     print $handle "<tr>$TDI<td colspan=\"4\"><b>", ucfirst($_), "</b></td></tr>\n"
         if $obj->{"doc"}->{$_};
@@ -4336,15 +4349,6 @@ sub printfunchtml
   print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}impure$SP_</b></td></tr>\n"
         if $func->{"pure"} && $func->{"pure"} eq "impure";
   printcommonhtml($handle, $func);
-  if( $func->{"doc"}->{"param"} && @{$func->{"doc"}->{"param"}} ) {
-    print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>Parameters:</td></tr>\n";
-    for my $par (@{$func->{"doc"}->{"param"}}) {
-      $par =~ /^(?:\[(\w+)\]\s*)?(\w+)\s+(.*)$/s or next;
-      print $handle "<tr>$TDI$TDI<td align=\"left\">$SPID$2$SP_</td><td colspan=\"2\" align=\"left\"$CLSDESC>$3</td></tr>\n";
-    }
-  }
-  print $handle "<tr>$TDI<td$CLSDESC>Return value:</td><td colspan=\"3\"$CLSDESC>$func->{doc}->{return}</td></tr>\n"
-      if $func->{"doc"}->{"return"};
 }
 
 
@@ -4365,10 +4369,6 @@ sub printtypehtml
       if $type->{"doc"}->{"brief"};
   map { $desc .= "<tr><td></td><td colspan=\"4\"$CLSDESC>$_</td></tr>\n"; }
                         @{$type->{"doc"}->{"description"}};
-  for( qw(deprecated internal) ) {
-    $desc .= "<tr>$TDI<td colspan=\"4\"><b>" . ucfirst($_) . "</b></td></tr>\n"
-        if $type->{"doc"}->{$_};
-  }
   if( $type->{"subtype"} eq "record" ) {
     print $handle "${SPWD}record$SP_</td></tr>\n$desc";
     if( my @elements= @{$type->{"children"} || []} ) {
@@ -4376,9 +4376,8 @@ sub printtypehtml
       map { printgenporthtml($handle, $_) } @elements;
       print $handle "</table></td></tr>\n";
     }
-    return;
   }
-  if( $type->{"subtype"} eq "units" ) {
+  elsif( $type->{"subtype"} eq "units" ) {
     print $handle marktype($type->{"definition"}), " ${SPWD}units$SP_ $SPID",
                   $type->{"baseunit"}, "$SP_</td></tr>\n$desc";
     for my $chain (@{$type->{"chains"}}) {
@@ -4395,18 +4394,27 @@ sub printtypehtml
       }
       print $handle "$SPID$$u[0]$SP_ $closeparens</td></tr>\n";
     }
-    return;
-  }
-  if( $type->{"subtype"} =~ /type$/ ) {
-    print $handle marktype($type->{"definition"}, $type), "</td></tr>\n";
-  }
-  elsif( $type->{"subtype"} =~ /^protected/i ) {
-    print $handle "${SPWD}protected$SP_...</td></tr>\n";
   }
   else {
-    print $handle "???</td></tr>\n";
+    if( $type->{"subtype"} =~ /type$/ ) {
+      print $handle marktype($type->{"definition"}, $type), "</td></tr>\n";
+    }
+    elsif( $type->{"subtype"} =~ /^protected/i ) {
+      print $handle "${SPWD}protected$SP_...</td></tr>\n";
+    }
+    else {
+      print $handle "???</td></tr>\n";
+    }
+    print $handle $desc;
   }
-  print $handle $desc;
+  for( qw(deprecated internal) ) {
+    print $handle "<tr>$TDI<td colspan=\"4\"><b>" . ucfirst($_) . "</b></td></tr>\n"
+        if $type->{"doc"}->{$_};
+  }
+  if( $type->{"doc"}->{"example"} && @{$type->{"doc"}->{"example"}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$type->{"doc"}->{"example"}} > 1 ? "s":""), ": ";
+    print $handle join(", ", @{$type->{"doc"}->{"example"}}), "</td></tr>\n";
+  }
 }
 
 
