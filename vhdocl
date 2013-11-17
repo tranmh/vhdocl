@@ -2990,20 +2990,18 @@ sub find_selname
 
 
 
-# Try to resolve @see cross references.  This function should only be called
-# when the "docfilename" and "doclink" entries of various possible reference
-# targets have already be defined.
+# Try to resolve @see cross references to design elements.  This function
+# should only be called when the "docfilename" and "doclink" entries of various
+# possible reference targets have already been defined.
 # -> Reference to array of references to arrays containing the cross reference
 #    in their first element
-#    Reference to hash mapping library names to references of arrays of their
-#    declarative items
 #    (optional) Name of the current library
 # (<-) For those references which are resolved, the second element of the array
 #    will contain a reference to the target object's hash.  The third element
 #    will contain a hyperlink to the target's description.
 sub resolve_seealso
 {
-  my ($seeary, $libhash, $libname)= @_;
+  my ($seeary, $libname)= @_;
 
   for my $see (@$seeary) {
 #TODO: search for types in intelligent order rather than using type ""
@@ -4143,6 +4141,7 @@ sub printgenporthtml
       if $gp->{"doc"}->{"brief"};
   map { print $handle "<tr><td></td><td align=\"left\" colspan=\"3\"$CLSDESC>$_</td></tr>\n" }
                         @{$gp->{"doc"}->{"description"}};
+  return unless $gp->{"type"} eq "const";
   for( qw(deprecated internal) ) {
     print $handle "<tr>$TDI<td colspan=\"4\"><b>", ucfirst($_), "</b></td></tr>\n"
         if $gp->{"doc"}->{$_};
@@ -4150,6 +4149,11 @@ sub printgenporthtml
   if( $gp->{"doc"}->{"example"} && @{$gp->{"doc"}->{"example"}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$gp->{"doc"}->{"example"}} > 1 ? "s":""), ": ";
     print $handle join(", ", @{$gp->{"doc"}->{"example"}}), "</td></tr>\n";
+  }
+  if( $gp->{"doc"}->{"see"} && @{$gp->{"doc"}->{"see"}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>See also: ",
+            join(", ", map( ($_->[2]? "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
+            @{$gp->{"doc"}->{"see"}})), "</td></tr>\n";
   }
 }
 
@@ -4251,6 +4255,11 @@ sub printcommonhtml
   if( $obj->{"doc"}->{"example"} && @{$obj->{"doc"}->{"example"}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$obj->{"doc"}->{"example"}} > 1 ? "s":""), ": ";
     print $handle join(", ", @{$obj->{"doc"}->{"example"}}), "</td></tr>\n";
+  }
+  if( $obj->{"doc"}->{"see"} && @{$obj->{"doc"}->{"see"}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>See also: ",
+            join(", ", map( ($_->[2]? "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
+            @{$obj->{"doc"}->{"see"}})), "</td></tr>\n";
   }
   if( $obj->{"attributes"} && keys(%{$obj->{"attributes"}}) ) {
     print $handle "<tr>$TDI<td colspan=\"4\">Attributes:</td></tr>\n",
@@ -4414,6 +4423,11 @@ sub printtypehtml
   if( $type->{"doc"}->{"example"} && @{$type->{"doc"}->{"example"}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$type->{"doc"}->{"example"}} > 1 ? "s":""), ": ";
     print $handle join(", ", @{$type->{"doc"}->{"example"}}), "</td></tr>\n";
+  }
+  if( $type->{"doc"}->{"see"} && @{$type->{"doc"}->{"see"}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>See also: ",
+            join(", ", map( ($_->[2]? "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
+            @{$type->{"doc"}->{"see"}})), "</td></tr>\n";
   }
 }
 
@@ -4839,6 +4853,73 @@ sub configurationhtml
 }
 
 
+# Resolve @see cross references in documentation of package declarations.
+# -> Reference to hash of the declaration being documented
+#    Reference to hash of package
+# (<-) For those references which are resolved, the second element of the array
+#    will contain a reference to the target object's hash.  The third element
+#    will contain a hyperlink to the target's description.
+sub resolve_packagesee
+{
+  my ($decl, $pack)= @_;
+  my ($objname, $objpack);
+
+  for my $see (@{$decl->{"doc"}->{"see"}}) {
+    if( $see->[0] =~ /\./ ) {
+      resolve_seealso( [ $see ], $pack->{"file"}->{"libname"});
+      next if $see->[1];      # found in selected name lookup table
+      next unless $see->[0] =~ /^(\w+)\.(\w+)(?:\.(\w+))?$/;
+      my ($lib, $packname)= ($1, $2);
+      $objname= $3;
+      if( ! defined $objname ) {
+        ($packname, $objname)= ($lib, $packname);
+        $lib= $pack->{"file"}->{"libname"};
+      }
+      $objpack= find_selname($packname, "package", $lib);
+      next unless $objpack;
+    }
+    else {
+      $objname= $see->[0];
+      $objpack= $pack;
+    }
+    my @candidates= grep $_->{"name"} eq $objname, @{$objpack->{"childtype"}->{$decl->{"type"}}};
+    @candidates= grep $_->{"name"} eq $objname, @{$objpack->{"children"}}
+        unless @candidates;
+    if( @candidates ) {
+      $see->[1]= $candidates[0];
+      if( ! $see->[1]->{"label"} ) {
+        if( $see->[1]->{"type"} =~ /^(function|procedure)/ ) {
+          labelfuncproc($see->[1])
+        }
+        else {
+          $see->[1]->{"label"}= substr($see->[1]->{"type"},0,4) . ":" . $see->[1]->{"name"};
+        }
+
+      }
+      $see->[2]= "../packages/" . $objpack->{"docfilename"} . "#" . $see->[1]->{"label"};
+      next;
+    }
+    next if $see->[0] =~ /\./;    # already tried lookup for selected names
+    resolve_seealso( [ $see ], $pack->{"file"}->{"libname"});
+  }
+}
+
+
+# Set the "label" field of the hash of a function or procedure declaration in a
+# package.  The label contains a partial MD5 hash of its argument list and
+# return type to avoid ambiguities.
+# -> Reference to hash of the function or procedure
+sub labelfuncproc
+{
+  my ($func)= @_;
+
+  return if $func->{"label"};
+  $func->{"label"}= substr($func->{"type"},0,4) . ":" . $func->{"name"} .
+                  "-" . substr(Digest::MD5::md5_hex($func->{"parlist"} . 
+                                          ($func->{"subtype"} || "")), 0, 8);
+}
+
+
 {
 my $summaxdesc= 100;
 
@@ -4898,9 +4979,7 @@ sub printpackagesummary
   if( $needsummary{"funcproc"} ) {
     print $handle "\n<h3>Functions and procedures</h3>\n$SUMTAB";
     for my $func (@{$pack->{"childtype"}->{"funcproc"}}) {
-      $func->{"label"}= substr($func->{"type"},0,4) . ":" . $func->{"name"} .
-                  "-" . substr(Digest::MD5::md5_hex($func->{"parlist"} . 
-                                            ($func->{"subtype"} || "")), 0, 8);
+      labelfuncproc($func);
       my $href= "#" . $func->{"label"};
       my $declstr= "<tr><td align=\"right\"><a href=\"$href\">$func->{type}" .
                     " <b>$func->{name}</b>";
@@ -6441,8 +6520,13 @@ benchmark() if $config{"benchmark"};
 for my $obj (@entities, @architectures, @configurations, @packages,
                 @packagebodies) {
   next unless $obj->{"doc"}->{"see"};
-  resolve_seealso($obj->{"doc"}->{"see"}, \%libraries,
-                $obj->{"file"}->{"libname"});
+  resolve_seealso($obj->{"doc"}->{"see"}, $obj->{"file"}->{"libname"});
+}
+for my $pack (@packages, @packagebodies) {
+  for my $decl (@{$pack->{"children"}}) {
+    next unless $decl->{"doc"}->{"see"};
+    resolve_packagesee($decl, $pack);
+  }
 }
 
 entitylisthtml(\@entities, \@orphanedarchs, \@orphanedconfs, scalar(@configurations));
