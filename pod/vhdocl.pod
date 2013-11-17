@@ -479,7 +479,7 @@ of what VHDocL generates.
 
 The description of entities, architectures, configurations, packages and
 package bodies can contain the following markup codes, some of which are also
-valid for constants, types, functions, procedures and components (called "small
+valid for constants, types, functions, procedures and components (called "minor
 declarations" below).  Their arguments extend up to the next empty line or the
 next markup code.
 
@@ -494,7 +494,7 @@ times.
 
 Brief description to be printed at the top of the item's HTML page and in the
 global lists.  Use only one of @short and @brief, and only once.  This is also
-available for "small" declarations.
+available for minor declarations.
 
 =item B<@date> I<date>
 
@@ -503,7 +503,7 @@ Modification date of this item.
 =item B<@deprecated>, B<@internal>, B<@simulation>, B<@synthesis>, B<@testbench>
 
 Causes that word to be printed prominently in the top region of the item's HTML
-file.  B<@deprecated> and B<@internal> are also valid for "small" declarations.
+file.  B<@deprecated> and B<@internal> are also valid for minor declarations.
 
 =item B<@id> I<ID>
 
@@ -522,7 +522,9 @@ Description of function return value.
 Cross reference.  This markup code may occur several times, and every time
 multiple cross references may be given separated by commas.  If the reference
 is the name of an entity, architecture, configuration or package, the reference
-will be hyperlinked to its HTML page.
+will be hyperlinked to its HTML page.  For minor declarations, cross references
+may also point to other minor declarations.  Using selected names allows
+referencing declarations in other packages or libraries.
 
 =item B<@version> I<version>
 
