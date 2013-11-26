@@ -3498,6 +3498,7 @@ sub topmodules
 {
   my ($hier)= @_;
   my (@tops, @uninst);
+  my %done;
 
   for my $node (@$hier) {
     my $topflag= $config{"topmodhash"}->{lc($node->{"entname"})};
@@ -3505,12 +3506,37 @@ sub topmodules
       $topflag= ($topflag->[0] && $node->{"archname"} && $topflag->[0]->{lc($node->{"archname"})}) ||
                 ($topflag->[1] && $node->{"confname"} && $topflag->[1]->{lc($node->{"confname"})});
     }
+    next if !$topflag && $node->{"instantiated"};
     if( $topflag ) {
       push @tops, $node;
     }
-    elsif( !$node->{"instantiated"} ) {
+    else {
       push @uninst, $node;
     }
+    next if $done{$node};
+    my @newdone= ($node);
+    do {
+      @done{@newdone}= (1) x @newdone;
+      @newdone= ( map { @{$_->{"children"} || []}; } @newdone );
+      @newdone= grep ! $done{$_}, @newdone;
+    }
+    while( @newdone );
+  }
+  if( keys(%done) < @$hier ) {
+    my @cycles= grep ! $done{$_}, @$hier;
+    do {
+      my $node= shift @cycles;
+      push @uninst, $node;
+      my @newdone= ($node);
+      do {
+        @done{@newdone}= (1) x @newdone;
+        @newdone= ( map { @{$_->{"children"} || []}; } @newdone );
+        @newdone= grep ! $done{$_}, @newdone;
+      }
+      while( @newdone );
+      @cycles= grep ! $done{$_}, @cycles;
+    }
+    while( @cycles );
   }
   if( ! $config{"quiet"} ) {
     delete @{$config{"topmodhash"}}{map lc($_->{"entname"}), @tops};
