@@ -1,4 +1,12 @@
 
+0.2.5
+
+  - parallelised parsing and source file HTML page generation
+  - parsing of doxygen doc comments and most frequently used markup codes
+  - more detailed documentation of declarations in packages
+  - more CSS classes for more fine-grained appearance customisation
+  - export of instantiation hierarchy as YAML/JSON
+
 0.2.4
 
   - more efficient git support for versioning markup codes
