@@ -3589,6 +3589,8 @@ my $SPNC= "<span class=\"nocode\">";        # non-code within class vhdlcode
 my $SP_= "</span>";
 
 # other tags that allow CSS customisation:
+my $ARDCL= " class=\"vhdlcode archdecl\"";  # top line of minor declarations ..
+my $PCDCL= " class=\"vhdlcode packdecl\"";  # .. in architecture / package
 my $DIVDESC= "<div class=\"bigdesc\">";     # description of major design element
 my $SPBRIEF= "<span class=\"bigbrief\">";    # brief description of design element
 my $CLSDESC= " class=\"smdesc\"";           # description of declaration
@@ -4330,11 +4332,13 @@ sub printattrhtml
 # Print HTML fragment describing a component declaration
 # -> File handle to print to
 #    Reference to hash representing the component declaration
+#    Flag indicating the component declaration is in a package
 sub printcomphtml
 {
-  my ($handle, $comp)= @_;
+  my ($handle, $comp, $inpack)= @_;
+  my $class= $inpack ? $PCDCL : $ARDCL;
 
-  print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"",
+  print $handle "<tr$class><td colspan=\"5\"><b><a name=\"",
                 $labels{"component"}, $comp->{"name"}, "\">$SPDID",
                 $comp->{"name"}, "$SP_</a></b></td></tr>\n";
   printcommonhtml($handle, $comp);
@@ -4350,15 +4354,16 @@ sub printcomphtml
 # library unit, in the order in which they appear in the source.
 # -> File handle to print to
 #    Reference to hash representing the top-level declaration (library unit)
+#    Flag indicating the declaration is in a package
 sub printfuncprochtml
 {
-  my ($handle, $obj)= @_;
+  my ($handle, $obj, $inpack)= @_;
   my @funcprocs;
 
   @funcprocs= @{$obj->{"childtype"}->{"funcproc"}};
   return unless @funcprocs;
   print $handle "\n<h2>Functions and procedures</h2>\n\n$STDTAB\n";
-  map { printfunchtml($handle, $_) } @funcprocs;
+  map { printfunchtml($handle, $_, $inpack) } @funcprocs;
   print $handle "</table>\n\n";
 }
 
@@ -4368,15 +4373,17 @@ sub printfuncprochtml
 # hyperlink label (this is only needed for package summaries).
 # -> File handle to print to
 #    Reference to hash representing the function/procedure
+#    Flag indicating the declaration is in a package
 sub printfunchtml
 {
-  my ($handle, $func)= @_;
+  my ($handle, $func, $inpack)= @_;
   my $label= $func->{"label"} ? "<a name=\"$func->{label}\">" : "";
   my $aclose= $func->{"label"} ? "</a>" : "";
   my $arglist= $func->{"parlist"} ?
                 " (" . markvhdl($func->{"parlist"}) . ")" : "";
+  my $class= $inpack ? $PCDCL : $ARDCL;
 
-  print $handle "<tr$CCO><td colspan=\"5\">$SPDCL$func->{type}$SP_ ",
+  print $handle "<tr$class><td colspan=\"5\">$SPDCL$func->{type}$SP_ ",
                 "<b>$label$SPDID$func->{name}$SP_$aclose</b>", $arglist,
                 ($func->{"subtype"}? " ${SPWD}return$SP_ " .
                                 markvhdl($func->{"subtype"}) : ""),
@@ -4390,13 +4397,15 @@ sub printfunchtml
 # Print HTML fragment describing a type declaration
 # -> File handle to print to
 #    Reference to hash describing the type declaration
+#    Flag indicating the type declaration is in a package
 sub printtypehtml
 {
-  my ($handle, $type)= @_;
+  my ($handle, $type, $inpack)= @_;
+  my $class= $inpack ? $PCDCL : $ARDCL;
   my $desc= "";
 
   my $label= $labels{"type"} . $type->{"name"};
-  print $handle "<tr$CCO><td>$SPDCL",
+  print $handle "<tr$class><td>$SPDCL",
                 ($type->{"subtype"} eq "subtype"? "subtype": "type"),
                 "$SP_</td><td><a name=\"$label\"><b>$SPTYID", $type->{"name"},
                 "$SP_</b></a></td><td>${SPWD}is$SP_</td>\n<td>";
@@ -4501,7 +4510,7 @@ sub printprochtml
 {
   my ($handle, $proc)= @_;
 
-  print $handle "<tr$CCO><td colspan=\"5\"><b>", ($proc->{"name"} ?
+  print $handle "<tr$ARDCL><td colspan=\"5\"><b>", ($proc->{"name"} ?
             $SPDID.$proc->{"name"}.$SP_ : "<i>${SPNC}unnamed$SP_</i>"), "</b>",
   ($proc->{"sensitivity"}? " (" . markvhdl($proc->{"sensitivity"}) . ")" : ""), 
           "</td></tr>\n";
@@ -4520,7 +4529,7 @@ sub printinsthtml
 {
   my ($handle, $inst)= @_;
 
-  print $handle "<tr$CCO><td colspan=\"5\"><b><a name=\"", $labels{"instance"},
+  print $handle "<tr$ARDCL><td colspan=\"5\"><b><a name=\"", $labels{"instance"},
               $inst->{"name"}, "\">$SPDID", $inst->{"name"}, "$SP_</a></b> : ";
   if( $inst->{"subtype"} eq "configuration" ) {
     print $handle "${SPWD}configuration$SP_ ";
@@ -4611,9 +4620,11 @@ sub printinsthtml
 # Print HTML fragment documenting PSL statements in an architecture or package.
 # -> File handle to print to
 #    Reference to hash representing the architecture / package
+#    Flag indicating the PSL statement is in a package
 sub printpslhtml
 {
-  my ($handle, $obj)= @_;
+  my ($handle, $obj, $inpack)= @_;
+  my $class= $inpack ? $PCDCL : $ARDCL;
   my @psldefs;
   my @psldirs;
 
@@ -4629,7 +4640,7 @@ sub printpslhtml
   if( @psldefs ) {
     print $handle "\n<h2>PSL definitions</h2>\n\n$STDTAB\n";
     for my $def (@psldefs) {
-      print $handle "<tr$CCO><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ";
+      print $handle "<tr$class><td colspan=\"5\">$SPPSL$def->{subtype}$SP_ ";
       print $handle "<a name=\"$labels{psl}$def->{name}\">$SPPID$def->{name}$SP_</a> "
           if $def->{"name"};
       print $handle " (", markvhdl($def->{"parlist"}), ")",
@@ -4645,7 +4656,7 @@ sub printpslhtml
   if( @psldirs ) {
     print $handle "\n<h2>PSL directives</h2>\n\n$STDTAB\n";
     for my $dir (@psldirs) {
-      print $handle "<tr$CCO><td>";
+      print $handle "<tr$class><td>";
       print $handle "$SPPID$dir->{name}$SP_ : " if $dir->{"name"};
       print $handle "</td><td colspan=\"4\"><b>$SPPSL$dir->{subtype}$SP_</b> ",
                     markvhdl($dir->{"property"} || $dir->{"sequence"}),
@@ -5168,7 +5179,7 @@ sub packagehtml
     printlibusehtml(*PACK{IO}, $pack);
     if( my @types= @{$pack->{"childtype"}->{"type"}} ) {
       print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
-      map { printtypehtml(*PACK{IO}, $_) } @types;
+      map { printtypehtml(*PACK{IO}, $_, 1) } @types;
       print PACK "</table>\n\n";
     }
     if( my @consts= @{$pack->{"childtype"}->{"constant"}} ) {
@@ -5176,13 +5187,13 @@ sub packagehtml
       map { printgenporthtml(*PACK{IO}, $_, "const:$_->{name}") } @consts;
       print PACK "</table>\n\n";
     }
-    printfuncprochtml(*PACK{IO}, $pack);
+    printfuncprochtml(*PACK{IO}, $pack, 1);
     if( my @comps= @{$pack->{"childtype"}->{"component"}} ) {
       print PACK "\n<h2>Component declarations</h2>\n\n$STDTAB\n";
-      map { printcomphtml(*PACK{IO}, $_) } @comps;
+      map { printcomphtml(*PACK{IO}, $_, 1) } @comps;
       print PACK "</table>\n\n";
     }
-    printpslhtml(*PACK{IO}, $pack);
+    printpslhtml(*PACK{IO}, $pack, 1);
     unless( $pbody ) {
       printhtmlfooter(*PACK{IO});
       close PACK;

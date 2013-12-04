@@ -692,6 +692,15 @@ standard syntax markup style and contains examples of some other CSS classes.
 
 =over
 
+=item B<archdecl>
+
+First line of component, function, procedure, PSL or type declaration in an
+architecture or package body.  Allows to visually separate successive
+declarations with long descriptions.  The reason for lumping together
+architectures and package bodies is that both their declarations are local, in
+contrast to those in packages.  This can be visually distinguished by choosing
+a different appearance for this class and B<packdecl>.
+
 =item B<bigdesc>
 
 Description of major design element (entity, architecture, configuration,
@@ -723,6 +732,12 @@ B<typeid> or B<vhdlieee>.
 
 Non-code words inside quoted code, such as the "unnamed" notice for nameless
 processes.  Not used in source pages.
+
+=item B<packdecl>
+
+First line of component, function, procedure, PSL or type declaration in a
+package (but not the package body).  Allows to visually separate successive
+declarations with long descriptions.
 
 =item B<packsum>
 
