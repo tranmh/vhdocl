@@ -1,0 +1,73 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+my %doxwordstyles= ( "c" => "tt", "p" => "tt", "e" => "em", "em" => "em", "b" => "b" );
+my $doxwordstylere= "(?i:" . join("|", keys %doxwordstyles) . ")";
+my $doxunsuppre= qr/\@(?!(?:$doxwordstylere|param|return|brief|short|author
+                  |example|date|version|li|deprecated|internal|see)\b)\w+/iox;
+
+# Backslashes indicating markup are converted to "@" characters.  The most
+# common doxygen markup codes are converted to their VHDocL equivalent (where
+# not identical) or to HTML (for font style markup).
+
+my $inverbatim;
+my %haveunsupp;
+
+while( <> )
+{
+    if( ! /^([^"]*(?:"[^"]*"[^"]*)*)--!(.*)$/ ) {
+        print;
+        $inverbatim= undef;
+# Note about verbatim state between doc comment blocks:  $inverbatim should
+# really be reset only between documentation blocks of different declarations,
+# but unlike vhdocl, this script does not parse VHDL.  Therefore it is reset on
+# every line not containing a doc comment, which is a small restriction.
+        next;
+    }
+    my ($vhdl, $doc)= ($1, $2);
+    if( $inverbatim && $doc !~ /[\\\@]endverbatim\b/i ) {
+        $doc =~ s/(^|\s)\@/$1&#x40;/g;
+        print "$vhdl--*$doc\n";
+        next;
+    }
+    my @vblocks;
+    while( $doc =~ s/[\\\@]verbatim\b(.*?)[\\\@]endverbatim\b/\x05/i ) {
+        my $verb= $1;
+        $verb =~ s/(^|\s)\@/$1&#x40;/g;    # prevent misinterpretation as markup
+        push @vblocks, "<pre>$verb</pre>";
+    }
+    if( $inverbatim && $doc =~ s/^([^\x05]*?)[\\\@]endverbatim\b/\x05/i ) {
+        my $verb= $1;
+        $verb =~ s/(^|\s)\@/$1&#x40;/g;
+        unshift @vblocks, "$verb</pre>";
+        $inverbatim= undef;
+    }
+    if( $doc =~ s/[\\\@]verbatim\b([^\x05]*)$/\x05/i ) {
+        my $verb= $1;
+        $verb =~ s/(^|\s)\@/$1&#x40;/g;
+        push @vblocks, "<pre>$verb";
+        $inverbatim= 1;
+    }
+    $doc =~ s/\\\b/\@/g;
+    $doc =~ s/[@\\]\@/&#x40;/g;
+    $doc =~ s/[@\\]([\\&\$#<>%".:\|])/$1/g;
+    $doc =~ s/(\@(?:return|author))s\b/$1/ig;
+    $doc =~ s/\@result\b/\@return/ig;
+    $doc =~ s/\@code\b/<code>/ig;
+    $doc =~ s/\@endcode\b/<\/code>/ig;
+    $doc =~ s/\@n\b/<br>/ig;
+    $doc =~ s/\@($doxwordstylere)\b\s+([-+.=!:^~'`$\/\w]+)/"<$doxwordstyles{lc $1}>$2<\/$doxwordstyles{lc $1}>"/gieo;
+    $doc =~ s/\@private\b/\@internal/ig;
+    $doc =~ s/\@arg\b/\@li/ig;
+    $doc =~ s/\@sa\b/\@see/ig;
+    if( $doc =~ /$doxunsuppre/o ) {
+        @haveunsupp{$doc =~ /$doxunsuppre/go}= 1;
+        $doc =~ s/$doxunsuppre//go;     # discard unsupported doxygen codes
+    }
+    $doc =~ s/\x05/shift @vblocks/eg;
+    print "$vhdl--*$doc\n";
+}
+
+print STDERR "Warning: unsupported doxygen markup codes were discarded:\n", join(", ", keys %haveunsupp), "\n" if %haveunsupp;
+

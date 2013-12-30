@@ -69,12 +69,14 @@ File::Path::mkpath($mandir, {}) if $mandir && !$noop;
 print "Installing executables to $exedir...\n";
 install("vhdocl", "$exedir/vhdocl", 0755) unless $noop;
 install("vdocupdate", "$exedir/vdocupdate", 0755) unless $noop;
+install("doxyconvert", "$exedir/doxyconvert", 0755) unless $noop;
 if( $^O eq "MSWin32" ) {
     # Windoze associates interpreters with script file extensions, so
     # installing as .pl allows running without typing "perl" explicitly.  But
     # also update the straight installs (above) for backward compatibility.
     install("vhdocl", "$exedir/vhdocl.pl", 0755) unless $noop;
     install("vdocupdate", "$exedir/vdocupdate.pl", 0755) unless $noop;
+    install("doxyconvert", "$exedir/doxyconvert.pl", 0755) unless $noop;
 }
 
 if( $mandir ) {
