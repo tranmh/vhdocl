@@ -18,6 +18,13 @@ if( grep /^(?:-h|--?help)$/i, @ARGV ) {
 
 print "Copying current version to package directory...\n";
 
+# Rename dummy files to copy destinations to prevent creation of root-owned
+# files:
+move("./vhdocl-dist/vhdocl-empty", "./vhdocl-dist/vhdocl")
+    if ! -e "./vhdocl-dist/vhdocl" && -f "./vhdocl-dist/vhdocl-empty";
+move("./vhdocl-dist/vhdocl.pod-empty", "./vhdocl-dist/vhdocl.pod")
+    if ! -e "./vhdocl-dist/vhdocl.pod" && -f "./vhdocl-dist/vhdocl.pod-empty";
+
 copy("./pod/vhdocl.pod", "./vhdocl-dist") or die
    "Could not copy .pod documentation - are you in the repository directory?";
 
