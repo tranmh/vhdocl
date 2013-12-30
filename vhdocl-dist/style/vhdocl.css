@@ -53,6 +53,14 @@
 table.vhdocltab td {
     vertical-align:top;
 }
+/* Shading of the headlines of minor declarations (functions etc.):
+*.archdecl {
+    background-color:#f8f8f8;
+}
+*.packdecl {
+    background-color:#f6fcf6;
+}
+*/
 /* Modify the numbers and uncomment to set table padding and indentation
 table.vhdocltab td {
     padding:3px;
