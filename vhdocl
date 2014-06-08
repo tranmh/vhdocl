@@ -1070,6 +1070,11 @@ sub parsedoccom
       if( $line =~ /^\@(brief|date|version|id|return)\s+(.*)$/is ) {
         $doc{$1}= $2;
       }
+      elsif( $line =~ /^\@(fromsubmodule|fromwrapper)\s*(\w(?:.*\w)?)?\s*$/is ) {
+        $doc{$1}= lc($2 || "");
+        print $err "\@$1 can have only a single module as an argument on or before line $..\n"
+            if $doc{$1} =~ s/\s.*$//;
+      }
       elsif( $line =~ /^\@short\s+(.*)$/is ) {
         $doc{"brief"}= $1;
       }
@@ -1111,6 +1116,11 @@ sub parsedoccom
     }
   }
   $doc{"author"}= join(", ", @{$doc{"author"}}) if $doc{"author"};
+  if( exists($doc{"fromsubmodule"}) && exists($doc{"fromwrapper"}) ) {
+    print $err "\@fromsubmodule and \@fromwrapper cannot be used for the same port/generic, on or before line $..\n";
+    delete $doc{"fromsubmodule"};
+    delete $doc{"fromwrapper"};
+  }
   return \%doc;
 }
 
@@ -1511,10 +1521,12 @@ sub readcomplete
 # -> String to write to the "type" entry of the resulting hashes, "port" or
 #    "generic"
 #    Error file handle (IO reference for error messages)
+#    Reference to hash of parent declaration (used only for ports and generics
+#    when @fromwrapper or @fromsubmodule is used)
 # <- List of hashes representing ports or generics
 sub readportlist
 {
-  my ($type, $err)= @_;
+  my ($type, $err, $parent)= @_;
   my ($port, @ports);
   my $lastdoccom;
 
@@ -1545,6 +1557,9 @@ sub readportlist
                                   ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
       $doccomment ||= $lastdoccom if $keepdoccom;
       my $doc= $doccomment? parsedoccom($doccomment, $err) : undef;
+      if( $doc && $parent && (exists($doc->{"fromsubmodule"}) || exists($doc->{"fromwrapper"})) ) {
+        $parent->{exists($doc->{"fromsubmodule"}) ? "docfromsub":"docfromwrapper"}= 1;
+      }
       my @newports= map +{ "type", $type, "name", $_, "doc", $doc,
                           "direction", $type eq "port" ? lc($2 || "in") : "",
                           "subtype", $3, "value", $4 }, split(/\s*,\s*/, $1);
@@ -2066,7 +2081,7 @@ vhdlline:
       my $type= lc($1);
       last vhdlline unless defined(readuntil( qr/\(/ ));
       if( $vline =~ s/^\s*\(//i ) {
-        @newentries= readportlist($type, $err);
+        @newentries= readportlist($type, $err, $parent);
       }
       elsif( $type eq "generic" && $vline =~ s/^\s*map\s*\(//i ) {
         my $genmap= [];
@@ -6515,6 +6530,120 @@ for my $node (@hierarchy) {
             || $child->{"configuration"} != $node->{"configuration"});
   }
 }
+
+
+my $inheritwarn;
+
+# Resolve port/generic documentation inherited from sub-/supermodule.
+# First we replace the "from..." doc fields of the ports / generics concerned
+# with references to the ports / generics from which they inherit.
+for my $ent (@entities) {
+  next unless $ent->{"docfromsub"} || $ent->{"docfromwrapper"};
+  my (%fromsub, %fromwrap);
+  for my $pg (@{$ent->{"childtype"}->{"generic"}}, @{$ent->{"childtype"}->{"port"}}) {
+    next unless defined($pg->{"doc"}->{"fromsubmodule"}) || defined($pg->{"doc"}->{"fromwrapper"});
+    push @{$fromsub{lc($pg->{"doc"}->{"fromsubmodule"})}}, $pg
+        if defined($pg->{"doc"}->{"fromsubmodule"});
+    push @{$fromwrap{lc($pg->{"doc"}->{"fromwrapper"})}}, $pg
+        if defined($pg->{"doc"}->{"fromwrapper"});
+  }
+  my (@multiwrap, @nowrap, @multiinst, @noinst);
+  my @wrapnodes= grep $_->{"entity"}, @{$ent->{"instantiated"}};
+  for my $wrapname (keys %fromwrap) {
+    my %wrapents= map { $_->{"entity"} => $_->{"entity"}; }
+        ($wrapname ? (grep lc($_->{"entity"}->{"name"}) eq $wrapname, @wrapnodes) : @wrapnodes);
+    for my $targetpg (@{$fromwrap{$wrapname}}) {
+      my %wrappgs;
+      for my $wrapent (values %wrapents) {
+        for (@{$wrapent->{"childtype"}->{"port"}}, @{$wrapent->{"childtype"}->{"generic"}}) {
+          $wrappgs{$_}= $_ if lc($_->{"name"}) eq lc($targetpg->{"name"});
+        }
+      }
+      push(@nowrap, $targetpg->{"name"}), next unless %wrappgs;
+      push(@multiwrap, $targetpg->{"name"}) if values(%wrappgs) > 1;
+      $targetpg->{"doc"}->{"inherit"}= $wrappgs{[ keys %wrappgs ]->[0]};
+    }
+  }
+  my @instances= map +(@{$_->{"allinstances"}}), @{$ent->{"architectures"}};
+  my %compinsts= map { $_ => $_; } grep $_->{"subtype"} eq "component" && $_->{"component"}, @instances;
+  my %entinsts= map { $_ => $_; } grep $_->{"subtype"} eq "entity" && $_->{"binding"}, @instances;
+  for my $instname (keys %fromsub) {
+    my @compinsts= values %compinsts;
+    @compinsts= grep lc($_->{"name"}) eq $instname || lc($_->{"objname"}) eq $instname, @compinsts
+        if $instname;
+    my @entinsts= values %entinsts;
+    @entinsts= grep lc($_->{"name"}) eq $instname || lc($_->{"objname"}) eq $instname, @entinsts
+        if $instname;
+    for my $targetpg (@{$fromsub{$instname}}) {
+      my %instpgs;
+      for my $comp (map $_->{"component"}, @compinsts) {
+        for (@{$comp->{"childtype"}->{"port"}}, @{$comp->{"childtype"}->{"generic"}}) {
+          $instpgs{$_}= $_ if lc($_->{"name"}) eq lc($targetpg->{"name"})
+                              && $_->{"doc"}->{"description"};
+        }
+      }
+      unless( %instpgs ) {
+        for my $comp (map $_->{"binding"}, @compinsts) {
+          for (@{$comp->{"childtype"}->{"port"}}, @{$comp->{"childtype"}->{"generic"}}) {
+            $instpgs{$_}= $_ if lc($_->{"name"}) eq lc($targetpg->{"name"});
+          }
+        }
+      }
+      for my $instent (map $_->{"binding"}, @entinsts) {
+        for (@{$instent->{"childtype"}->{"port"}}, @{$instent->{"childtype"}->{"generic"}}) {
+          $instpgs{$_}= $_ if lc($_->{"name"}) eq lc($targetpg->{"name"});
+        }
+      }
+      push(@noinst, $targetpg->{"name"}), next unless %instpgs;
+      push(@multiinst, $targetpg->{"name"}) if values(%instpgs) > 1;
+      $targetpg->{"doc"}->{"inherit"}= $instpgs{[ keys %instpgs ]->[0]};
+    }
+  }
+  print "Warning: Can't find inherited documentation in wrapper for port(s) / generic(s) ",
+        cswordlist(" and ", @nowrap), " of entity $ent->{fullname}.\n"
+      if @nowrap && !$config{"quiet"};
+  print "Warning: Ambiguous inheritance of documentation from wrapper for port(s) / generic(s) ",
+        cswordlist(" and ", @multiwrap), " of entity $ent->{fullname}.\n"
+      if @multiwrap && !$config{"quiet"};
+  print "Warning: Can't find inherited documentation in submodule for port(s) / generic(s) ",
+        cswordlist(" and ", @noinst), " of entity $ent->{fullname}.\n"
+      if @noinst && !$config{"quiet"};
+  print "Warning: Ambiguous inheritance of documentation from submodule for port(s) / generic(s) ",
+        cswordlist(" and ", @multiinst), " of entity $ent->{fullname}.\n"
+      if @multiinst && !$config{"quiet"};
+  $inheritwarn= 1 if @nowrap || @multiwrap || @noinst || @multiinst;
+}
+
+# Then we assign the descriptions, recursively across the inheritance hierarchy.
+for my $ent (@entities) {
+  next unless $ent->{"docfromsub"} || $ent->{"docfromwrapper"};
+  my @cycles;
+  for my $pg (@{$ent->{"childtype"}->{"generic"}}, @{$ent->{"childtype"}->{"port"}}) {
+    next unless $pg->{"doc"}->{"inherit"};
+    my %visited= ($pg => 1);
+    my @trace= ($pg);
+    my $inhpg= $pg;
+    while( defined($inhpg= $inhpg->{"doc"}->{"inherit"}) ) {
+      if( $visited{$inhpg} ) {
+        push @cycles, $pg->{"name"};
+        last;
+      }
+      $visited{$inhpg}= 1;
+      push @trace, $inhpg;
+    }
+    for my $pgind (0..$#trace-1) {
+      $trace[$pgind]->{"doc"}->{"description"}= $trace[-1]->{"doc"}->{"description"};
+      delete $trace[$pgind]->{"doc"}->{"inherit"};
+    }
+  }
+  print "Warning: Cyclical inheritance of documentation for port(s) / generic(s) ",
+        cswordlist(" and ", @cycles), " of entity $ent->{fullname}.\n"
+      if @cycles && !$config{"quiet"};
+  $inheritwarn= 1 if @cycles;
+}
+
+print STDERR "Warning: Not all inherited documentation could be resolved.\n"
+    if $inheritwarn;
 
 
 # Resolve PSL definition references
