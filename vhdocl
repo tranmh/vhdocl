@@ -6542,10 +6542,14 @@ for my $ent (@entities) {
   my (%fromsub, %fromwrap);
   for my $pg (@{$ent->{"childtype"}->{"generic"}}, @{$ent->{"childtype"}->{"port"}}) {
     next unless defined($pg->{"doc"}->{"fromsubmodule"}) || defined($pg->{"doc"}->{"fromwrapper"});
-    push @{$fromsub{lc($pg->{"doc"}->{"fromsubmodule"})}}, $pg
-        if defined($pg->{"doc"}->{"fromsubmodule"});
-    push @{$fromwrap{lc($pg->{"doc"}->{"fromwrapper"})}}, $pg
-        if defined($pg->{"doc"}->{"fromwrapper"});
+    if( defined($_= $pg->{"doc"}->{"fromsubmodule"}) ) {
+      s/\..*$//;
+      push @{$fromsub{lc($_)}}, $pg
+    }
+    if( defined($_= $pg->{"doc"}->{"fromwrapper"}) ) {
+      s/\..*$//;
+      push @{$fromwrap{lc($_)}}, $pg
+    }
   }
   my (@multiwrap, @nowrap, @multiinst, @noinst);
   my @wrapnodes= grep $_->{"entity"}, @{$ent->{"instantiated"}};
@@ -6553,10 +6557,12 @@ for my $ent (@entities) {
     my %wrapents= map { $_->{"entity"} => $_->{"entity"}; }
         ($wrapname ? (grep lc($_->{"entity"}->{"name"}) eq $wrapname, @wrapnodes) : @wrapnodes);
     for my $targetpg (@{$fromwrap{$wrapname}}) {
+      my $pgname= $targetpg->{"doc"}->{"fromwrapper"} =~ /\.([^\.]+)$/ ? $1 : $targetpg->{"name"};
+      $pgname= lc($pgname);
       my %wrappgs;
       for my $wrapent (values %wrapents) {
         for (@{$wrapent->{"childtype"}->{"port"}}, @{$wrapent->{"childtype"}->{"generic"}}) {
-          $wrappgs{$_}= $_ if lc($_->{"name"}) eq lc($targetpg->{"name"});
+          $wrappgs{$_}= $_ if lc($_->{"name"}) eq $pgname;
         }
       }
       push(@nowrap, $targetpg->{"name"}), next unless %wrappgs;
@@ -6575,23 +6581,25 @@ for my $ent (@entities) {
     @entinsts= grep lc($_->{"name"}) eq $instname || lc($_->{"objname"}) eq $instname, @entinsts
         if $instname;
     for my $targetpg (@{$fromsub{$instname}}) {
+      my $pgname= $targetpg->{"doc"}->{"fromsubmodule"} =~ /\.([^\.]+)$/ ? $1 : $targetpg->{"name"};
+      $pgname= lc($pgname);
       my %instpgs;
       for my $comp (map $_->{"component"}, @compinsts) {
         for (@{$comp->{"childtype"}->{"port"}}, @{$comp->{"childtype"}->{"generic"}}) {
-          $instpgs{$_}= $_ if lc($_->{"name"}) eq lc($targetpg->{"name"})
+          $instpgs{$_}= $_ if lc($_->{"name"}) eq $pgname
                               && $_->{"doc"}->{"description"};
         }
       }
       unless( %instpgs ) {
         for my $comp (map $_->{"binding"}, @compinsts) {
           for (@{$comp->{"childtype"}->{"port"}}, @{$comp->{"childtype"}->{"generic"}}) {
-            $instpgs{$_}= $_ if lc($_->{"name"}) eq lc($targetpg->{"name"});
+            $instpgs{$_}= $_ if lc($_->{"name"}) eq $pgname;
           }
         }
       }
       for my $instent (map $_->{"binding"}, @entinsts) {
         for (@{$instent->{"childtype"}->{"port"}}, @{$instent->{"childtype"}->{"generic"}}) {
-          $instpgs{$_}= $_ if lc($_->{"name"}) eq lc($targetpg->{"name"});
+          $instpgs{$_}= $_ if lc($_->{"name"}) eq $pgname;
         }
       }
       push(@noinst, $targetpg->{"name"}), next unless %instpgs;
