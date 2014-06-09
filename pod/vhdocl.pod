@@ -505,6 +505,19 @@ Modification date of this item.
 Causes that word to be printed prominently in the top region of the item's HTML
 file.  B<@deprecated> and B<@internal> are also valid for minor declarations.
 
+=item B<@frominstance> / B<@fromwrapper> [ I<entity>[I<.port>] ]
+
+Only for ports and generics: causes the documentation to be inherited from a
+homonymous port or generic of an entity instantiated in this one, or by which
+this one is instantiated.  The optional argument specifies the name of the
+entity, component or instance label from which to inherit, which allows
+resolving ambiguities.  Its optional suffix, separated by a dot, specifies the
+name of the port (or generic) to inherit from.  The documentation of the
+affected port or generic is replaced, not amended.  If the ports / generics of
+an instantiated component are documented, they take precedence over those of
+the corresponding entity.  Inheritance can be chained so long as no cycles are
+created.
+
 =item B<@id> I<ID>
 
 Revision control system ID of the item.
