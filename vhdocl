@@ -2357,10 +2357,14 @@ sub prepareparallel
   $config{"maxmsgsize"}= length($msg);
 
   if( !defined($config{"jobs"}) ) {
-    if( $^O ne "MSWin32" && $^O ne "MacOS" ) {
-      my $tsbits= `taskset -p $$`;
-      $tsbits =~ s/^.*:\s+//;
-      $config{"jobs"}= $? == 0 ? counthexbits($tsbits) : 3;
+    if( $^O eq "linux" ) {
+      local $SIG{__WARN__}= sub {};   # silence warnings about failed `...`
+      $config{"jobs"}= `nproc`;
+      if( $? != 0 ) {
+        my $tsbits= `taskset -p $$`;
+        $tsbits =~ s/^.*:\s+// if $? == 0;
+        $config{"jobs"}= $? == 0 ? counthexbits($tsbits) : 3;
+      }
       $config{"jobs"}= 0 if $config{"jobs"} <= 1;
     }
     else {
