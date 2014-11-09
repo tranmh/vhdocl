@@ -6744,6 +6744,17 @@ if( $config{"javasyntax"} ) {
   makemarkupjs();
 }
 
+if( $config{"jobs"} == 0 ) {
+  for my $file (@vhdlfiles) {
+    if( $config{"javasyntax"} ) {
+      sourcehtml_js($file);
+    }
+    else {
+      sourcehtml($file);
+    }
+  }
+}
+
 benchmark("to generate HTML") if $config{"benchmark"};
 
 exit 0;
