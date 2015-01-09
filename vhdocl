@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #    This is VHDocL, a VHDL documentation utility.
-#    Copyright (c) 2007-13 Volker Schatz (vhdocl at volkerschatz dot com).
+#    Copyright (c) 2007-2015 Volker Schatz (vhdocl at volkerschatz dot com).
 #
 #    VHDocL is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
