@@ -116,10 +116,10 @@ loading the HTML pages of large source files as the browser processes them.
 
 Use I<n> tasks to parse source files in parallel.  I<n>=0 disables forking
 worker tasks for parsing.  The default (when no B<-j> option is provided) is
-the number of bits in the mask returned by C<taskset -p> on Linux, or 3 on
-other systems.  This option is useful mainly when the VHDL sources are located
-on a fast SSD or a RAM disk, so that parsing speed is limited by CPU speed, not
-disk IO.
+determined with C<nproc> or C<taskset -p> on Linux, or set to 3 on other
+systems.  This option is useful mainly when the VHDL sources are located on a
+fast SSD or a RAM disk, so that parsing speed is limited by CPU speed, not disk
+IO.
 
 =item B<--leftlogo>=I<image>
 
