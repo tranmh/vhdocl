@@ -431,6 +431,8 @@ sub counthexbits
 # <- 1 OK, 0 error
 sub senddata
 {
+  return senddata_osx(@_) if $^O eq "darwin";
+
   my ($sock, @refs)= @_;
   my $msg;
   my $sent;
@@ -443,6 +445,46 @@ sub senddata
       substr($msg, 0, $config{"maxmsgsize"})= "";
     }
     $sent= send($sock, $msg, 0);
+    return 0 unless defined($sent) && $sent == length($msg);
+  }
+  return 1;
+}
+
+
+# Implementation of senddata() for Max OS X.  OS X seems to return with an
+# error when an internal queue is full rather than blocking.  So we implement
+# retries explicitly.
+# -> Socket handle reference
+#    Hash or array references (no non-ref scalars, since Storable does not
+#    work on those)
+# <- 1 OK, 0 error
+my ($osx_retrydelay, $osx_retries) = (0.001, 100);
+sub senddata_osx
+{
+  my ($sock, @refs)= @_;
+  my $msg;
+  my $sent;
+
+  for my $dataref (@refs) {
+    $msg= Storable::freeze($dataref);
+    while( length($msg) >= $config{"maxmsgsize"} ) {
+      $sent= send($sock, substr($msg, 0, $config{"maxmsgsize"}), 0);
+      my $tries= $osx_retries;
+      while( !defined($sent) && $tries ) {
+        select(undef, undef, undef, $osx_retrydelay);
+        $sent= send($sock, substr($msg, 0, $config{"maxmsgsize"}), 0);
+        --$tries;
+      }
+      return 0 unless defined($sent) && $sent == $config{"maxmsgsize"};
+      substr($msg, 0, $config{"maxmsgsize"})= "";
+    }
+    $sent= send($sock, $msg, 0);
+    my $tries= $osx_retries;
+    while( !defined($sent) && $tries ) {
+      select(undef, undef, undef, $osx_retrydelay);
+      $sent= send($sock, $msg, 0);
+      --$tries;
+    }
     return 0 unless defined($sent) && $sent == length($msg);
   }
   return 1;
@@ -2400,7 +2442,7 @@ sub parsetask
     parsefile($file, $errhandle);
     close $errhandle;
     $file->{"errmsg"}= $errmsg;
-    senddata($sock, $file);
+    senddata($sock, $file) or croak "Fatal error in inter-process communication.  Try running with \`-j 0' if this persists.\n";
   }
   for my $file (@myfiles) {
     if( $config{"javasyntax"} ) {
@@ -2514,7 +2556,8 @@ sub parsenext
     my $inprogress= 0;
     for my $task (@parsetasks) {
       if( !defined($task->{"fileind"}) && $parsefileind < @$files ) {
-        senddata($task->{"socket"}, $$files[$parsefileind]);
+        senddata($task->{"socket"}, $$files[$parsefileind])
+             or croak "Fatal error in inter-process communication.  Try running with \`-j 0' if this persists.\n";
         $task->{"fileind"}= $parsefileind;
         ++$parsefileind;
       }
@@ -2522,7 +2565,8 @@ sub parsenext
     }
     unless( $inprogress ) {
       for my $task (@parsetasks) {
-        senddata($task->{"socket"}, { "parsing done" => 1 } );
+        senddata($task->{"socket"}, { "parsing done" => 1 } )
+             or croak "Fatal error in inter-process communication.  Try running with \`-j 0' if this persists.\n";
       }
       return undef;
     }
