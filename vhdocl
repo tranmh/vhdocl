@@ -1903,7 +1903,7 @@ vhdlline:
         goto skipnext;
       }
     }
-    elsif( !$label && $vline =~ /^(?:architecture|configuration|case)\b/i ) {
+    elsif( $vline =~ /^case\b/i || (!$label && $vline =~ /^(?:architecture|configuration)\b/i) ) {
       last vhdlline unless defined(readuntil( qr/\sis\b/i ));
       if( $vline =~ s/^(architecture|configuration)\s+($ID)\s+
                                 of\s+($SID)\s+is\b//iox  ) {
