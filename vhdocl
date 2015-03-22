@@ -1091,16 +1091,17 @@ sub parsedoccom
   my ($dcom, $err)= @_;
   my $tags= qr/b|i|tt|u|big|small|sub|sup|em|strong|ul|ol|li|br|center|
                 pre|table|tr|td|th|(?:code|var|a|span|img)(?:\s+[^>]+)?/ix;
+  my @tags;
   my $svnkeys= qr/(?:LastChanged)?(?:Date|Revision)|Rev|Id|Author|(?:Head)?URL/;
   my $insidepretag;
 
   $dcom= doxconvert($dcom) if $dcom =~ /\x03/;
-  $dcom =~ s/<(\/?$tags)>/\x01$1\x02/go;
+  $dcom =~ s/(<\/?$tags>)/push(@tags, $1), "\x01"/goe;
   $dcom =~ s/&(?!\w+;|#\d+;|#x[\da-f]+;)/&amp;/gi;
   $dcom =~ s/</&lt;/g;
   $dcom =~ s/>/&gt;/g;
   $dcom =~ s/"/&quot;/g;
-  $dcom =~ tr/\x01\x02/<>/;
+  $dcom =~ s/\x01/shift @tags/ge;
   my @doclines= split /\s+(?=\@)|\n[ \t\r]*\n/, $dcom;
   chomp(@doclines);
   # Remove supported Subversion keywords:
