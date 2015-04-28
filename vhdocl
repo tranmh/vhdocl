@@ -5630,18 +5630,30 @@ sub packagelisthtml
   }
   if( @$packs ) {
     print LIST "\n<h1>List of packages</h1>\n\n";
+    print LIST "\n\n$STDTAB\n";
     my @sorted= sort { lc($a->{"fullname"}) cmp lc($b->{"fullname"}) } @$packs;
     for my $pack (@sorted) {
-      print LIST "<p><a href=\"packages/", $pack->{"docfilename"}, "\">",
-                  $pack->{"fullname"}, "</a></p>\n";
+      print LIST "<tr><td><a href=\"packages/", $pack->{"docfilename"},
+                  "\"><b>", $pack->{"fullname"}, "</b></td>";
+      if( my $brief= $pack->{"doc"}->{"brief"} ) {
+        print LIST "<td>$brief</td>";
+      }
+      print LIST "</tr>\n";
     }
+    print LIST "</table>\n\n";
   }
   if( $opbodies && @$opbodies ) {
     print LIST "\n<h1>List of orphaned package bodies</h1>\n\n";
+    print LIST "\n\n$STDTAB\n";
     for my $pbody (@$opbodies) {
-      print LIST "<p><a href=\"packages/", $pbody->{"docfilename"}, "\">",
-                  $pbody->{"fullname"}, "</a></p>\n";
+      print LIST "<tr><td><a href=\"packages/", $pbody->{"docfilename"},
+                  "\"><b>", $pbody->{"fullname"}, "</b></td>";
+      if( my $brief= $pbody->{"doc"}->{"brief"} ) {
+        print LIST "<td>$brief</td>";
+      }
+      print LIST "</tr>\n";
     }
+    print LIST "</table>\n\n";
   }
   printhtmlfooter(*LIST{IO});
   close LIST;
