@@ -1328,18 +1328,16 @@ repofilename:
   $devnull= " 2> /dev/null"
         unless $config{"parsedebug"} || $^O eq "MSWin32" || $^O eq "MacOS";
   for my $repo (@repos) {
-    my $history= runat $repo->{"dir"}, "git whatchanged --name-only$devnull";
-    my @commits= split /\n(?=commit [\da-fA-F]{40})/, $history;
+    my $history= runat $repo->{"dir"}, "git log --name-only --pretty=format:'%H [%an <%ae>] %ad'$devnull";
+    my @commits= split /\n\n/, $history;
     my %needdescribe;
     for my $commit (@commits) {
-      my ($hash, $tag) = $commit =~ /^commit ([\da-fA-F]{40})(?:\s+\((?:[^,]*, )*tag:\s+([^ ,]+)(?:, [^,]*)*\))?/;
       my $comrev;
       for my $repofile (@{$repo->{"files"}}) {
         next if $repofile->[2];
         next unless $commit =~ /^$repofile->[0]$/m;
         $repofile->[2]= $comrev, next if $comrev;
-        my ($author)= $commit =~ /^Author:\s+(.*)$/m;
-        my ($date)= $commit =~ /^Date:\s+(.*)$/m;
+        my ($hash, $author, $date) = $commit =~ /^([\da-fA-F]{40})\s+\[(.*)\]\s+(.*)$/m;
         $repofile->[2]= $comrev= { "hash" => $hash,
               "author" => html_esc($author), "date" => html_esc($date) };
         $needdescribe{$hash}= 1
