@@ -596,10 +596,13 @@ sub parseargv
       croak;
     }
   }
-  if( $#$files == 0 && $files->[0]->{"name"} =~ /\.vhdocl$/i ) {
+  if( $config{"missingfiles"} && $config{"quiet"} ) {
+    print STDERR "Warning: Some input files were not found, or glob patterns yielded no files.  Run without --quiet for more details.\n";
+  }
+  elsif( $#$files == 0 && $files->[0]->{"name"} =~ /\.vhdocl$/i ) {
     my $cfile= $files->[0]->{"name"};
     $files= [];
-    parsecfgfile($cfile, $files, $config{"cwd"});
+    parsecfgfile($cfile, $files);
   }
   parsetopmods();
   return $files;
@@ -711,17 +714,27 @@ sub parseopt
     push @$filelist, @newfiles;
     return 1;
   }
-  elsif( $nextarg !~ /\.vhdl?$/i && !-e $nextarg ) {
-    my ($fname)= grep -f, File::Glob::bsd_glob("$nextarg.[vV][hH][dD]{,[lL]}");
-    $fname ||= $nextarg;
-    return 1 unless defined filterfiles($fname);
-    push @$filelist, { "type", "file", "name", $fname };
+  elsif( -e $nextarg ) {
+    return 1 unless defined filterfiles($nextarg);
+    push @$filelist, { "type", "file", "name", $nextarg };
     @{$$filelist[-1]}{@fileopts}= @config{@fileopts};
     return 1;
   }
   else {
-    return 1 unless defined filterfiles($nextarg);
-    push @$filelist, { "type", "file", "name", $nextarg };
+    my @newfiles;
+    if( $nextarg !~ /\.vhdl?$/i ) {     # try file name with .vhd[l] appended
+      my $globarg= quoteglob($nextarg);
+      $globarg =~ tr/\x01/\\/;      # escape glob characters
+      @newfiles= grep -f, File::Glob::bsd_glob("$globarg.[vV][hH][dD]{,[lL]}");
+    }
+    if( @newfiles != 1 ) {
+      print STDERR "Warning: File argument \`$nextarg' does not exist.\n"
+          unless $config{"quiet"};
+      $config{"missingfiles"}= 1;
+      return 1;
+    }
+    return 1 unless defined filterfiles($newfiles[0]);
+    push @$filelist, { "type", "file", "name", $newfiles[0] };
     @{$$filelist[-1]}{@fileopts}= @config{@fileopts};
     return 1;
   }
@@ -789,7 +802,6 @@ sub parseopt
 # <- Configuration file name
 #    Reference to array containing references to hashes representing input
 #    files
-#    Directory from which the config file was included
 #    (optional) Reference to array of config file names from which this one was
 #    included, to avoid include loops
 sub parsecfgfile
@@ -833,8 +845,9 @@ sub parsecfgfile
         if( $farg =~ /(?<!\x01)(?:\?|\*|\[|\]|\{|\}|\~)/ ) {
           @files= grep -f, File::Glob::bsd_glob($globarg);
           if( ! @files ) {
-            print STDERR "Warning: No matches for glob pattern `$globarg'.\n"
+            print STDERR "Warning: No matches for glob pattern `$globarg', in $fname on or before line $..\n"
                 unless $config{"quiet"};
+            $config{"missingfiles"}= 1;
           }
           @files= map fixpath($_), @files;
         }
@@ -846,8 +859,11 @@ sub parsecfgfile
           else {      # glob for .vhd(l) files if verbatim file name not found
             @files= grep -f, File::Glob::bsd_glob("$globarg.[vV][hH][dD]{,[lL]}")
                 unless $farg =~ /\.vhdl?$/i;
-            croak "Input file `$farg' does not exist.  Aborting."
-                unless @files;
+            if( !@files ) {
+              print STDERR "Warning: Input file \`$farg' does not exist, in $fname on or before line $..\n"
+                  unless $config{"quiet"};
+              $config{"missingfiles"}= 1;
+            }
           }
         }
         for my $file (@files) {
@@ -995,18 +1011,20 @@ sub filterfiles
 # <- List of VHDL files
 sub searchdirectory
 {
-    my ($dir)= @_;
-    my @files;
+  my ($dir)= @_;
+  my @files;
 
-    if( $config{"recursive"} ) {
-        File::Find::find( sub { push @files, $File::Find::name
-                                    if -f && /\.vhdl?$/i; },    $dir);
-    }
-    else {
-        my $pattern= File::Spec->catfile($dir, "*.[vV][hH][dD]{,[lL]}");
-        @files= grep -f, File::Glob::bsd_glob($pattern);
-    }
-    return filterfiles(@files);
+  if( $config{"recursive"} ) {
+    File::Find::find( sub { push @files, $File::Find::name
+                                if -f && /\.vhdl?$/i; },    $dir);
+  }
+  else {
+    $dir= quoteglob($dir);
+    $dir =~ tr/\x01/\\/;
+    my $pattern= File::Spec->catfile($dir, "*.[vV][hH][dD]{,[lL]}");
+    @files= grep -f, File::Glob::bsd_glob($pattern);
+  }
+  return filterfiles(@files);
 }
 
 

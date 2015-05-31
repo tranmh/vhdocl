@@ -73,7 +73,7 @@ intended to qualify directory searches, but single file names from the command
 line are also filtered.  The I<glob> argument is a list of shell glob patterns
 separated by commas and/or spaces.  Each pattern has to match the complete file
 name or (if it contains a directory separator) the last part of the path.
-Matching is case insensitive.  This option can occur multiple time but is not
+Matching is case insensitive.  This option can occur multiple times but is not
 cumulative; rather, its current values applies to subsequent source files until
 the next B<--exclude> option.  The I<glob> pattern will usually have to be
 escaped from the shell, for example by enclosing it in single quotes.
@@ -176,8 +176,8 @@ documented.  See the L</OUTPUT> section below for details.
 
 =item B<-q>, B<--quiet>
 
-Do not output what VHDocL is doing.  Parsing errors will still be reported,
-though less verbosely than they would normally.
+Do not output what VHDocL is doing.  Errors and some warnings will still be
+reported, though less verbosely than they would normally.
 
 =item B<-r>, B<--recursive>
 
@@ -298,7 +298,7 @@ which are instantiated nowhere as top modules.  (So unless you omit testbench
 files from the source file list, they will be regarded as top modules.)  The
 B<-t> option allows you to designate some top modules, which are then displayed
 more prominently on the hierarchy page.  This allows you to separate your
-design top modules from test benches, for example.
+design top modules from test benches and other uninstantiated modules.
 
 Arguments to VHDocL, both options and input file names, can be given in three
 ways: on the command line, on standard input and in the configuration file (see
@@ -351,7 +351,8 @@ quoted by single quotes.   File names containing white space can be quoted by
 single or double quotes (which do not quote glob characters).  As on the
 command line, the source files are assigned to the library given with the
 latest "library" option, or the work library if no "library" option was
-encountered.
+encountered.  VHDocL warns if input files or directories do not exist, or if
+glob patterns yield no files, but not for empty directories.
 
 The configuration file is line-oriented.  Every option or input file
 specification has to be contained in a single line.  However, lines may be
