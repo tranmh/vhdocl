@@ -1804,7 +1804,7 @@ vhdlline:
 #    print "investigating $vline\n";
     if( $vline =~ /^(?:end|library|constant|attribute)\b/i ) {
       readuntil( qr/;/ ) or last vhdlline;
-      if( $vline =~ s/^end(?:\s+($ID))?(?:\s+($ID|$OP))?\s*;//io ) {
+      if( $vline =~ s/^end(?:\s+($ID)\??)?(?:\s+($ID|$OP))?\s*;//io ) {
         my ($endtype, $endname, $enditem);
         if( $1 && $2 ) {
           $endtype= lc($1);
