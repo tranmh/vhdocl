@@ -1390,8 +1390,6 @@ my $OP= qr!"(?:\W|[/<>]=|[a-zA-Z]+)"!;
 my $SID= qr/(?:$ID\s*\.\s*)*(?:$ID|$OP|'.')/o;
 # Selected name list:
 my $SIDLIST= qr/$SID(?:\s*,\s*$SID)*/o;
-# Block type for parsing "end...":
-my $BLK= qr/(?:entity|architecture|configuration|package|packagebody|process|postponedprocess|if|loop|block|units|record)/;
 # Item in an attribute specification:
 my $AI= qr/(?:$ID|$OP|'.')(?:\s*\[[^]]*\])?/o;
 # List of attribute spec items:
