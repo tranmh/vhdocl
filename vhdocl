@@ -3959,14 +3959,14 @@ my @VARWORDS= qw( constant signal variable file attribute );
 # "use" is now included in @DECLWORDS, even though this is only really correct
 # for package use statements.
 my @DECLWORDS= qw( entity architecture configuration package body
-function procedure subtype type library component use );
+function procedure subtype type library component use context );
 my @OTHERWORDS= qw( begin pure impure postponed guarded if then else
 elsif for generate while until loop next case when group exit block process
 array units record with port generic map open null all others range not and
 nand or xor xnor mod rem sla sll sra srl ror rol assert report severity 
-is return to downto on of after wait bus new alias
+is return to downto on of after wait bus new alias force release abs
 select reject literal register transport inertial unaffected shared disconnect
-access label end );
+access label end minimum maximum to_x01 to_x01z to_ux01 to_01 );
 my @IEEEWORDS= qw( true false note warning error failure now foreign
 read_mode write_mode append_mode open_ok status_error name_error mode_error
 textio input output readline read writeline write oread owrite hread hwrite
@@ -3982,11 +3982,14 @@ math_sqrt_pi math_deg_to_rad math_rad_to_deg sign ceil floor fmax fmin uniform
 srand rand get_rand_max sqrt cbrt exp log sin cos tan asin acos atan atan2 sinh
 cosh tanh acosh atanh math_complex cbase_1 cbase_j czero cabs carg cmplx conj
 csqrt cexp complex_to_polar polar_to_complex
+swrite tee flush to_string to_hstring to_ostring to_bstring to_binarystring
+to_octalstring to_hexstring justify std env stop finish resolution_limit
 );
 my @IEEETYPES= qw( integer positive natural boolean real string character time
 delay_length severity_level file_open_kind file_open_status line text side
 std_ulogic std_ulogic_vector std_logic std_logic_vector x01 x01z ux01
-ux01z small_int signed unsigned complex complex_vector complex_polar );
+ux01z small_int signed unsigned complex complex_vector complex_polar 
+boolean_vector integer_vector real_vector time_vector );
 # "width" is a type defined in textio, but has been removed, as it may often be
 # used as a constant/variable name.
 my @PSLWORDS= qw( abort always assume assume_guarantee before clock const
