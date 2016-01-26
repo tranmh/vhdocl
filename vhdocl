@@ -1385,7 +1385,7 @@ my $ID= qr/\b[a-zA-Z](?:\w*[a-zA-Z0-9])?\b/;
 # List of identifiers for variable, signal and other declarations:
 my $IDLIST= qr/$ID(?:\s*,\s*$ID)*/o;
 # Operator name for overloading etc.:
-my $OP= qr!"(?:\W|\?[<>=]|\??[/<>]=|[a-zA-Z]+)"!;
+my $OP= qr!"(?:\W|\?[<>=?]|\??[/<>]=|[a-zA-Z]+)"!;
 # Selected name for use clause and others:
 my $SID= qr/(?:$ID\s*\.\s*)*(?:$ID|$OP|'.')/o;
 # Selected name list:
