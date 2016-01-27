@@ -1891,6 +1891,16 @@ vhdlline:
         $vline =~ s/^$STUFF;//o;
       }
     }
+    elsif( !$label && $vline =~ s/^context\s+//i ) {
+      last vhdlline unless defined(readuntil( qr/\sis\b/i ));
+      if( $vline =~ s/($ID)\s+is\b//io ) {
+        $newchild= { "type", "context", "name", $1 };
+      }
+      elsif( $vline =~ s/($SIDLIST)\s*;//io ) {
+        @newentries= map +{ "type", "context", "name", $_ }, split(/\s*,\s*/, $1);
+        map { $_->{"name"} =~ s/\s+//g; } @newentries;
+      }
+    }
     elsif( !$label && $vline =~ s/^(entity|component|package|packagebody)\b//i ) {
       my $type= lc($1);
       while( $vline !~ /\S/ ) {
