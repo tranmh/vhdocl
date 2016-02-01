@@ -3976,11 +3976,13 @@ array units record with port generic map open null all others range not and
 nand or xor xnor mod rem sla sll sra srl ror rol assert report severity 
 is return to downto on of after wait bus new alias force release abs
 select reject literal register transport inertial unaffected shared disconnect
-access label end minimum maximum to_x01 to_x01z to_ux01 to_01 );
+access label end minimum maximum to_x01 to_x01z to_ux01 to_01 
+parameter );
 my @IEEEWORDS= qw( true false note warning error failure now foreign
 read_mode write_mode append_mode open_ok status_error name_error mode_error
 textio input output readline read writeline write oread owrite hread hwrite
-endline bit bit_vector ieee std_logic_1164 to_bit to_bitvector to_stdulogic
+endline bit bit_vector ieee std_logic_1164 to_bit to_bv to_sulv to_slv
+to_bitvector to_stdulogic to_float to_ufixed to_sfixed to_real
 to_stdulogicvector to_stdlogicvector rising_edge falling_edge is_x numeric_std
 numeric_bit to_integer to_signed to_unsigned shift_left shift_right rotate_left
 rotate_right resize std_logic_arith shl shr ext sext conv_integer conv_unsigned
@@ -3992,8 +3994,9 @@ math_sqrt_pi math_deg_to_rad math_rad_to_deg sign ceil floor fmax fmin uniform
 srand rand get_rand_max sqrt cbrt exp log sin cos tan asin acos atan atan2 sinh
 cosh tanh acosh atanh math_complex cbase_1 cbase_j czero cabs carg cmplx conj
 csqrt cexp complex_to_polar polar_to_complex
-swrite tee flush to_string to_hstring to_ostring to_bstring to_binarystring
-to_octalstring to_hexstring justify std env stop finish resolution_limit
+bread bwrite sread swrite tee flush to_string to_hstring to_ostring to_bstring
+to_binarystring to_octalstring to_hexstring justify std env stop finish
+resolution_limit
 );
 my @IEEETYPES= qw( integer positive natural boolean real string character time
 delay_length severity_level file_open_kind file_open_status line text side
