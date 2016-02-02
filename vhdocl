@@ -1824,6 +1824,12 @@ vhdlline:
         }
         else {
           my $lastlevel= pop(@parsestack);
+          if( $enditem && $lastlevel->{"type"} eq "begin" ) {
+            # begin blocks are only created when inside "if/case..generate" and
+            # only may have a matching "end;" without $enditem; otherwise this
+            # is the end of an "if..generate" statement with declarative part
+            $lastlevel= pop(@parsestack);
+          }
           if( $enditem && ($endtype ?  $endtype ne $lastlevel->{"type"} || 
                             $endname ne lc($lastlevel->{"name"} || "") :
                             $enditem ne $lastlevel->{"type"} &&
@@ -2019,10 +2025,11 @@ vhdlline:
           $newchild= { "type", "if", "name", $label };
         }
         elsif( $label ) {
+          my $label2= $1 if $stuff =~ s/^\s*($ID)\s*://;
           $stuff =~ s/^\s+//;
           $stuff =~ s/\s+$//;
           $newchild= { "type", "generate", "subtype", "if", "name", $label,
-                      "parameters", $stuff };
+                       "subname", $label2, "parameters", $stuff };
         }
       }
     }
@@ -2238,10 +2245,34 @@ vhdlline:
         push @{$top->{"allinstances"}}, @newentries;
       }
     }
-    elsif( $vline =~ s/^(?:(?:else|begin|is)\b|;)//i ) {}
-    elsif( $vline =~ s/^elsif\b//i ) {
-      skipuntil(qr/\bthen\b/i);
+    elsif( $vline =~ s/^(elsif|else|begin)\b//i ) {
+      my $subtype= lc($1);
+      my $havegen= readuntil(qr/\bgenerate\b/i);
+      last vhdlline unless defined $havegen;
+      if( @parsestack && $parent->{"type"} eq "generate" ) {
+        if( $subtype eq "begin" ) {
+          $newchild= { "type" => "begin" };
+        }
+        elsif( $havegen && $parent->{"subtype"} =~ /^(?:els)?if$/ &&
+               $vline =~ s/^(?:($ID)\s*:\s*)?($MANY)\bgenerate\b//io ) {
+          my ($label2, $cond)= ($1, $2);
+          $cond =~ s/^\s+//;
+          $cond =~ s/\s+$//;
+          $newchild= { "type", "generate", "subtype", $subtype, "subname", $label2,
+                       "ifbranch" => $parent->{"ifbranch"} || $parent,
+                       "name" => $parent->{"name"}, "parameters", $cond };
+          if( $parsdbg ) {
+            print "$.: ", $subtype, " branch of generate ", $parent->{"name"}, "\n";
+          }
+          $prevlevel= pop @parsestack;
+          $parent= $prevlevel->{"backtrack"};
+        }
+      }
+      elsif( $subtype eq "elsif" ) {
+        skipuntil(qr/\bthen\b/i);
+      }
     }
+    elsif( $vline =~ s/^(?:is\b|;)//i ) {}
     elsif( $vline =~ s/^when\b//i ) {
       skipuntil(qr/=>/i);
     }
