@@ -1825,9 +1825,12 @@ vhdlline:
         else {
           my $lastlevel= pop(@parsestack);
           if( $enditem && $lastlevel->{"type"} eq "begin" ) {
-            # begin blocks are only created when inside "if/case..generate" and
+            # Begin blocks are only created when inside "if/case..generate" and
             # only may have a matching "end;" without $enditem; otherwise this
-            # is the end of an "if..generate" statement with declarative part
+            # is the end of a VHDL 93 "if..generate" statement with declarative
+            # part, and the begin has to be closed without corresponding end.
+            $parent= $lastlevel->{"backtrack"};
+            $prevlevel= $lastlevel;
             $lastlevel= pop(@parsestack);
           }
           if( $enditem && ($endtype ?  $endtype ne $lastlevel->{"type"} || 
@@ -1920,14 +1923,21 @@ vhdlline:
       }
     }
     elsif( $vline =~ /^case\b/i || (!$label && $vline =~ /^(?:architecture|configuration)\b/i) ) {
-      last vhdlline unless defined(readuntil( qr/\sis\b/i ));
+      last vhdlline unless defined(readuntil( qr/\s(?:is|generate)\b/i ));
       if( $vline =~ s/^(architecture|configuration)\s+($ID)\s+
                                 of\s+($SID)\s+is\b//iox  ) {
         $newchild= { "type", lc($1), "name", $2, "objname", $3 };
         $newchild->{"objname"} =~ s/\s+//g;
       }
-      elsif( $vline =~ s/^case\b$MSTUFF\bis\b//io ) {
-        $newchild= { "type", "case", "name", $label };
+      elsif( $vline =~ s/^case\b\??\s*($MSTUFF)\s*\b(is|generate)\b//io ) {
+        my ($stuff, $keyword)= ($1, lc($2));
+        if( $keyword eq "is" ) {
+          $newchild= { "type", "case", "name", $label };
+        }
+        else {
+          $newchild= { "type", "generate", "subtype", "case", "name", $label,
+                       "parameters", $stuff };
+        }
       }
       else {
         goto skipnext;
@@ -2259,7 +2269,7 @@ vhdlline:
           $cond =~ s/^\s+//;
           $cond =~ s/\s+$//;
           $newchild= { "type", "generate", "subtype", $subtype, "subname", $label2,
-                       "ifbranch" => $parent->{"ifbranch"} || $parent,
+                       "parent" => $parent->{"parent"} || $parent,
                        "name" => $parent->{"name"}, "parameters", $cond };
           if( $parsdbg ) {
             print "$.: ", $subtype, " branch of generate ", $parent->{"name"}, "\n";
@@ -2274,7 +2284,22 @@ vhdlline:
     }
     elsif( $vline =~ s/^(?:is\b|;)//i ) {}
     elsif( $vline =~ s/^when\b//i ) {
-      skipuntil(qr/=>/i);
+      if( @parsestack && $parent->{"type"} eq "generate" && $parent->{"subtype"} =~ /^(?:case|when)$/ ) {
+        last vhdlline unless defined readuntil(qr/=>/i);
+        if( $vline =~ s/^\s*(?:($ID)\s*:\s*)?($MSTUFF)\s*=>\s*//io ) {
+          $newchild= { "type", "generate", "subtype", "when", "subname", $1,
+                       "parameters", $2, "name" => $parent->{"name"},
+                       "parent" => $parent->{"parent"} || $parent };
+          if( $parsdbg ) {
+            print "$.: new alternative ", ($1 || ""), " of generate ", $parent->{"name"}, "\n";
+          }
+          $prevlevel= pop @parsestack;
+          $parent= $prevlevel->{"backtrack"};
+        }
+      }
+      else {
+        skipuntil(qr/=>/i);
+      }
     }
     else {
 skipnext:
