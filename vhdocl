@@ -599,8 +599,8 @@ sub parseargv
   if( $config{missingfiles} && $config{quiet} ) {
     print STDERR "Warning: Some input files were not found, or glob patterns yielded no files.  Run without --quiet for more details.\n";
   }
-  elsif( $#$files == 0 && $files->[0]->{name} =~ /\.vhdocl$/i ) {
-    my $cfile= $files->[0]->{name};
+  elsif( $#$files == 0 && $files->[0]{name} =~ /\.vhdocl$/i ) {
+    my $cfile= $files->[0]{name};
     $files= [];
     parsecfgfile($cfile, $files);
   }
@@ -645,12 +645,12 @@ sub parseopt
                 cswordlist(" or ", map("--$_->[1]", @opts)), ".)  Aborting.\n";
       croak;
     }
-    if( !ref($opts[0]->[2]) && $opts[0]->[2] eq "?" ) {
-      $config{$opts[0]->[3]}= $onoff;
+    if( !ref($opts[0][2]) && $opts[0][2] eq "?" ) {
+      $config{$opts[0][3]}= $onoff;
       return 1;
     }
-    elsif( !ref($opts[0]->[2]) && $opts[0]->[2] eq "&" ) {
-      &{$opts[0]->[3]}();
+    elsif( !ref($opts[0][2]) && $opts[0][2] eq "&" ) {
+      &{$opts[0][3]}();
       return 1;
     }
     $opt= $opts[0];
@@ -767,8 +767,8 @@ sub parseopt
   }
   elsif( $opt->[2] eq "|" ) {
     push @{$config{$opt->[1]}}, [ split(/\s*\|\s*/, $value, 2) ];
-    unshift @{$config{$opt->[1]}->[-1]}, undef
-        unless @{$config{$opt->[1]}->[-1]} == 2;
+    unshift @{$config{$opt->[1]}[-1]}, undef
+        unless @{$config{$opt->[1]}[-1]} == 2;
   }
   elsif( $opt->[2] eq "<" ) {
     parsecfgfile($value, $filelist);
@@ -893,12 +893,12 @@ sub parsecfgfile
                    cswordlist(" or ", map($_->[1], @opts)), ".)  Aborting.\n";
       croak;
     }
-    if( ref $opts[0]->[2] ) {
-      my @vals= grep /^\Q$value\E/i, @{$opts[0]->[2]};
+    if( ref $opts[0][2] ) {
+      my @vals= grep /^\Q$value\E/i, @{$opts[0][2]};
       if( !@vals ) {
         print STDERR "Unrecognised value `$value' for option $optname in ",
                     "$fname, line $..  Legal values are ",
-                    cswordlist(" and ", @{$opts[0]->[2]}), ".  Aborting.\n";
+                    cswordlist(" and ", @{$opts[0][2]}), ".  Aborting.\n";
         croak;
       }
       elsif( @vals > 1 ) {
@@ -907,12 +907,12 @@ sub parsecfgfile
                     cswordlist(" or ", @vals), ".)  Aborting.\n";
         croak;
       }
-      $config{$opts[0]->[3]}= $vals[0];
+      $config{$opts[0][3]}= $vals[0];
     }
-    elsif( $opts[0]->[2] eq "&" ) {
+    elsif( $opts[0][2] eq "&" ) {
       print STDERR "Ignoring option $optname in $fname.\n";
     }
-    elsif( $opts[0]->[2] eq "<" ) {     # configfile option
+    elsif( $opts[0][2] eq "<" ) {     # configfile option
       push @$track, $fname;
       $value= fixpath($value, $basedir);
       if( grep($_ eq $value, @$track) ) {
@@ -923,36 +923,36 @@ sub parsecfgfile
       }
       pop @$track;
     }
-    elsif( $opts[0]->[2] eq "?" ) {
+    elsif( $opts[0][2] eq "?" ) {
       if( $value ) {
         if( !$onoff ) {
           croak "Cannot give value for negated option $optname in $fname, line $..  Aborting.";
         }
         elsif( $value =~ /^(?:1|yes|on|true)$/i ) {
-          $config{$opts[0]->[3]}= 1;
+          $config{$opts[0][3]}= 1;
         }
         elsif( $value =~ /^(?:0|no|off|false)$/i ) {
-          $config{$opts[0]->[3]}= 0;
+          $config{$opts[0][3]}= 0;
         }
         else {
           croak "Illegal value for boolean option $optname in $fname, line $..  Aborting.";
         }
       }
       else {
-        $config{$opts[0]->[3]}= $onoff;
+        $config{$opts[0][3]}= $onoff;
       }
     }
-    elsif( $opts[0]->[2] eq "|" ) {
-      push @{$config{$opts[0]->[1]}}, [ split(/\s*\|\s*/, $value, 2) ];
-      unshift @{$config{$opts[0]->[1]}->[-1]}, undef
-          unless @{$config{$opts[0]->[1]}->[-1]} == 2;
-      $config{$opts[0]->[1]}->[-1]->[1]= fixpath($config{$opts[0]->[1]}->[-1]->[1], $basedir);
+    elsif( $opts[0][2] eq "|" ) {
+      push @{$config{$opts[0][1]}}, [ split(/\s*\|\s*/, $value, 2) ];
+      unshift @{$config{$opts[0][1]}[-1]}, undef
+          unless @{$config{$opts[0][1]}[-1]} == 2;
+      $config{$opts[0][1]}[-1][1]= fixpath($config{$opts[0][1]}[-1][1], $basedir);
     }
-    elsif( $opts[0]->[2] eq "@" ) {
-      push @{$config{$opts[0]->[3]}}, split /\s+/, $value;
+    elsif( $opts[0][2] eq "@" ) {
+      push @{$config{$opts[0][3]}}, split /\s+/, $value;
     }
     else {
-      if( $opts[0]->[2] eq "w" ) {
+      if( $opts[0][2] eq "w" ) {
         unless( $value =~ /^\w*$/ ) {
           print STDERR "The argument of option $optname may only contain ",
                        "letters, digits and the underscore in $fname, line ",
@@ -960,17 +960,17 @@ sub parsecfgfile
           croak;
         }
       }
-      elsif( $opts[0]->[2] eq "#" ) {
+      elsif( $opts[0][2] eq "#" ) {
         unless( $value =~ /^\d+$/ ) {
           print STDERR "The argument of option $optname must be numerical ",
                        "in $fname, line $..  Aborting.\n";
           croak;
         }
       }
-      elsif( $opts[0]->[2] eq "/" ) {
+      elsif( $opts[0][2] eq "/" ) {
         $value= fixpath($value, $basedir);
       }
-      $config{$opts[0]->[3]}= $value;
+      $config{$opts[0][3]}= $value;
     }
   }
   close CFG;
@@ -1141,7 +1141,7 @@ sub parsedoccom
         push @{$doc{description}}, $line;
       }
       elsif( $config{compat} && $line =~ /^\@(generic|port)\s+(\S*)\s+(.*)$/is ) {
-        $doc{$1}->{$2}= $3;
+        $doc{$1}{$2}= $3;
       }
       elsif( !$config{quiet} ) {
         $line =~ /^(\@\w*)\b/;
@@ -1152,12 +1152,12 @@ sub parsedoccom
       markcodetag($line);
       $line =~ s/<var>/$VID/ig;
       if( $insidepretag ) {
-        $doc{description}->[-1] .= "\n\n" . $line;
+        $doc{description}[-1] .= "\n\n" . $line;
       }
       else {
         push @{$doc{description}}, $line;
       }
-      $insidepretag= $doc{description}->[-1] =~ /^.*<(\/?)pre>/is && ! $1;
+      $insidepretag= $doc{description}[-1] =~ /^.*<(\/?)pre>/is && ! $1;
     }
   }
   $doc{author}= join(", ", @{$doc{author}}) if $doc{author};
@@ -1244,7 +1244,7 @@ sub examplefilehtml
                     cswordlist(" or ", map $_->{name}, @files), ".\n";
       }
     }
-    $link= @files ? "../sources/" . $files[0]->{docfilename} : undef;
+    $link= @files ? "../sources/" . $files[0]{docfilename} : undef;
     $filerefcache{$fileref}= $link;
     $fileref =~ s!^.*/!! if $link;
   }
@@ -1271,8 +1271,8 @@ sub markgit
   for my $unit (@{$file->{children}}) {
     next unless $unit->{doc};
     for my $key (qw(version date id author)) {
-      push @{$places{$key}}, \$unit->{doc}->{$key}
-        if defined($unit->{doc}->{$key}) && $unit->{doc}->{$key} =~ /^\s*\$git\$\s*$/;
+      push @{$places{$key}}, \$unit->{doc}{$key}
+        if defined($unit->{doc}{$key}) && $unit->{doc}{$key} =~ /^\s*\$git\$\s*$/;
     }
   }
   return unless keys %places;
@@ -1343,14 +1343,14 @@ repofilename:
         $repofile->[2]= $comrev= { hash => $hash, author => html_esc($author),
                                    date => html_esc($date) };
         $needdescribe{$hash}= 1
-            if $repofile->[1]->{places}->{version};
+            if $repofile->[1]{places}{version};
       }
     }
     my $desccmd= "git -C \"$repo->{dir}\" describe --tags --always " . join(" ", keys %needdescribe);
     my $descriptions= `$desccmd`;
     @needdescribe{keys %needdescribe}= split /\s+/, $descriptions;
     for my $repofile (@{$repo->{files}}) {
-      my $places= $repofile->[1]->{places};
+      my $places= $repofile->[1]{places};
       my $frev= $repofile->[2];
       map { $$_= $frev->{author} || "??"; } @{$places->{author}}
           if $places->{author};
@@ -1363,15 +1363,15 @@ repofilename:
   for my $nogitf (@gitfiles) {
     next if $nogitf->{haverepo};
     map { $$_= "?? (no git repo found)"; }
-        ( @{$nogitf->{places}->{author} || []},
-          @{$nogitf->{places}->{date} || []},
-          @{$nogitf->{places}->{version} || []} );
+        ( @{$nogitf->{places}{author} || []},
+          @{$nogitf->{places}{date} || []},
+          @{$nogitf->{places}{version} || []} );
   }
-  my @needid= grep $_->{places}->{id}, @gitfiles;
+  my @needid= grep $_->{places}{id}, @gitfiles;
   my $cmd= "git hash-object " . join(" ", map $_->{fname}, @needid) . $devnull;
   my @ids= split /\s+/, `$cmd`;
   for my $file (@needid) {
-    map { $$_= $ids[0]; } @{$file->{places}->{id}};
+    map { $$_= $ids[0]; } @{$file->{places}{id}};
     shift @ids;
   }
   @gitfiles= ();
@@ -1727,7 +1727,7 @@ sub readunitlist
   for my $chain (@{$unitsdecl->{chains}}) {
     my $u= $chain;
     while( $subunits{$$u[0]} ) {
-      push @$u, $subunits{$$u[0]}->[0], [ $subunits{$$u[0]}->[1] ];
+      push @$u, $subunits{$$u[0]}[0], [ $subunits{$$u[0]}[1] ];
       undef $subunits{$$u[0]};
       $u= $$u[2];
     }
@@ -1847,7 +1847,7 @@ vhdlline:
             # Try to find declaration matching current end statement in parsing
             # stack and previous (deeper) level.  Resynchronise the stack if
             # the result is unique.
-            my @matchinds= grep $parsestack[$_]->{type} eq $enditem || lc($parsestack[$_]->{name} || "") eq $enditem, (0..$#parsestack);
+            my @matchinds= grep $parsestack[$_]{type} eq $enditem || lc($parsestack[$_]{name} || "") eq $enditem, (0..$#parsestack);
             if( !@matchinds && $prevlevel &&
                 ($prevlevel->{type} eq $enditem || lc($prevlevel->{name} || "") eq $enditem) ) {
               push @parsestack, $lastlevel;
@@ -1987,8 +1987,8 @@ vhdlline:
         $newchild= undef;
       }
       if( @parsestack == 1 ) {
-        push @{$parent->{childtype}->{funcproc}}, @newentries;
-        push @{$parent->{childtype}->{funcproc}}, $newchild if $newchild;
+        push @{$parent->{childtype}{funcproc}}, @newentries;
+        push @{$parent->{childtype}{funcproc}}, $newchild if $newchild;
       }
     }
     elsif( $vline =~ s/^((?:postponed)?process|block)\b//i &&
@@ -2022,7 +2022,7 @@ vhdlline:
                                 map($_->{backtrack}, @parsestack), $parent ];
         if( @parsestack && $newchild->{type} eq "process" ) {
           # List all processes to avoid recursive searches later
-          my $top= @parsestack > 1? $parsestack[1]->{backtrack} : $parent;
+          my $top= @parsestack > 1? $parsestack[1]{backtrack} : $parent;
           push @{$top->{allprocesses}}, $newchild;
         }
       }
@@ -2131,11 +2131,11 @@ vhdlline:
                         (configuration)\s+($SID)|(open)\b)//iox ) {
         @newentries= ( { "type", "use", "subtype", lc($1 || $4 || $6), 
                             "name", $2 || $5, "archname", $3 } );
-        $newentries[0]->{name} =~ s/\s+//g;
-        $newentries[0]->{for}= $parent->{children}->[-1]
+        $newentries[0]{name} =~ s/\s+//g;
+        $newentries[0]{for}= $parent->{children}[-1]
               if $parent->{children} && @{$parent->{children}}
-                && $parent->{children}->[-1]->{type} eq "for"
-                && $parent->{children}->[-1]->{subtype} eq "instance";
+                && $parent->{children}[-1]{type} eq "for"
+                && $parent->{children}[-1]{subtype} eq "instance";
       }
       elsif( $vline =~ s/^\s*($SIDLIST)\s*;//o ) {
         @newentries= map +{ "type", "use", "subtype", "package", "name", $_ },
@@ -2158,7 +2158,7 @@ vhdlline:
         @newentries= ( { "type", "genericmap", "map", $genmap } );
         skipstatement() or last vhdlline;
         if( $parent->{children} && @{$parent->{children}} ) {
-          $parent->{children}->[-1]->{genericmap}= $newentries[0];
+          $parent->{children}[-1]{genericmap}= $newentries[0];
         }
         else {
           $parent->{genericmap}= $newentries[0];
@@ -2172,13 +2172,13 @@ vhdlline:
       @newentries= ( { "type", "psl", "subtype", lc($1) } );
       defined(readuntil( qr/\(/ )) or last vhdlline;
       $vline =~ s/^\s*($ID)\s*//o or next vhdlline;
-      $newentries[0]->{name}= $1;
+      $newentries[0]{name}= $1;
       if( $vline =~ /^\(/ ) {
         while( 13 ) {
           if( $vline =~ s/^($PAREN)//o ) {
-              $newentries[0]->{parlist}= $1;
-              $newentries[0]->{parlist} =~ s/^\(\s*//;
-              $newentries[0]->{parlist} =~ s/\s*\)$//;
+              $newentries[0]{parlist}= $1;
+              $newentries[0]{parlist} =~ s/^\(\s*//;
+              $newentries[0]{parlist} =~ s/\s*\)$//;
               last;
           }
           getnextline(0) or last vhdlline;
@@ -2187,18 +2187,18 @@ vhdlline:
       my $psl;
       while( 13 ) {
         if( $vline =~ s/^($PSL);//o ) {
-          $newentries[0]->{value}= $1;
-          $newentries[0]->{value} =~ s/^\s*is\b\s*//i;
-          $newentries[0]->{value} =~ s/\s*$//;
+          $newentries[0]{value}= $1;
+          $newentries[0]{value} =~ s/^\s*is\b\s*//i;
+          $newentries[0]{value} =~ s/\s*$//;
           last;
         }
         getnextline(0) or last vhdlline;
       }
-      $newentries[0]->{trace}= [ grep $_->{type} =~ /^(?:generate|block)$/,
+      $newentries[0]{trace}= [ grep $_->{type} =~ /^(?:generate|block)$/,
                                  map($_->{backtrack}, @parsestack), $parent ];
       if( @parsestack ) {
         # List all PSL definitions to avoid recursive searches
-        my $top= @parsestack > 1? $parsestack[1]->{backtrack} : $parent;
+        my $top= @parsestack > 1? $parsestack[1]{backtrack} : $parent;
         push @{$top->{allpsldefs}}, @newentries;
       }
     }
@@ -2221,16 +2221,16 @@ vhdlline:
       @newentries= ( { "type", "psl", "subtype", $subtype, "name", $label } );
       if( $subtype =~ /^(?:assert|assume_guarantee|restrict_guarantee|cover)$/
           && $psl =~ s/\breport\s+($MSTUFF)\s*$//io ) {
-        $newentries[0]->{report}= $1;
+        $newentries[0]{report}= $1;
       }
       $psl =~ s/^\s+//;
       $psl =~ s/\s+$//;
       if( $subtype =~ /^(?:assert|assume|assume_guarantee)$/ ) {
-        $newentries[0]->{property}= $psl;
+        $newentries[0]{property}= $psl;
       }
       else #  elsif( $subtype =~ /^(?:restrict|restrict_guarantee|cover)$/ )
       {
-        $newentries[0]->{sequence}= $psl;
+        $newentries[0]{sequence}= $psl;
       }
     }
     # Instantiations
@@ -2244,14 +2244,14 @@ vhdlline:
       @newentries= ( { "type", "instance", "name", $label, "objname", $2,
                           "subtype", lc($1 || "component"), "archname", $3,
                           "genericmap", $genmap, "uses",
-                      [ @parsestack ? @{$parsestack[-1]->{uses}} : () ] } );
-      $newentries[0]->{objname} =~ s/\s+//g;
+                      [ @parsestack ? @{$parsestack[-1]{uses}} : () ] } );
+      $newentries[0]{objname} =~ s/\s+//g;
       readcommalist($genmap) if $firstmap eq "generic";
-      $newentries[0]->{trace}= [ grep $_->{type} =~ /^(?:generate|block)$/,
+      $newentries[0]{trace}= [ grep $_->{type} =~ /^(?:generate|block)$/,
                                  map($_->{backtrack}, @parsestack), $parent ];
       if( @parsestack ) {
         # List all instances to avoid recursive searches later
-        my $top= @parsestack > 1? $parsestack[1]->{backtrack} : $parent;
+        my $top= @parsestack > 1? $parsestack[1]{backtrack} : $parent;
         push @{$top->{allinstances}}, @newentries;
       }
     }
@@ -2316,11 +2316,11 @@ skipnext:
       }
       elsif( @parsestack == 1 ) {
         # List children by type for top-level constructs
-        push @{$parent->{childtype}->{$newchild->{type}}}, $newchild;
+        push @{$parent->{childtype}{$newchild->{type}}}, $newchild;
       }
       push @parsestack, { "backtrack", $parent, 
               "type", $newchild->{type}, "name", $newchild->{name},
-              "uses", [ @parsestack ? @{$parsestack[-1]->{uses}} : () ] };
+              "uses", [ @parsestack ? @{$parsestack[-1]{uses}} : () ] };
       $prevlevel= undef;
       $inconfiguration= 1 if $newchild->{type} eq "configuration";
       $parent= $newchild;
@@ -2332,13 +2332,13 @@ skipnext:
     }
     if( @newentries ) {
       if( !$doccomment && $keepdoccom ) {
-        $keepdoccom= 0 unless $newentries[0]->{type} eq $keepdoctype;
+        $keepdoccom= 0 unless $newentries[0]{type} eq $keepdoctype;
         $doccomment= $lastdoccom if $keepdoccom;
       }
       if( $doccomment && !($config{compat} && !@parsestack) ) {
         if( $keepdoccom ) {
           $lastdoccom= $doccomment;
-          $keepdoctype= $newentries[0]->{type};
+          $keepdoctype= $newentries[0]{type};
         }
         $doccomment= parsedoccom($doccomment, $err);
         foreach (@newentries) { $_->{doc}= $doccomment; }
@@ -2349,25 +2349,25 @@ skipnext:
       if( @parsestack == 1 ) {
         # List children by type for top-level constructs.  This relies on all
         # new entries having the same type.
-        push @{$parent->{childtype}->{$newentries[0]->{type}}}, @newentries;
+        push @{$parent->{childtype}{$newentries[0]{type}}}, @newentries;
       }
-      if( $newentries[0]->{type} eq "use" ) {
+      if( $newentries[0]{type} eq "use" ) {
         # List all use clauses to avoid recursive searches later
         if( @parsestack ) {
-          my $top= @parsestack > 1? $parsestack[1]->{backtrack} : $parent;
+          my $top= @parsestack > 1? $parsestack[1]{backtrack} : $parent;
           push @{$top->{alluses}}, @newentries;
-          push @{$parsestack[-1]->{uses}}, @newentries;
+          push @{$parsestack[-1]{uses}}, @newentries;
         }
         else {
           push @topuses, @newentries;
         }
       }
-      if( $parsdbg && $newentries[0]->{type} !~ /^(?:port|generic)$/ ) {
+      if( $parsdbg && $newentries[0]{type} !~ /^(?:port|generic)$/ ) {
         # "found..." message already output in readportlist() for ports/gens
-        print "$.: found ", $newentries[0]->{type};
+        print "$.: found ", $newentries[0]{type};
         print "s" if $#newentries;
         print " ", join(", ", map($_->{name}, @newentries))
-              if $newentries[0]->{name};
+              if $newentries[0]{name};
         print "\n";
       }
     }
@@ -2418,8 +2418,8 @@ sub packsubeq
   }
   return 0 if @{$a->{parameters}} != @{$b->{parameters}};
   for my $ind (0..$#{$a->{parameters}}) {
-    my $pa= $a->{parameters}->[$ind];
-    my $pb= $b->{parameters}->[$ind];
+    my $pa= $a->{parameters}[$ind];
+    my $pb= $b->{parameters}[$ind];
     return 0 if lc($pa->{name}) ne lc($pb->{name}) ||
                 $pa->{subtype} ne $pb->{subtype} ||
                 $pa->{direction} ne $pb->{direction} ||
@@ -2558,7 +2558,7 @@ sub createtasks
     close $workersock;
     push @parsetasks,
       { socket => $controlsock, fileno => fileno($controlsock), pid => $pid };
-    vec($recvsockmask, $parsetasks[-1]->{fileno}, 1)= 1;
+    vec($recvsockmask, $parsetasks[-1]{fileno}, 1)= 1;
   }
 }
 
@@ -2568,10 +2568,10 @@ sub createtasks
 sub endtasks
 {
   for my $ind (0..$#parsetasks) {
-    senddata($parsetasks[$ind]->{socket}, { die => "yes, really" });
+    senddata($parsetasks[$ind]{socket}, { die => "yes, really" });
   }
   for my $ind (0..$#parsetasks) {
-    waitpid($parsetasks[$ind]->{pid}, 0);
+    waitpid($parsetasks[$ind]{pid}, 0);
   }
   @parsetasks= ();
 }
@@ -2591,7 +2591,7 @@ sub parsedone
 
   return undef unless select($donemask, undef, undef, undef);
   for my $ind (0..$#parsetasks) {
-    return $ind if vec($donemask, $parsetasks[$ind]->{fileno}, 1);
+    return $ind if vec($donemask, $parsetasks[$ind]{fileno}, 1);
   }
   return undef;
 }
@@ -2607,9 +2607,9 @@ sub parsenext
   if( $config{jobs} == 0 ) {
     $parsefileind= 0 unless defined $parsefileind;
     return undef if $parsefileind > $#$files;
-    print "Parsing $$files[$parsefileind]->{name}...\n" unless $config{quiet};
+    print "Parsing $$files[$parsefileind]{name}...\n" unless $config{quiet};
     parsefile($$files[$parsefileind]);
-    croak $$files[$parsefileind]->{fatal} if $$files[$parsefileind]->{fatal};
+    croak $$files[$parsefileind]{fatal} if $$files[$parsefileind]{fatal};
     markgit($$files[$parsefileind]);
     ++$parsefileind;
     return $parsefileind - 1;
@@ -2638,8 +2638,8 @@ sub parsenext
     }
     my $donetaskind;
     do { $donetaskind= parsedone(); } while( ! defined $donetaskind );
-    my $donefileind= $parsetasks[$donetaskind]->{fileind};
-    $$files[$donefileind]= recvdata($parsetasks[$donetaskind]->{socket});
+    my $donefileind= $parsetasks[$donetaskind]{fileind};
+    $$files[$donefileind]= recvdata($parsetasks[$donetaskind]{socket});
     my $file= $$files[$donefileind];
     croak $file->{fatal} if $file->{fatal};
     if( $file->{errmsg} ) {
@@ -2650,7 +2650,7 @@ sub parsenext
     }
     delete $file->{errmsg};
     markgit($file);
-    $parsetasks[$donetaskind]->{fileind}= undef;
+    $parsetasks[$donetaskind]{fileind}= undef;
     return $donefileind;
   }
 }
@@ -2788,7 +2788,7 @@ sub uniq_objs
 {
   my ($ary, $lib)= @_;
   return 0 unless @$ary;
-  my $type= $ary->[0]->{type};
+  my $type= $ary->[0]{type};
   my %byname;
   my $removed= 0;
 
@@ -2796,18 +2796,18 @@ sub uniq_objs
   if( $type eq "architecture" || $type eq "configuration" ) {
     my $ind= 0;
     for my $elem (@$ary) {
-      push @{$byname{lc($elem->{name})}->{lc($elem->{objname})}}, $ind;
+      push @{$byname{lc($elem->{name})}{lc($elem->{objname})}}, $ind;
       ++$ind;
     }
     for my $name (keys %byname) {
       for my $objname (keys %{$byname{$name}}) {
-        my @all= @{$byname{$name}->{$objname}};
+        my @all= @{$byname{$name}{$objname}};
         next unless @all > 1;
-        print STDERR ucfirst($type), " ", $$ary[$all[0]]->{name},
-             " of $lib", $$ary[$all[0]]->{objname}, " was found ",
+        print STDERR ucfirst($type), " ", $$ary[$all[0]]{name},
+             " of $lib", $$ary[$all[0]]{objname}, " was found ",
              @all > 2 ? (0+@all)." times" : "twice", ", in:\n   ",
-             join("\n   ", map $$ary[$_]->{filename}, @all),
-             "\nKeeping the one from ", $$ary[$all[0]]->{filename}, ".\n"
+             join("\n   ", map $$ary[$_]{filename}, @all),
+             "\nKeeping the one from ", $$ary[$all[0]]{filename}, ".\n"
             unless $config{quiet};
         @$ary[@all[1..$#all]]= (undef) x $#all;
         $removed= 1;
@@ -2824,10 +2824,10 @@ sub uniq_objs
       my @all= @{$byname{$name}};
       next unless @all > 1;
       if( !$config{quiet} && ($type ne "entity" || !sameentities(map $$ary[$_], @all)) ) {
-        print STDERR ucfirst($type), " $lib", $$ary[$all[0]]->{name},
+        print STDERR ucfirst($type), " $lib", $$ary[$all[0]]{name},
            " was found ", @all > 2 ? (0+@all)." times" : "twice", ", in:\n   ",
-           join("\n   ", map $$ary[$_]->{filename}, @all),
-           "\nKeeping the one from ", $$ary[$all[0]]->{filename}, ".\n";
+           join("\n   ", map $$ary[$_]{filename}, @all),
+           "\nKeeping the one from ", $$ary[$all[0]]{filename}, ".\n";
       }
       @$ary[@all[1..$#all]]= (undef) x $#all;
       $removed= 1;
@@ -2848,21 +2848,21 @@ sub sameentities
   my $first= shift;
 
   return 1 unless @_;
-  my @fports= sort { $a->{name} cmp $b->{name} } @{$first->{childtype}->{port} || []};
-  my @fgens= sort { $a->{name} cmp $b->{name} } @{$first->{childtype}->{generic} || []};
+  my @fports= sort { $a->{name} cmp $b->{name} } @{$first->{childtype}{port} || []};
+  my @fgens= sort { $a->{name} cmp $b->{name} } @{$first->{childtype}{generic} || []};
   for my $ent (@_) {
-    return 0 unless @fports == @{$ent->{childtype}->{port} || []} &&
-                    @fgens == @{$ent->{childtype}->{generic} || []};
-    my @ports= sort { $a->{name} cmp $b->{name} } @{$ent->{childtype}->{port} || []};
+    return 0 unless @fports == @{$ent->{childtype}{port} || []} &&
+                    @fgens == @{$ent->{childtype}{generic} || []};
+    my @ports= sort { $a->{name} cmp $b->{name} } @{$ent->{childtype}{port} || []};
     for my $ind (0..$#ports) {
-      return 0 unless $fports[$ind]->{name} eq $ports[$ind]->{name} &&
-               $fports[$ind]->{direction} eq $ports[$ind]->{direction} &&
-               !codecmp($fports[$ind]->{subtype}, $ports[$ind]->{subtype});
+      return 0 unless $fports[$ind]{name} eq $ports[$ind]{name} &&
+               $fports[$ind]{direction} eq $ports[$ind]{direction} &&
+               !codecmp($fports[$ind]{subtype}, $ports[$ind]{subtype});
     }
-    my @gens= sort { $a->{name} cmp $b->{name} } @{$ent->{childtype}->{generic} || []};
+    my @gens= sort { $a->{name} cmp $b->{name} } @{$ent->{childtype}{generic} || []};
     for my $ind (0..$#gens) {
-      return 0 unless $fgens[$ind]->{name} eq $gens[$ind]->{name} &&
-               !codecmp($fgens[$ind]->{subtype}, $gens[$ind]->{subtype});
+      return 0 unless $fgens[$ind]{name} eq $gens[$ind]{name} &&
+               !codecmp($fgens[$ind]{subtype}, $gens[$ind]{subtype});
     }
   }
   return 1;
@@ -2880,8 +2880,8 @@ sub sameentities
 sub match_attributes
 {
   my ($top)= @_;
-  my @aspecs= @{$top->{childtype}->{attrspec} || []};
-  my @adecls= @{$top->{childtype}->{attribute} || []};
+  my @aspecs= @{$top->{childtype}{attrspec} || []};
+  my @adecls= @{$top->{childtype}{attribute} || []};
 
   for my $aspec (@aspecs) {
     for my $adecl (@adecls) {
@@ -2894,7 +2894,7 @@ sub match_attributes
   for my $aspec (@aspecs) {
     if( $top->{type} eq $aspec->{objtype} && 
         lc($top->{name}) eq lc($aspec->{objname}) ) {
-      $top->{attributes}->{$aspec->{name}}= $aspec;
+      $top->{attributes}{$aspec->{name}}= $aspec;
       next;
     }
     my @targets;
@@ -2909,16 +2909,16 @@ sub match_attributes
         if $aspec->{objtype} eq $top->{type};
     }
     else {
-      @targets= @{$top->{childtype}->{$aspec->{objtype}} || []};
+      @targets= @{$top->{childtype}{$aspec->{objtype}} || []};
     }
     next unless @targets;
     if( lc($aspec->{objname}) eq "all" ) {
-      map { $_->{attributes}->{$aspec->{name}}= $aspec; } @targets;
+      map { $_->{attributes}{$aspec->{name}}= $aspec; } @targets;
     }
     elsif( lc($aspec->{objname}) eq "others" ) {
       for my $target (@targets) {
-        $target->{attributes}->{$aspec->{name}}= $aspec
-                unless $target->{attributes}->{$aspec->{name}};
+        $target->{attributes}{$aspec->{name}}= $aspec
+                unless $target->{attributes}{$aspec->{name}};
       }
     }
     else {
@@ -2943,13 +2943,13 @@ tryfunctarget:
           for my $ind (0..$#argtypes) {
             my $type= $argtypes[$ind];
             next tryfunctarget
-                if $target->{parameters}->[$ind]->{type} !~ /\b$type\b/i;
+                if $target->{parameters}[$ind]{type} !~ /\b$type\b/i;
           }
-          $target->{attributes}->{$aspec->{name}}= $aspec;
+          $target->{attributes}{$aspec->{name}}= $aspec;
         }
       }
       else {
-        map { $_->{attributes}->{$aspec->{name}}= $aspec; } @targets;
+        map { $_->{attributes}{$aspec->{name}}= $aspec; } @targets;
       }
     }
   }
@@ -3015,7 +3015,7 @@ typeexprid:
         }
       }
       else {
-        ($typedef)= grep lc($_->{name}) eq $id, @{$obj->{childtype}->{type}};
+        ($typedef)= grep lc($_->{name}) eq $id, @{$obj->{childtype}{type}};
         unless( $typedef ) {
           for my $use (@puses3) {
             my $selname= merge_selname($use->{name}, $id);
@@ -3107,10 +3107,10 @@ sub find_selname
 
   if( $type ) {
     return undef unless $selnames{$type};
-    my $obj= $selnames{$type}->{lc($name)};
+    my $obj= $selnames{$type}{lc($name)};
     return $obj if $obj && $obj != \$multiple;
     return ($obj ? 0 : undef) if !$prefix;
-    return $selnames{$type}->{lc($prefix . "." . $name)};
+    return $selnames{$type}{lc($prefix . "." . $name)};
   }
   # Try all types if type is not given:
   for my $t (keys %selnames) {
@@ -3176,7 +3176,7 @@ sub resolve_configuration
   my @forothers;
 
   return unless $ent= $conf->{entity};
-  $libname= $conf->{file}->{libname};
+  $libname= $conf->{file}{libname};
   @topfors= grep $_->{type} eq "for" && $_->{subtype} eq "architecture",
                         @{$conf->{children}};
   @topfors= grep { my $for= $_;
@@ -3213,10 +3213,10 @@ sub resolve_configuration
       my @candidates= find_all($parentdecl, "type", "instance");
       @candidates= grep $_->{subtype} eq "component", @candidates;
       @candidates= grep lc($_->{objname}) eq lc($for->{objtype}), @candidates;
-      if( lc($for->{objnames}->[0]) eq "others" ) {
+      if( lc($for->{objnames}[0]) eq "others" ) {
         push @forothers, $triplet;
       }
-      elsif( lc($for->{objnames}->[0]) ne "all" ) {
+      elsif( lc($for->{objnames}[0]) ne "all" ) {
         @candidates= grep { my $cand= $_;
                     grep lc($_) eq lc($cand->{name}), @{$for->{objnames}};
                       } @candidates;
@@ -3230,16 +3230,16 @@ sub resolve_configuration
                                           $libname);
         $for->{binding}= $use->{object};
         if( $use->{subtype} eq "entity" && $for->{binding} ) {
-          $for->{bindname}= $for->{binding}->{fullname};
+          $for->{bindname}= $for->{binding}{fullname};
           if( $use->{archname} ) {
             $for->{archname}= $use->{archname};
             ($for->{bindarch})= ($use->{architecture})=
                 grep lc($_->{name}) eq lc($use->{archname}),
-                      @{$for->{binding}->{architectures}};
+                      @{$for->{binding}{architectures}};
           }
-          elsif( @{$for->{binding}->{architectures}} ) {
-            ($for->{bindarch})= @{$for->{binding}->{architectures}};
-            $for->{archname}= $for->{bindarch}->{name};
+          elsif( @{$for->{binding}{architectures}} ) {
+            ($for->{bindarch})= @{$for->{binding}{architectures}};
+            $for->{archname}= $for->{bindarch}{name};
           }
           if( $for->{bindarch} ) {
             my @newfors= find_children($for, "type", "for");
@@ -3337,8 +3337,8 @@ sub hier_equal
   return 0 if lc($node1->{entname} || "") ne lc($node2->{entname} || "");
   return 0 if $#{$node1->{children}} != $#{$node2->{children}};
   for my $ind (0..$#{$node1->{children}}) {
-    return 0 unless hier_equal($node1->{children}->[$ind],
-                                $node2->{children}->[$ind]);
+    return 0 unless hier_equal($node1->{children}[$ind],
+                                $node2->{children}[$ind]);
   }
   return 1;
 }
@@ -3406,14 +3406,14 @@ sub configure_hierarchy
   my $conf= $node->{configuration};
 
   $node->{entity}= $conf->{entity}, 
-  $node->{entname}= $conf->{entity} ? $conf->{entity}->{fullname} : $conf->{objname};
-  my ($topfor)= @{$conf->{childtype}->{for} || []};
+  $node->{entname}= $conf->{entity} ? $conf->{entity}{fullname} : $conf->{objname};
+  my ($topfor)= @{$conf->{childtype}{for} || []};
   unless( $topfor && $topfor->{subtype} eq "architecture" ) {
     # Pathological case #1: empty configuration body - bind entity to its
     # first architecture.
-    if( $node->{entity}->{architectures}->[0] ) {
-      $node->{architecture}= $node->{entity}->{architectures}->[0];
-      $node->{archname}= $node->{architecture}->{name};
+    if( $node->{entity}{architectures}[0] ) {
+      $node->{architecture}= $node->{entity}{architectures}[0];
+      $node->{archname}= $node->{architecture}{name};
       if( my ($anode)= grep_hier($node, $ahier, 1) ) {
         $node->{proxy}= $anode;
         $anode->{instantiated}= 1;
@@ -3477,7 +3477,7 @@ confarchinst:
       }
     }
     if( $inst->{subtype} eq "configuration" || ($inst->{binding} &&
-        $inst->{binding}->{type} eq "configuration") ) {
+        $inst->{binding}{type} eq "configuration") ) {
       if( $inst->{binding} ) {
         ($new)= grep $_->{configuration} == $inst->{binding}, @$chier;
         $new->{instantiated}= 1;
@@ -3604,10 +3604,10 @@ sub parsetopmods
       $ent= "work.$ent" unless $ent =~ /\./;
       next if $topmods{$ent} && !ref($topmods{$ent});
       if( $arch ) {
-        $topmods{$ent}->[0]->{$arch}= 1;
+        $topmods{$ent}[0]{$arch}= 1;
       }
       elsif( $conf ) {
-        $topmods{$ent}->[1]->{$conf}= 1;
+        $topmods{$ent}[1]{$conf}= 1;
       }
       else {
         $topmods{$ent}= 1;
@@ -3635,10 +3635,10 @@ sub topmodules
   my %done;
 
   for my $node (@$hier) {
-    my $topflag= $config{topmodhash}->{lc($node->{entname})};
+    my $topflag= $config{topmodhash}{lc($node->{entname})};
     if( ref $topflag ) {
-      $topflag= ($topflag->[0] && $node->{archname} && $topflag->[0]->{lc($node->{archname})}) ||
-                ($topflag->[1] && $node->{confname} && $topflag->[1]->{lc($node->{confname})});
+      $topflag= ($topflag->[0] && $node->{archname} && $topflag->[0]{lc($node->{archname})}) ||
+                ($topflag->[1] && $node->{confname} && $topflag->[1]{lc($node->{confname})});
     }
     next if !$topflag && $node->{instantiated};
     if( $topflag ) {
@@ -3677,11 +3677,11 @@ sub topmodules
     if( %{$config{topmodhash}} ) {
       my @misses;
       for my $ent (keys %{$config{topmodhash}}) {
-        if( ref($config{topmodhash}->{$ent}) ) {
-          push @misses, map "$ent\($_)", keys %{$config{topmodhash}->{$ent}->[0]}
-              if $config{topmodhash}->{$ent}->[0];
-          push @misses, map "$ent\[$_]", keys %{$config{topmodhash}->{$ent}->[1]}
-              if $config{topmodhash}->{$ent}->[1];
+        if( ref($config{topmodhash}{$ent}) ) {
+          push @misses, map "$ent\($_)", keys %{$config{topmodhash}{$ent}[0]}
+              if $config{topmodhash}{$ent}[0];
+          push @misses, map "$ent\[$_]", keys %{$config{topmodhash}{$ent}[1]}
+              if $config{topmodhash}{$ent}[1];
         }
         else {
           push @misses, $ent;
@@ -3836,8 +3836,8 @@ EOF
   if( $config{toplink} ) {
     print STDERR "Warning: --homehtml is pointless when --toplink is present.  The home page will not be generated.\n"
         if $config{homehtml} && !$config{quiet};
-    $config{toplinktext}= $config{toplink}->[-1]->[0] || "Home";
-    $config{toplink}= $config{toplink}->[-1]->[1];
+    $config{toplinktext}= $config{toplink}[-1][0] || "Home";
+    $config{toplink}= $config{toplink}[-1][1];
     $config{toplinkabs}= $config{toplink} =~ /^\w+:\/\// ||
              File::Spec->file_name_is_absolute($config{toplink});
     if( $config{toplinkabs} && $config{toplink} !~ /^\w+:\/\// ) {
@@ -4119,8 +4119,8 @@ sub marktype
   my ($code, $obj)= @_;
 
   $code= markvhdl($code);
-  return $code unless $obj->{typedef} && $obj->{typedef}->{doclink};
-  $code =~ s/\b((?:\w+\.)*$obj->{typedef}->{name})\b/<a href="$obj->{typedef}->{doclink}">$1<\/a>/i;
+  return $code unless $obj->{typedef} && $obj->{typedef}{doclink};
+  $code =~ s/\b((?:\w+\.)*$obj->{typedef}{name})\b/<a href="$obj->{typedef}{doclink}">$1<\/a>/i;
   return $code;
 }
 
@@ -4165,17 +4165,17 @@ sub printobjhtml
 {
   my ($handle, $obj)= @_;
 
-  print $handle "<p><b>$SPBRIEF", $obj->{doc}->{brief}, "$SP_</b></p>\n" 
-        if $obj->{doc}->{brief};
+  print $handle "<p><b>$SPBRIEF", $obj->{doc}{brief}, "$SP_</b></p>\n" 
+        if $obj->{doc}{brief};
   if( $obj->{filename} ) {
     print $handle "<p>Defined in ";
     if( $obj->{file} ) {
-      print $handle "<a href=\"../sources/", $obj->{file}->{docfilename},
+      print $handle "<a href=\"../sources/", $obj->{file}{docfilename},
             "\">", substr($obj->{filename}, $config{prepathlen}), "</a>";
       print $handle "&nbsp;&nbsp;&nbsp;<a href=\"",
-            ($obj->{file}->{link} =~ /^\w+:\/\// ? "":"../"),
-             $obj->{file}->{link}, "\">[source file]</a>"
-          if defined $obj->{file}->{link};
+            ($obj->{file}{link} =~ /^\w+:\/\// ? "":"../"),
+             $obj->{file}{link}, "\">[source file]</a>"
+          if defined $obj->{file}{link};
       print $handle "</p>\n";
     }
     else {
@@ -4183,33 +4183,33 @@ sub printobjhtml
     }
   }
   for (qw(synthesis simulation testbench deprecated internal)) {
-    print $handle "<h3><b>", ucfirst($_), "</b></h3>\n" if $obj->{doc}->{$_};
+    print $handle "<h3><b>", ucfirst($_), "</b></h3>\n" if $obj->{doc}{$_};
   }
   print $handle "<p>\n";
-  if( $obj->{doc}->{author} ) {
-    print $handle ($obj->{doc}->{author} =~ /,|;|\band\b/?
+  if( $obj->{doc}{author} ) {
+    print $handle ($obj->{doc}{author} =~ /,|;|\band\b/?
                                         "Authors: " : "Author: ");
-    print $handle $obj->{doc}->{author}, "<br>\n";
+    print $handle $obj->{doc}{author}, "<br>\n";
   }
-  print $handle "Date: ", $obj->{doc}->{date}, "<br>\n"
-        if $obj->{doc}->{date};
-  print $handle "Version: ", $obj->{doc}->{version}, "<br>\n"
-        if $obj->{doc}->{version};
-  print $handle "ID: ", $obj->{doc}->{id}, "<br>\n"
-        if $obj->{doc}->{id};
+  print $handle "Date: ", $obj->{doc}{date}, "<br>\n"
+        if $obj->{doc}{date};
+  print $handle "Version: ", $obj->{doc}{version}, "<br>\n"
+        if $obj->{doc}{version};
+  print $handle "ID: ", $obj->{doc}{id}, "<br>\n"
+        if $obj->{doc}{id};
   print $handle "</p>\n\n";
-  if( $obj->{doc}->{description} && @{$obj->{doc}->{description}} ) {
+  if( $obj->{doc}{description} && @{$obj->{doc}{description}} ) {
     print $handle "<hr>\n\n<h2>Detailed description</h2>\n\n";
-    printdescription($handle, $obj->{doc}->{description});
+    printdescription($handle, $obj->{doc}{description});
   }
-  if( $obj->{doc}->{example} && @{$obj->{doc}->{example}} ) {
-    print $handle "<b>Example", (@{$obj->{doc}->{example}} > 1 ? "s":""), ":</b> ";
-    print $handle join(", ", @{$obj->{doc}->{example}}), "\n";
+  if( $obj->{doc}{example} && @{$obj->{doc}{example}} ) {
+    print $handle "<b>Example", (@{$obj->{doc}{example}} > 1 ? "s":""), ":</b> ";
+    print $handle join(", ", @{$obj->{doc}{example}}), "\n";
   }
-  if( $obj->{doc}->{see} && @{$obj->{doc}->{see}} ) {
+  if( $obj->{doc}{see} && @{$obj->{doc}{see}} ) {
     print $handle "<p>See also: ", join(", ", map( ($_->[2]?
             "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
-            @{$obj->{doc}->{see}})), "</p>\n\n";
+            @{$obj->{doc}{see}})), "</p>\n\n";
   }
   if( $obj->{attributes} && keys(%{$obj->{attributes}}) ) {
     print $handle "\n<h2>Attributes</h2>\n\n";
@@ -4231,7 +4231,7 @@ sub printlibusehtml
   my ($handle, $obj)= @_;
   my (%libs, %uses);        # use hashes to make libs/packages unique
 
-  for (@{$obj->{file}->{children}}, @{$obj->{children}}) {
+  for (@{$obj->{file}{children}}, @{$obj->{children}}) {
     if( $_->{type} eq "library" ) {
       $libs{lc($_->{name})}= $_;
     }
@@ -4243,11 +4243,11 @@ sub printlibusehtml
   print $handle "\n<h2>Libraries and global use clauses</h2>\n\n$STDTAB\n";
   my @sortuses= sort keys %uses;
   for my $lib (sort keys %libs) {
-    my $markedname= markvhdl($libs{$lib}->{name});
+    my $markedname= markvhdl($libs{$lib}{name});
     print $handle "<tr$CCO><td colspan=\"2\"><b>${SPDCL}library$SP_ ",
                   $markedname, "</b></td></tr>\n";
     map { print $handle "<tr>$TDI<td$CLSDESC>$_</td></tr>\n"; }
-                          @{$libs{$lib}->{doc}->{description}};
+                          @{$libs{$lib}{doc}{description}};
     for my $usename (grep $_ =~ /^$lib\b/, @sortuses) {
       printusehtml($handle, $uses{$usename});
       delete $uses{$usename};
@@ -4268,13 +4268,13 @@ sub printusehtml
   my ($handle, $use)= @_;
   my $markedname= markvhdl($use->{name});
 
-  if( $use->{object} && (my $link= $use->{object}->{doclink}) ) {
+  if( $use->{object} && (my $link= $use->{object}{doclink}) ) {
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ <a href=\"$link\">",
                   $markedname, "</a></td></tr>\n";
   }
   elsif( $use->{package} ) {
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ",
-              "<a href=\"../packages/", $use->{package}->{docfilename},
+              "<a href=\"../packages/", $use->{package}{docfilename},
               "\">", $markedname, "</a></td></tr>\n";
   }
   else {
@@ -4282,7 +4282,7 @@ sub printusehtml
                   "</td></tr>\n";
   }
   map { print $handle "<tr>$TDI<td$CLSDESC>$_</td></tr>\n"; }
-                        @{$use->{doc}->{description}};
+                        @{$use->{doc}{description}};
 }
 
 
@@ -4305,23 +4305,23 @@ sub printgenporthtml
   print $handle "<td align=\"left\">:= ", markvhdl($gp->{value}), "</td>\n"
         if $gp->{value};
   print $handle "</tr>\n";
-  print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$gp->{doc}->{brief}</td></tr>\n"
-      if $gp->{doc}->{brief};
+  print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$gp->{doc}{brief}</td></tr>\n"
+      if $gp->{doc}{brief};
   map { print $handle "<tr><td></td><td align=\"left\" colspan=\"3\"$CLSDESC>$_</td></tr>\n" }
-                        @{$gp->{doc}->{description}};
+                        @{$gp->{doc}{description}};
   return unless $gp->{type} eq "const";
   for( qw(deprecated internal) ) {
     print $handle "<tr>$TDI<td colspan=\"4\"><b>", ucfirst($_), "</b></td></tr>\n"
-        if $gp->{doc}->{$_};
+        if $gp->{doc}{$_};
   }
-  if( $gp->{doc}->{example} && @{$gp->{doc}->{example}} ) {
-    print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$gp->{doc}->{example}} > 1 ? "s":""), ": ";
-    print $handle join(", ", @{$gp->{doc}->{example}}), "</td></tr>\n";
+  if( $gp->{doc}{example} && @{$gp->{doc}{example}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$gp->{doc}{example}} > 1 ? "s":""), ": ";
+    print $handle join(", ", @{$gp->{doc}{example}}), "</td></tr>\n";
   }
-  if( $gp->{doc}->{see} && @{$gp->{doc}->{see}} ) {
+  if( $gp->{doc}{see} && @{$gp->{doc}{see}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>See also: ",
             join(", ", map( ($_->[2]? "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
-            @{$gp->{doc}->{see}})), "</td></tr>\n";
+            @{$gp->{doc}{see}})), "</td></tr>\n";
   }
 }
 
@@ -4380,12 +4380,12 @@ sub entityhtml
   printinstantiated(*ENT{IO}, $ent);
   print ENT "\n<hr>\n\n";
   printlibusehtml(*ENT{IO}, $ent);
-  if( my @gens= @{$ent->{childtype}->{generic}} ) {
+  if( my @gens= @{$ent->{childtype}{generic}} ) {
     print ENT "\n<h2>Generics</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*ENT{IO}, $_) } @gens;
     print ENT "</table>\n\n";
   }
-  if( my @ports= @{$ent->{childtype}->{port}} ) {
+  if( my @ports= @{$ent->{childtype}{port}} ) {
     print ENT "\n<h2>Ports</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*ENT{IO}, $_) } @ports;
     print ENT "</table>\n\n";
@@ -4403,31 +4403,31 @@ sub printcommonhtml
 {
   my ($handle, $obj)= @_;
 
-  print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$obj->{doc}->{brief}</td></tr>\n"
-      if $obj->{doc}->{brief};
+  print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$obj->{doc}{brief}</td></tr>\n"
+      if $obj->{doc}{brief};
   map { print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>$_</td></tr>\n" }
-                        @{$obj->{doc}->{description}};
-  if( $obj->{doc}->{param} && @{$obj->{doc}->{param}} ) {
+                        @{$obj->{doc}{description}};
+  if( $obj->{doc}{param} && @{$obj->{doc}{param}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>Parameters:</td></tr>\n";
-    for my $par (@{$obj->{doc}->{param}}) {
+    for my $par (@{$obj->{doc}{param}}) {
       $par =~ /^(?:\[(\w+)\]\s*)?(\w+)\s+(.*)$/s or next;
       print $handle "<tr>$TDI$TDI<td align=\"left\">$SPID$2$SP_</td><td colspan=\"2\" align=\"left\"$CLSDESC>$3</td></tr>\n";
     }
   }
-  print $handle "<tr>$TDI<td$CLSDESC>Return value:</td><td colspan=\"3\"$CLSDESC>$obj->{doc}->{return}</td></tr>\n"
-      if $obj->{doc}->{return};
+  print $handle "<tr>$TDI<td$CLSDESC>Return value:</td><td colspan=\"3\"$CLSDESC>$obj->{doc}{return}</td></tr>\n"
+      if $obj->{doc}{return};
   for( qw(deprecated internal) ) {
     print $handle "<tr>$TDI<td colspan=\"4\"><b>", ucfirst($_), "</b></td></tr>\n"
-        if $obj->{doc}->{$_};
+        if $obj->{doc}{$_};
   }
-  if( $obj->{doc}->{example} && @{$obj->{doc}->{example}} ) {
-    print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$obj->{doc}->{example}} > 1 ? "s":""), ": ";
-    print $handle join(", ", @{$obj->{doc}->{example}}), "</td></tr>\n";
+  if( $obj->{doc}{example} && @{$obj->{doc}{example}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$obj->{doc}{example}} > 1 ? "s":""), ": ";
+    print $handle join(", ", @{$obj->{doc}{example}}), "</td></tr>\n";
   }
-  if( $obj->{doc}->{see} && @{$obj->{doc}->{see}} ) {
+  if( $obj->{doc}{see} && @{$obj->{doc}{see}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>See also: ",
             join(", ", map( ($_->[2]? "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
-            @{$obj->{doc}->{see}})), "</td></tr>\n";
+            @{$obj->{doc}{see}})), "</td></tr>\n";
   }
   if( $obj->{attributes} && keys(%{$obj->{attributes}}) ) {
     print $handle "<tr>$TDI<td colspan=\"4\">Attributes:</td></tr>\n",
@@ -4448,21 +4448,19 @@ sub printattrhtml
   return unless $obj->{attributes} && keys(%{$obj->{attributes}});
   print $handle "$STDTAB\n";
   for my $attrname (keys %{$obj->{attributes}}) {
-    my $aspec= $obj->{attributes}->{$attrname};
+    my $aspec= $obj->{attributes}{$attrname};
     my $attr= $aspec->{attribute};
     print $handle "<tr$CCO><td><b>$SPID", $aspec->{name},
                 "$SP_</b></td><td> : ", ($attr->{subtype} ?
              markvhdl($attr->{subtype}) : "<i>${SPNC}unknown type$SP_</i>"), 
                 "</td><td> := ", markvhdl($aspec->{value}), "</td></tr>\n";
-    if( $attr->{doc}->{description} &&
-                              @{$attr->{doc}->{description}} ) {
+    if( $attr->{doc}{description} && @{$attr->{doc}{description}} ) {
       map { print $handle "<tr>$TDI<td colspan=\"2\"$CLSDESC>$_</td></tr>\n" }
-                @{$attr->{doc}->{description}};
+                @{$attr->{doc}{description}};
     }
-    if( $aspec->{doc}->{description} &&
-                              @{$aspec->{doc}->{description}} ) {
+    if( $aspec->{doc}{description} && @{$aspec->{doc}{description}} ) {
       map { print $handle "<tr>$TDI<td colspan=\"2\"$CLSDESC>$_</td></tr>\n" }
-                @{$aspec->{doc}->{description}};
+                @{$aspec->{doc}{description}};
     }
   }
   print $handle "</table>\n";
@@ -4484,8 +4482,8 @@ sub printcomphtml
   printcommonhtml($handle, $comp);
   print $handle "<tr>$TDI<td colspan=\"4\">",
                 "Default binding: $SPCO<a href=\"../entities/",
-                $comp->{binding}->{docfilename}, "\">$SPID", 
-                $comp->{binding}->{fullname}, "$SP_</a>$SP_</td></tr>\n"
+                $comp->{binding}{docfilename}, "\">$SPID", 
+                $comp->{binding}{fullname}, "$SP_</a>$SP_</td></tr>\n"
         if $comp->{binding};
 }
 
@@ -4500,7 +4498,7 @@ sub printfuncprochtml
   my ($handle, $obj, $inpack)= @_;
   my @funcprocs;
 
-  @funcprocs= @{$obj->{childtype}->{funcproc}};
+  @funcprocs= @{$obj->{childtype}{funcproc}};
   return unless @funcprocs;
   print $handle "\n<h2>Functions and procedures</h2>\n\n$STDTAB\n";
   map { printfunchtml($handle, $_, $inpack) } @funcprocs;
@@ -4549,10 +4547,10 @@ sub printtypehtml
                 ($type->{subtype} eq "subtype"? "subtype": "type"),
                 "$SP_</td><td><a name=\"$label\"><b>$SPTYID", $type->{name},
                 "$SP_</b></a></td><td>${SPWD}is$SP_</td>\n<td>";
-  $desc .= "<tr>$TDI<td colspan=\"4\"$CLSBRF>$type->{doc}->{brief}</td></tr>\n"
-      if $type->{doc}->{brief};
+  $desc .= "<tr>$TDI<td colspan=\"4\"$CLSBRF>$type->{doc}{brief}</td></tr>\n"
+      if $type->{doc}{brief};
   map { $desc .= "<tr><td></td><td colspan=\"4\"$CLSDESC>$_</td></tr>\n"; }
-                        @{$type->{doc}->{description}};
+                        @{$type->{doc}{description}};
   if( $type->{subtype} eq "record" ) {
     print $handle "${SPWD}record$SP_</td></tr>\n$desc";
     if( my @elements= @{$type->{children} || []} ) {
@@ -4593,16 +4591,16 @@ sub printtypehtml
   }
   for( qw(deprecated internal) ) {
     print $handle "<tr>$TDI<td colspan=\"4\"><b>" . ucfirst($_) . "</b></td></tr>\n"
-        if $type->{doc}->{$_};
+        if $type->{doc}{$_};
   }
-  if( $type->{doc}->{example} && @{$type->{doc}->{example}} ) {
-    print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$type->{doc}->{example}} > 1 ? "s":""), ": ";
-    print $handle join(", ", @{$type->{doc}->{example}}), "</td></tr>\n";
+  if( $type->{doc}{example} && @{$type->{doc}{example}} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\">Example", (@{$type->{doc}{example}} > 1 ? "s":""), ": ";
+    print $handle join(", ", @{$type->{doc}{example}}), "</td></tr>\n";
   }
-  if( $type->{doc}->{see} && @{$type->{doc}->{see}} ) {
+  if( $type->{doc}{see} && @{$type->{doc}{see}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>See also: ",
             join(", ", map( ($_->[2]? "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
-            @{$type->{doc}->{see}})), "</td></tr>\n";
+            @{$type->{doc}{see}})), "</td></tr>\n";
   }
 }
 
@@ -4638,7 +4636,7 @@ sub printtracehtml
                  "</b></td></tr>\n";
     }
     map { print $handle "<tr>$TDI$TDI$TDI<td colspan=\"2\"$CLSDESC>$_</td></tr>\n" }
-                          @{$trc->{doc}->{description}};
+                          @{$trc->{doc}{description}};
   }
 }
 
@@ -4675,7 +4673,7 @@ sub printinsthtml
     print $handle "${SPWD}configuration$SP_ ";
     if( $inst->{binding} ) {
       print $handle "<a href=\"../configurations/",
-                $inst->{binding}->{docfilename}, "\">$SPID",
+                $inst->{binding}{docfilename}, "\">$SPID",
                 $inst->{objname}, "$SP_</a></td></tr>\n";
     }
     else {
@@ -4686,7 +4684,7 @@ sub printinsthtml
     print $handle "${SPDCL}entity$SP_ ";
     if( $inst->{binding} ) {
       print $handle "<a href=\"../entities/",
-                $inst->{binding}->{docfilename}, "\">$SPID",
+                $inst->{binding}{docfilename}, "\">$SPID",
                 $inst->{objname}, "$SP_</a>";
     }
     else {
@@ -4694,7 +4692,7 @@ sub printinsthtml
     }
     if( $inst->{bindarch} ) {
       print $handle " (<a href=\"../architectures/",
-                    $inst->{bindarch}->{docfilename}, "\">$SPID",
+                    $inst->{bindarch}{docfilename}, "\">$SPID",
                     $inst->{archname}, "$SP_</a>)";
     }
     elsif( $inst->{archname} ) {
@@ -4703,7 +4701,7 @@ sub printinsthtml
     print $handle "</td></tr>\n";
   }
   elsif( $inst->{component} ) {
-    print $handle "<a href=\"", $inst->{component}->{doclink}, "\">$SPID",
+    print $handle "<a href=\"", $inst->{component}{doclink}, "\">$SPID",
                   $inst->{objname}, "$SP_</a></td></tr>\n";
   }
   else {
@@ -4734,7 +4732,7 @@ sub printinsthtml
     if( $inst->{archname} ) {
       if( $inst->{bindarch} ) {
         print $handle " (<a href=\"../architectures/",
-                      $inst->{bindarch}->{docfilename}, "\">$SPID",
+                      $inst->{bindarch}{docfilename}, "\">$SPID",
                       $inst->{archname}, "$SP_</a>)";
       }
       else {
@@ -4745,7 +4743,7 @@ sub printinsthtml
     map { print $handle "<tr>$TDI$TDI<td colspan=\"3\"$CLSDESC>$_</td></tr>\n" }
                         @{$inst->{binddoc}};
     if( $inst->{bindgen} ) {
-      my $map= $inst->{bindgen}->{map};
+      my $map= $inst->{bindgen}{map};
       print $handle "<tr>$TDI$TDI<td colspan=\"3\">Generic map:</td></tr>\n",
                 "<tr>$TDI$TDI$TDI<td colspan=\"2\"><table border=\"0\"$CCO>\n";
       map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
@@ -4859,18 +4857,18 @@ sub architecturehtml
   printinstantiated(*ARCH{IO}, $arch);
   print ARCH "\n<hr>\n\n";
   printlibusehtml(*ARCH{IO}, $arch);
-  if( my @types= @{$arch->{childtype}->{type}} ) {
+  if( my @types= @{$arch->{childtype}{type}} ) {
     print ARCH "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
     map { printtypehtml(*ARCH{IO}, $_) } @types;
     print ARCH "</table>\n\n";
   }
-  if( my @consts= @{$arch->{childtype}->{constant}} ) {
+  if( my @consts= @{$arch->{childtype}{constant}} ) {
     print ARCH "\n<h2>Constants</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*ARCH{IO}, $_) } @consts;
     print ARCH "</table>\n\n";
   }
   printfuncprochtml(*ARCH{IO}, $arch);
-  if( my @comps= @{$arch->{childtype}->{component}} ) {
+  if( my @comps= @{$arch->{childtype}{component}} ) {
     print ARCH "\n<h2>Component declarations</h2>\n\n$STDTAB\n";
     map { printcomphtml(*ARCH{IO}, $_) } @comps;
     print ARCH "</table>\n\n";
@@ -4907,30 +4905,30 @@ sub printconfightml
   for my $for (@$fors) {
     print $handle "<tr$CCO>$ind2<td colspan=\"", $span, "\">${SPWD}for$SP_ <b>";
     if( $for->{subtype} eq "architecture" ) {
-      if( $for->{object} && $for->{object}->{type} eq "architecture" ) {
+      if( $for->{object} && $for->{object}{type} eq "architecture" ) {
         print $handle "<a href=\"../architectures/",
-                $for->{object}->{docfilename}, "\">$SPID",
+                $for->{object}{docfilename}, "\">$SPID",
                 $for->{objname}, "$SP_</a></b></td></tr>\n";
       }
       else {
         print $handle $SPID, $for->{objname}, "$SP_</b></td></tr>\n";
       }
       map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\"$CLSDESC>",
-                   "$_</td></tr>\n" }    @{$for->{doc}->{description}};
+                   "$_</td></tr>\n" }    @{$for->{doc}{description}};
     }
     else {
       my $comp;
       my $use;
-      if( @{$for->{objnames}}==1 && ($for->{objnames}->[0] eq "all" ||
-                                $for->{objnames}->[0] eq "others") ) {
-        print $handle $SPWD, $for->{objnames}->[0], $SP_;
-        $comp= $for->{objects}->[0]->{component}
+      if( @{$for->{objnames}}==1 && ($for->{objnames}[0] eq "all" ||
+                                $for->{objnames}[0] eq "others") ) {
+        print $handle $SPWD, $for->{objnames}[0], $SP_;
+        $comp= $for->{objects}[0]{component}
                 if $for->{objects} && @{$for->{objects}};
       }
       elsif( $for->{objects} && @{$for->{objects}} ) {
         print $handle join("</b>, <b>", map("<a href=\"" . $_->{doclink} .
               "\">$SPID" . $_->{name} . "$SP_</a>", @{$for->{objects}}));
-        $comp= $for->{objects}->[0]->{component};
+        $comp= $for->{objects}[0]{component};
       }
       else {
         print $handle $SPID, join("$SP_</b>, <b>$SPID", @{$for->{objnames}}),
@@ -4948,11 +4946,11 @@ sub printconfightml
           print $handle " ${SPWD}use$SP_ $SPDCL", $use->{subtype},
                 "$SP_ <a href=\"../",
               ($use->{subtype} eq "entity"? "entities/" : "configurations/"),
-                $for->{binding}->{docfilename}, "\">$SPID", $use->{name},
+                $for->{binding}{docfilename}, "\">$SPID", $use->{name},
                 "$SP_</a>";
           if( $for->{bindarch} ) {
             print $handle " (<a href=\"../architectures/",
-                          $for->{bindarch}->{docfilename}, "\">$SPID",
+                          $for->{bindarch}{docfilename}, "\">$SPID",
                           $for->{archname}, "$SP_</a>)</td>$SP_</tr>\n";
           }
           elsif( $use->{archname} ) {
@@ -4969,11 +4967,11 @@ sub printconfightml
         print $handle "</td>$SP_</tr>\n";
       }
       map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\"$CLSDESC>",
-                   "$_</td></tr>\n" }    @{$for->{doc}->{description}};
+                   "$_</td></tr>\n" }    @{$for->{doc}{description}};
       map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\"$CLSDESC>",
-               "$_</td></tr>\n" }    @{$for->{use}->{doc}->{description}};
+               "$_</td></tr>\n" }    @{$for->{use}{doc}{description}};
       if( $for->{bindgen} ) {
-        my $map= $for->{bindgen}->{map};
+        my $map= $for->{bindgen}{map};
         print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1,
                 "\">Generic map:</td></tr>\n<tr>$ind2$TDI$TDI<td colspan=\"",
                 $span-2, "\"><table border=\"0\"$CCO>\n";
@@ -5022,7 +5020,7 @@ sub configurationhtml
   printlibusehtml(*CONF{IO}, $conf);
   print CONF "\n<h2>Configuration</h2>\n\n$STDTAB\n";
   $maxdepth= max_depth($conf);
-  @topfors= @{$conf->{childtype}->{for} || []};
+  @topfors= @{$conf->{childtype}{for} || []};
   printconfightml(*CONF{IO}, \@topfors, 0, $maxdepth);
   print CONF "</table>\n";
   printhtmlfooter(*CONF{IO});
@@ -5041,16 +5039,16 @@ sub resolve_packagesee
   my ($decl, $pack)= @_;
   my ($objname, $objpack);
 
-  for my $see (@{$decl->{doc}->{see}}) {
+  for my $see (@{$decl->{doc}{see}}) {
     if( $see->[0] =~ /\./ ) {
-      resolve_seealso( [ $see ], $pack->{file}->{libname});
+      resolve_seealso( [ $see ], $pack->{file}{libname});
       next if $see->[1];      # found in selected name lookup table
       next unless $see->[0] =~ /^(\w+)\.(\w+)(?:\.(\w+))?$/;
       my ($lib, $packname)= ($1, $2);
       $objname= $3;
       if( ! defined $objname ) {
         ($packname, $objname)= ($lib, $packname);
-        $lib= $pack->{file}->{libname};
+        $lib= $pack->{file}{libname};
       }
       $objpack= find_selname($packname, "package", $lib);
       next unless $objpack;
@@ -5059,25 +5057,25 @@ sub resolve_packagesee
       $objname= $see->[0];
       $objpack= $pack;
     }
-    my @candidates= grep $_->{name} eq $objname, @{$objpack->{childtype}->{$decl->{type}}};
+    my @candidates= grep $_->{name} eq $objname, @{$objpack->{childtype}{$decl->{type}}};
     @candidates= grep $_->{name} eq $objname, @{$objpack->{children}}
         unless @candidates;
     if( @candidates ) {
       $see->[1]= $candidates[0];
-      if( ! $see->[1]->{label} ) {
-        if( $see->[1]->{type} =~ /^(function|procedure)/ ) {
+      if( ! $see->[1]{label} ) {
+        if( $see->[1]{type} =~ /^(function|procedure)/ ) {
           labelfuncproc($see->[1])
         }
         else {
-          $see->[1]->{label}= substr($see->[1]->{type},0,4) . ":" . $see->[1]->{name};
+          $see->[1]{label}= substr($see->[1]{type},0,4) . ":" . $see->[1]{name};
         }
 
       }
-      $see->[2]= "../packages/" . $objpack->{docfilename} . "#" . $see->[1]->{label};
+      $see->[2]= "../packages/" . $objpack->{docfilename} . "#" . $see->[1]{label};
       next;
     }
     next if $see->[0] =~ /\./;    # already tried lookup for selected names
-    resolve_seealso( [ $see ], $pack->{file}->{libname});
+    resolve_seealso( [ $see ], $pack->{file}{libname});
   }
 }
 
@@ -5114,19 +5112,19 @@ sub printpackagesummary
   my $save;
 
   if( $config{packagesummary} eq "always" ) {
-    %needsummary= map { $_ => 0+@{$pack->{childtype}->{$_}}; }
+    %needsummary= map { $_ => 0+@{$pack->{childtype}{$_}}; }
                       qw(type constant funcproc component);
   }
   else {
     for my $decl (qw(type constant funcproc component)) {
-      $needsummary{$decl}= 1 if elem { $_->{doc}->{description} && 
-          ((@{$_->{doc}->{description}} && (defined($_->{doc}->{brief})
-                || length($_->{doc}->{description}->[0]) > $summaxdesc ))
-           || @{$_->{doc}->{description}} > 1) }
-                          @{$pack->{childtype}->{$decl}};
+      $needsummary{$decl}= 1 if elem { $_->{doc}{description} && 
+          ((@{$_->{doc}{description}} && (defined($_->{doc}{brief})
+                || length($_->{doc}{description}[0]) > $summaxdesc ))
+           || @{$_->{doc}{description}} > 1) }
+                          @{$pack->{childtype}{$decl}};
     }
     return unless %needsummary;
-    %needsummary= map { $_ => 0+@{$pack->{childtype}->{$_}}; }
+    %needsummary= map { $_ => 0+@{$pack->{childtype}{$_}}; }
                       qw(type constant funcproc component)
       if $config{packagesummary} eq "auto";
       # sum up all non-empty sections if any is needed
@@ -5134,7 +5132,7 @@ sub printpackagesummary
   print $handle "\n<h2>Summary</h2>\n\n$DIVPSUM";
   if( $needsummary{type} ) {
     print $handle "\n<h3>Types</h3>\n$SUMTAB";
-    for my $type (@{$pack->{childtype}->{type}}) {
+    for my $type (@{$pack->{childtype}{type}}) {
       my $href= "#$labels{type}$type->{name}";
       my $declstr= "<tr><td align=\"right\"><a href=\"$href\">" .
             ($type->{subtype} || "type") . " <b>$type->{name}</b></a></td>";
@@ -5145,7 +5143,7 @@ sub printpackagesummary
   }
   if( $needsummary{constant} ) {
     print $handle "\n<h3>Constants</h3>\n$SUMTAB";
-    for my $const (@{$pack->{childtype}->{constant}}) {
+    for my $const (@{$pack->{childtype}{constant}}) {
       my $href= "#const:$const->{name}";
       my $declstr= "<tr><td align=\"right\"><a href=\"$href\"><b>$const->{name}</b></a></td>";
       printpacksumitem($handle, $const, $href, $declstr, \$save);
@@ -5155,7 +5153,7 @@ sub printpackagesummary
   }
   if( $needsummary{funcproc} ) {
     print $handle "\n<h3>Functions and procedures</h3>\n$SUMTAB";
-    for my $func (@{$pack->{childtype}->{funcproc}}) {
+    for my $func (@{$pack->{childtype}{funcproc}}) {
       labelfuncproc($func);
       my $href= "#" . $func->{label};
       my $declstr= "<tr><td align=\"right\"><a href=\"$href\">$func->{type}" .
@@ -5170,7 +5168,7 @@ sub printpackagesummary
   }
   if( $needsummary{component} ) {
     print $handle "\n<h3>Components</h3>\n$SUMTAB";
-    for my $comp (@{$pack->{childtype}->{component}}) {
+    for my $comp (@{$pack->{childtype}{component}}) {
       my $href= "#$labels{component}$comp->{name}";
       my $declstr= "<tr><td align=\"right\"><a href=\"$href\"><b>$comp->{name}</b></a></td>";
       printpacksumitem($handle, $comp, $href, $declstr, \$save);
@@ -5214,17 +5212,17 @@ sub printpacksumitem
     $$save= undef;
     return;
   }
-  if( defined $decl->{doc}->{brief} ) {
-    $briefdesc= $decl->{doc}->{brief};
-    $href= "" unless $decl->{doc}->{description} && @{$decl->{doc}->{description}};
+  if( defined $decl->{doc}{brief} ) {
+    $briefdesc= $decl->{doc}{brief};
+    $href= "" unless $decl->{doc}{description} && @{$decl->{doc}{description}};
   }
-  elsif( $decl->{doc}->{description} && @{$decl->{doc}->{description}} ) {
-    if( length($decl->{doc}->{description}->[0]) > $summaxdesc ) {
-      $briefdesc= substr($decl->{doc}->{description}->[0], 0, $summaxdesc-3) . "...";
+  elsif( $decl->{doc}{description} && @{$decl->{doc}{description}} ) {
+    if( length($decl->{doc}{description}[0]) > $summaxdesc ) {
+      $briefdesc= substr($decl->{doc}{description}[0], 0, $summaxdesc-3) . "...";
     }
     else {
-      $briefdesc= $decl->{doc}->{description}->[0];
-      $href= "" unless @{$decl->{doc}->{description}} > 1;
+      $briefdesc= $decl->{doc}{description}[0];
+      $href= "" unless @{$decl->{doc}{description}} > 1;
     }
   }
   else {
@@ -5233,10 +5231,10 @@ sub printpacksumitem
   $declstr .= "\n  <td>$briefdesc";
   $declstr .= "&nbsp;&nbsp;<a href=\"$href\">More...</a>" if $href;
   $declstr .= "</td></tr>\n";
-  if( $decl->{doc}->{internal} ) {
+  if( $decl->{doc}{internal} ) {
     $$save->{internal} .= $declstr;
   }
-  elsif( $decl->{doc}->{deprecated} ) {
+  elsif( $decl->{doc}{deprecated} ) {
     $$save->{deprecated} .= $declstr;
   }
   else {
@@ -5273,21 +5271,19 @@ sub packagehtml
     $pbody= $pack->{packagebody};
     if( $pbody ) {
       my ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts)= ( [], [], [], [] );
-      for my $f (@{$pbody->{childtype}->{function}}) {
-        my $el= elem { packsubeq($_, $f) } @{$pack->{childtype}->{function}};
+      for my $f (@{$pbody->{childtype}{function}}) {
+        my $el= elem { packsubeq($_, $f) } @{$pack->{childtype}{function}};
         if( $el ) {
-          push @{$el->{doc}->{description}},
-                    @{$f->{doc}->{description} || []};
+          push @{$el->{doc}{description}}, @{$f->{doc}{description} || []};
         }
         else {
           push @$pbfuncs, $f
         }
       }
-      for my $p (@{$pbody->{childtype}->{procedure}}) {
-        my $el= elem { packsubeq($_, $p) } @{$pack->{childtype}->{procedure}};
+      for my $p (@{$pbody->{childtype}{procedure}}) {
+        my $el= elem { packsubeq($_, $p) } @{$pack->{childtype}{procedure}};
         if( $el ) {
-          push @{$el->{doc}->{description}},
-                    @{$p->{doc}->{description} || []};
+          push @{$el->{doc}{description}}, @{$p->{doc}{description} || []};
         }
         else {
           push @$pbprocs, $p;
@@ -5295,15 +5291,14 @@ sub packagehtml
       }
       # Can't just concatenate ->{function} and ->{procedure} because we
       # want to preserve order
-      for my $f (@{$pbody->{childtype}->{funcproc}}) {
+      for my $f (@{$pbody->{childtype}{funcproc}}) {
         push @$pbfuncprocs, $f if elem { $_ == $f } (@$pbfuncs, @$pbprocs);
       }
-      for my $c (@{$pbody->{childtype}->{constant}}) {
+      for my $c (@{$pbody->{childtype}{constant}}) {
         my $el= elem { lc($c->{name}) eq lc($_->{name}) }
-                        @{$pack->{childtype}->{constant}};
+                        @{$pack->{childtype}{constant}};
         if( $el ) {
-          push @{$el->{doc}->{description}},
-                    @{$c->{doc}->{description} || []};
+          push @{$el->{doc}{description}}, @{$c->{doc}{description} || []};
         }
         else {
           push @$pbconsts, $c;
@@ -5317,18 +5312,18 @@ sub packagehtml
     print PACK "\n<hr>\n\n";
     printpackagesummary(*PACK{IO}, $pack) if $config{packagesummary} ne "never";
     printlibusehtml(*PACK{IO}, $pack);
-    if( my @types= @{$pack->{childtype}->{type}} ) {
+    if( my @types= @{$pack->{childtype}{type}} ) {
       print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
       map { printtypehtml(*PACK{IO}, $_, 1) } @types;
       print PACK "</table>\n\n";
     }
-    if( my @consts= @{$pack->{childtype}->{constant}} ) {
+    if( my @consts= @{$pack->{childtype}{constant}} ) {
       print PACK "\n<h2>Constants</h2>\n\n$STDTAB\n";
       map { printgenporthtml(*PACK{IO}, $_, "const:$_->{name}") } @consts;
       print PACK "</table>\n\n";
     }
     printfuncprochtml(*PACK{IO}, $pack, 1);
-    if( my @comps= @{$pack->{childtype}->{component}} ) {
+    if( my @comps= @{$pack->{childtype}{component}} ) {
       print PACK "\n<h2>Component declarations</h2>\n\n$STDTAB\n";
       map { printcomphtml(*PACK{IO}, $_, 1) } @comps;
       print PACK "</table>\n\n";
@@ -5345,9 +5340,9 @@ sub packagehtml
     $pack= undef;
   }
   # Only document package body if it contains further declarations
-  unless( @{$pbody->{childtype}->{type}} ||
-          @{$pbody->{childtype}->{funcproc}} ||
-          @{$pbody->{childtype}->{constant}} ) {
+  unless( @{$pbody->{childtype}{type}} ||
+          @{$pbody->{childtype}{funcproc}} ||
+          @{$pbody->{childtype}{constant}} ) {
     printhtmlfooter(*PACK{IO});
     close PACK;
     return;
@@ -5357,12 +5352,12 @@ sub packagehtml
   printobjhtml(*PACK{IO}, $pbody);
   print PACK "\n<hr>\n\n";
   printlibusehtml(*PACK{IO}, $pbody);
-  if( my @types= @{$pbody->{childtype}->{type}} ) {
+  if( my @types= @{$pbody->{childtype}{type}} ) {
     print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
     map { printtypehtml(*PACK{IO}, $_) } @types;
     print PACK "</table>\n\n";
   }
-  if( my @consts= @{$pbody->{childtype}->{constant}} ) {
+  if( my @consts= @{$pbody->{childtype}{constant}} ) {
     print PACK "\n<h2>Constants</h2>\n\n$STDTAB\n";
     map { printgenporthtml(*PACK{IO}, $_) } @consts;
     print PACK "</table>\n\n";
@@ -5644,9 +5639,9 @@ sub entitylisthtml
   for my $item (@list) {
     if( $item->{entity} ) {
       print LIST "<tr><td colspan=\"2\"><a href=\"entities/",
-                $item->{entity}->{docfilename}, 
+                $item->{entity}{docfilename}, 
                 "\"><b>", $item->{name}, "</b></a></td>";
-      if( my $brief= $item->{entity}->{doc}->{brief} ) {
+      if( my $brief= $item->{entity}{doc}{brief} ) {
         print LIST "<td>$brief</td>\n";
       }
       print LIST "</tr>\n";
@@ -5657,7 +5652,7 @@ sub entitylisthtml
     for my $arch (@{$item->{architectures}}) {
       print LIST "<tr>$TDI<td><a href=\"architectures/",$arch->{docfilename},
                  "\">", $arch->{name}, "</a></td>";
-      if( my $brief= $arch->{doc}->{brief} ) {
+      if( my $brief= $arch->{doc}{brief} ) {
         print LIST "<td>$brief</td>\n";
       }
       print LIST "</tr>\n";
@@ -5665,7 +5660,7 @@ sub entitylisthtml
     for my $conf (@{$item->{configurations}}) {
       print LIST "<tr>$TDI<td><a href=\"configurations/",
             $conf->{docfilename}, "\"><i>", $conf->{name}, "</i></a></td>";
-      if( my $brief= $conf->{doc}->{brief} ) {
+      if( my $brief= $conf->{doc}{brief} ) {
         print LIST "<td>$brief</td>\n";
       }
       print LIST "</tr>\n";
@@ -5706,7 +5701,7 @@ sub packagelisthtml
     for my $pack (@sorted) {
       print LIST "<tr><td><a href=\"packages/", $pack->{docfilename},
                   "\"><b>", $pack->{fullname}, "</b></td>";
-      if( my $brief= $pack->{doc}->{brief} ) {
+      if( my $brief= $pack->{doc}{brief} ) {
         print LIST "<td>$brief</td>";
       }
       print LIST "</tr>\n";
@@ -5719,7 +5714,7 @@ sub packagelisthtml
     for my $pbody (@$opbodies) {
       print LIST "<tr><td><a href=\"packages/", $pbody->{docfilename},
                   "\"><b>", $pbody->{fullname}, "</b></td>";
-      if( my $brief= $pbody->{doc}->{brief} ) {
+      if( my $brief= $pbody->{doc}{brief} ) {
         print LIST "<td>$brief</td>";
       }
       print LIST "</tr>\n";
@@ -5812,9 +5807,9 @@ sub printhiernodehtml
     $recursion= 1;
   }
   elsif( ($real->{architecture} &&
-       ($brief= $real->{architecture}->{doc}->{brief}))
+       ($brief= $real->{architecture}{doc}{brief}))
         || ($real->{entity} &&
-       ($brief= $real->{entity}->{doc}->{brief})) ) {
+       ($brief= $real->{entity}{doc}{brief})) ) {
   }
   my $nodehtml= nodehtml($node);
   $node->{done}= 1;
@@ -5833,8 +5828,8 @@ EOF
       ( $notdeep && @$trace &&
     # Instantiation overview: do not descend past 1st level for architectures;
     # stop at architecture or different configuration for configurations
-        ($node->{proxy} || !$$trace[0]->{confname} ||
-          $$trace[0]->{confname} ne ($node->{confname} || "")) ) ) {
+        ($node->{proxy} || !$$trace[0]{confname} ||
+          $$trace[0]{confname} ne ($node->{confname} || "")) ) ) {
     print $handle <<EOF;
 <dd><table border=\"0\"><tr><td><img src="style/$requisites{leafimg}">&nbsp;</td>
     <td>$nodehtml</td></tr></table></dd>
@@ -5871,7 +5866,7 @@ sub nodehtml
   }
   else {
     if( $node->{entname} ) {
-      $html .= "<a href=\"entities/" . $node->{entity}->{docfilename} .
+      $html .= "<a href=\"entities/" . $node->{entity}{docfilename} .
                     "\">"
         if $node->{entity};
       $html .= "<b>" . $node->{entname} . "</b>";
@@ -5881,7 +5876,7 @@ sub nodehtml
     if( $node->{archname} ) {
       $html .= "&nbsp;";
       $html .= "<a href=\"architectures/" .
-                    $node->{architecture}->{docfilename} . "\">"
+                    $node->{architecture}{docfilename} . "\">"
         if $node->{architecture};
       $html .= "(" . $node->{archname} . ")";
       $html .= "</a>"
@@ -5891,7 +5886,7 @@ sub nodehtml
   if( $node->{confname} ) {
     $html .= "&nbsp;";
     $html .= "<a href=\"configurations/" .
-                  $node->{configuration}->{docfilename} . "\">"
+                  $node->{configuration}{docfilename} . "\">"
       if $node->{configuration};
     $html .= "[<i>" . $node->{confname} . "</i>]";
     $html .= "</a>"
@@ -6038,10 +6033,10 @@ sub hierarchyjson
     print JSON "$ind$ind$ind\"configuration\": \"$node->{confname}\",\n"
         if $node->{confname};
     if( $real->{architecture} ) {
-      print JSON "$ind$ind$ind\"file\": \"", substr($node->{architecture}->{filename}, $config{prepathlen}), "\",\n";
+      print JSON "$ind$ind$ind\"file\": \"", substr($node->{architecture}{filename}, $config{prepathlen}), "\",\n";
     }
     elsif( $real->{entity} ) {
-      print JSON "$ind$ind$ind\"file\": \"", substr($node->{entity}->{filename}, $config{prepathlen}), "\",\n";
+      print JSON "$ind$ind$ind\"file\": \"", substr($node->{entity}{filename}, $config{prepathlen}), "\",\n";
     }
     print JSON "$ind$ind$ind\"instantiations\": [\n";
     print JSON join(",\n", map "$ind$ind$ind$ind\"".jsonnodekey($_, $keycache)."\"", @{$real->{children}}), "\n"
@@ -6075,18 +6070,18 @@ sub jsonnodekey
 {
   my ($node, $cache)= @_;
 
-  return $cache->[0]->{$node} if defined $cache->[0]->{$node};
+  return $cache->[0]{$node} if defined $cache->[0]{$node};
   my $real= $node->{proxy} || $node;
   my $name= ($real->{entname} || "unknown") . "-" . ($real->{archname} || "unknown");
   $name .= "-" . $node->{confname} if $node->{confname};
-  if( $cache->[1]->{$name} ) {
+  if( $cache->[1]{$name} ) {
     $name .= "-";
     my $num= 1;
-    ++$num while $cache->[1]->{"$name$num"};
+    ++$num while $cache->[1]{"$name$num"};
     $name .= $num;
   }
-  $cache->[0]->{$node}= $name;
-  $cache->[1]->{$name}= $node;
+  $cache->[0]{$node}= $name;
+  $cache->[1]{$name}= $node;
   return $name;
 }
 
@@ -6213,29 +6208,29 @@ for my $lib (keys(%libraries)) {
   push @packages, @packs;
   push @packagebodies, @pbods;
   push @userdeclids, map lc($_->{name}),
-        map( ($_, @{$_->{childtype}->{function} ||= []},
-                  @{$_->{childtype}->{procedure} ||= []},
-                  @{$_->{childtype}->{component} ||= []},
+        map( ($_, @{$_->{childtype}{function} ||= []},
+                  @{$_->{childtype}{procedure} ||= []},
+                  @{$_->{childtype}{component} ||= []},
                   @{$_->{allinstances}} ),
             (@archs, @packs, @pbods) );
   push @userdeclids, map lc($_->{name}), grep $_->{name},
                     map @{$_->{allprocesses}}, @archs;
   push @userdeclids, map lc($_->{name}), (@ents, @confs);
   push @pslids, map lc($_->{name}), grep $_->{name},
-                map @{$_->{childtype}->{psl} || []}, (@archs, @packs)
+                map @{$_->{childtype}{psl} || []}, (@archs, @packs)
     if $config{psl};
   # Restore "type" hash entry of some type declarations that was set
   # incorrectly to facilitate parsing.
   for my $obj (@archs, @packs, @pbods) {
     for my $ty (@alsotypes) {
-      next unless $obj->{childtype}->{$ty};
-      map { $_->{type}= "type"; } @{$obj->{childtype}->{$ty}};
-      push @{$obj->{childtype}->{type}}, @{$obj->{childtype}->{$ty}};
-      undef $obj->{childtype}->{$ty};
+      next unless $obj->{childtype}{$ty};
+      map { $_->{type}= "type"; } @{$obj->{childtype}{$ty}};
+      push @{$obj->{childtype}{type}}, @{$obj->{childtype}{$ty}};
+      undef $obj->{childtype}{$ty};
     }
-    push @usertypes, map lc($_->{name}), @{$obj->{childtype}->{type} ||= []};
-    $obj->{childtype}->{constant} ||= [];
-    $obj->{childtype}->{funcproc} ||= [];
+    push @usertypes, map lc($_->{name}), @{$obj->{childtype}{type} ||= []};
+    $obj->{childtype}{constant} ||= [];
+    $obj->{childtype}{funcproc} ||= [];
   }
 }
 
@@ -6266,16 +6261,16 @@ for my $ent (@entities)
           grep lc($_->{objname}) eq lc($ent->{fullname}), @configurations;
   map $_->{entity}= $ent, @{$ent->{configurations}};
 
-  $ent->{childtype}->{generic} ||= [];
-  $ent->{childtype}->{port} ||= [];
+  $ent->{childtype}{generic} ||= [];
+  $ent->{childtype}{port} ||= [];
   # Assign @generic and @port docs to their declarations if legacy mode is on
   if( $config{compat} )
   {
-    my @gens= @{$ent->{childtype}->{generic}};
-    my @ports= @{$ent->{childtype}->{port}};
+    my @gens= @{$ent->{childtype}{generic}};
+    my @ports= @{$ent->{childtype}{port}};
     if( @gens ) {
       # Copy generic documentation from the entity docs to its generic(s)
-      for my $docname (keys(%{$ent->{doc}->{generic}})) {
+      for my $docname (keys(%{$ent->{doc}{generic}})) {
         my ($subject)= grep $_->{name} eq $docname, @gens;
         if( !$subject ) {
           print STDERR "Spurious \@generic referring to non-existing generic ",
@@ -6283,13 +6278,12 @@ for my $ent (@entities)
                         $ent->{filename}, "\n";
           next;
         }
-        unshift @{$subject->{doc}->{description}},
-                    $ent->{doc}->{generic}->{$docname};
+        unshift @{$subject->{doc}{description}}, $ent->{doc}{generic}{$docname};
       }
     }
     if( @ports ) {
       # Copy port documentation from the entity docs to its port(s)
-      for my $docname (keys(%{$ent->{doc}->{port}})) {
+      for my $docname (keys(%{$ent->{doc}{port}})) {
         my ($subject)= grep $_->{name} eq $docname, @ports;
         if( !$subject ) {
           print STDERR "Spurious \@port referring to non-existing port ",
@@ -6297,8 +6291,7 @@ for my $ent (@entities)
                         $ent->{filename}, "\n";
           next;
         }
-        unshift @{$subject->{doc}->{description}},
-                    $ent->{doc}->{port}->{$docname};
+        unshift @{$subject->{doc}{description}}, $ent->{doc}{port}{$docname};
       }
     }
   }
@@ -6368,15 +6361,15 @@ for my $pack (@packages)
   # Match attribute specifications to declarations and to targets
   match_attributes($pack);
   # Add component declarations to selected name table
-  add_selnames($pack->{fullname}, @{$pack->{childtype}->{component}});
+  add_selnames($pack->{fullname}, @{$pack->{childtype}{component}});
   # Add type declarations to selected name table
-  add_selnames($pack->{fullname}, @{$pack->{childtype}->{type}});
+  add_selnames($pack->{fullname}, @{$pack->{childtype}{type}});
   # Abuse selected name database for resolving PSL definition references
   add_selnames($pack->{fullname}, @{$pack->{allpsldefs}});
   # Find default bindings for components declared in the package
   map { $_->{binding}= find_selname($_->{name}, "entity",
                             $pack->{fullname}); }
-            @{$pack->{childtype}->{component}};
+            @{$pack->{childtype}{component}};
 }
 
 
@@ -6396,7 +6389,7 @@ for my $opb (@orphanedpbodies)
 {
   # Find default bindings for components declared in the package
   map { $_->{binding}= find_selname($_->{name}, "entity", $opb->{fullname}); }
-              @{$opb->{childtype}->{component}};
+              @{$opb->{childtype}{component}};
   # Create full name and HTML link (where applicable) for declarative items in
   # package body, since we do not have a package to match
   for my $child (@{$opb->{children}}) {
@@ -6407,7 +6400,7 @@ for my $opb (@orphanedpbodies)
     }
   }
   # Add component declarations to selected name table
-  add_selnames($opb->{fullname}, @{$opb->{childtype}->{component}});
+  add_selnames($opb->{fullname}, @{$opb->{childtype}{component}});
 }
 
 
@@ -6429,18 +6422,18 @@ for my $file (@vhdlfiles)
 
 # Resolve the user-defined types in all kinds of declarations
 for my $obj (@architectures, @packages, @packagebodies) {
-  my @typed= (@{$obj->{childtype}->{constant}},
-              @{$obj->{childtype}->{type}},
+  my @typed= (@{$obj->{childtype}{constant}},
+              @{$obj->{childtype}{type}},
               grep( $_->{type} eq "recordelement",
                     map( ( @{$_->{children} || []} ),
                          grep( $_->{subtype} eq "record",
-                               @{$obj->{childtype}->{type}} ))) );
+                               @{$obj->{childtype}{type}} ))) );
   resolve_types($obj, @typed);
 }
 
 for my $ent (@entities) {
-  resolve_types($ent, @{$ent->{childtype}->{port}},
-                      @{$ent->{childtype}->{generic}} );
+  resolve_types($ent, @{$ent->{childtype}{port}},
+                      @{$ent->{childtype}{generic}} );
 }
 
 
@@ -6449,7 +6442,7 @@ for my $ent (@entities) {
 for my $arch (@architectures, @orphanedarchs)
 {
   my @topuses= reverse grep $_->{subtype} eq "package", @{$arch->{uses}};
-  my @comps= @{$arch->{childtype}->{component}};
+  my @comps= @{$arch->{childtype}{component}};
   # Assign default binding to component declarations
   map { $_->{binding}= find_selname($_->{name}, "entity",
                                     $arch->{libname}); } @comps;
@@ -6487,27 +6480,27 @@ bindcompinst:
       next if $use->{subtype} eq "package";
       my $for= $use->{for};
       next unless $for && lc($for->{objtype}) eq lc($inst->{objname}) &&
-            ( lc($for->{objnames}->[0]) eq "all" ||
+            ( lc($for->{objnames}[0]) eq "all" ||
             elem { lc($_) eq lc($inst->{name}) } @{$for->{objnames}} );
-      @{$inst->{binddoc}}= @{$for->{doc}->{description}}
-          if $for->{doc}->{description};
-      push @{$inst->{binddoc}}, @{$use->{doc}->{description}}
-                  if $use->{doc}->{description};
+      @{$inst->{binddoc}}= @{$for->{doc}{description}}
+          if $for->{doc}{description};
+      push @{$inst->{binddoc}}, @{$use->{doc}{description}}
+                  if $use->{doc}{description};
 # TODO: handle open bindings, also in docs
 #     next bindcompinst if $use->{subtype} eq "open";
       $inst->{bindname}= $use->{name};
       $inst->{binding}= find_selname($use->{name},
                               $use->{subtype}, $arch->{libname});
       if( $inst->{binding} ) {
-        $inst->{bindname}= $inst->{binding}->{fullname};
+        $inst->{bindname}= $inst->{binding}{fullname};
         if( $use->{archname} ) {
           $inst->{archname}= $use->{archname};
           $inst->{bindarch}= elem { lc($_->{name}) eq lc($use->{archname}) }
-                                @{$inst->{binding}->{architectures}};
+                                @{$inst->{binding}{architectures}};
         }
-        elsif( @{$inst->{binding}->{architectures}} ) {
-          $inst->{bindarch}= $inst->{binding}->{architectures}->[0];
-          $inst->{archname}= $inst->{bindarch}->{name};
+        elsif( @{$inst->{binding}{architectures}} ) {
+          $inst->{bindarch}= $inst->{binding}{architectures}[0];
+          $inst->{archname}= $inst->{bindarch}{name};
         }
       }
       elsif( $use->{archname} ) {
@@ -6523,7 +6516,7 @@ bindcompinst:
     # Without an explicit binding specification we bind to the binding of the
     # matching component declaration, if any.
     if( $inst->{component} ) {
-      $inst->{binding}= $inst->{component}->{binding};
+      $inst->{binding}= $inst->{component}{binding};
     }
     # Aaargh... the component is not even declared.  Sloppy designer!  So we
     # resolve the instantiation by name.
@@ -6531,9 +6524,9 @@ bindcompinst:
       $inst->{binding}= find_selname($inst->{objname}, "entity",
                                           $arch->{libname});
     }
-    if( $inst->{binding} && @{$inst->{binding}->{architectures}} ) {
-      $inst->{bindarch}= $inst->{binding}->{architectures}->[0];
-      $inst->{archname}= $inst->{bindarch}->{name};
+    if( $inst->{binding} && @{$inst->{binding}{architectures}} ) {
+      $inst->{bindarch}= $inst->{binding}{architectures}[0];
+      $inst->{archname}= $inst->{bindarch}{name};
     }
   }
 
@@ -6557,11 +6550,11 @@ bindcompinst:
     if( $inst->{binding} ) {
       if( $inst->{archname} ) {
         $inst->{bindarch}= elem { lc($_->{name}) eq lc($inst->{archname}) }
-                                @{$inst->{binding}->{architectures}};
+                                @{$inst->{binding}{architectures}};
       }
-      elsif( @{$inst->{binding}->{architectures}} ) {
-        $inst->{bindarch}= $inst->{binding}->{architectures}->[0];
-        $inst->{archname}= $inst->{bindarch}->{name};
+      elsif( @{$inst->{binding}{architectures}} ) {
+        $inst->{bindarch}= $inst->{binding}{architectures}[0];
+        $inst->{archname}= $inst->{bindarch}{name};
       }
     }
     elsif( $inst->{archname} ) {
@@ -6587,7 +6580,7 @@ my @ahier;
 
 # Create instantiation hierarchy nodes representing architectures:
 for my $arch (@architectures) {
-  my $node= { entname => $arch->{entity} ? $arch->{entity}->{fullname}
+  my $node= { entname => $arch->{entity} ? $arch->{entity}{fullname}
                          : $arch->{objname}, entity => $arch->{entity},
               architecture => $arch, archname => $arch->{name} };
   push @hierarchy, $node;
@@ -6595,11 +6588,11 @@ for my $arch (@architectures) {
   $node->{children}= [];
   for my $inst (@{$arch->{allinstances}}) {
     if( $inst->{subtype} eq "configuration" || ($inst->{binding} &&
-        $inst->{binding}->{type} eq "configuration") ) {
+        $inst->{binding}{type} eq "configuration") ) {
       my $new;
       if( $inst->{binding} ) {
         $new= { configuration => $inst->{binding},
-                confname => $inst->{binding}->{name} };
+                confname => $inst->{binding}{name} };
       }
       else {
         $new= { confname => $inst->{objname} };
@@ -6656,12 +6649,12 @@ for my $node (@hierarchy) {
     # legal?)
     if( ! $node->{configuration} || ($child->{configuration} &&
                 $node->{configuration} == $child->{configuration}) ) {
-      push @{$child->{entity}->{instantiated}}, $node
+      push @{$child->{entity}{instantiated}}, $node
           if $child->{entity};
-      push @{$child->{architecture}->{instantiated}}, $node
+      push @{$child->{architecture}{instantiated}}, $node
           if $child->{architecture};
     }
-    push @{$child->{configuration}->{instantiated}}, $node
+    push @{$child->{configuration}{instantiated}}, $node
         if $child->{configuration} && (!$node->{configuration}
             || $child->{configuration} != $node->{configuration});
   }
@@ -6676,13 +6669,13 @@ my $inheritwarn;
 for my $ent (@entities) {
   next unless $ent->{docfrominst} || $ent->{docfromwrapper};
   my (%frominst, %fromwrap);
-  for my $pg (@{$ent->{childtype}->{generic}}, @{$ent->{childtype}->{port}}) {
-    next unless defined($pg->{doc}->{frominstance}) || defined($pg->{doc}->{fromwrapper});
-    if( defined($_= $pg->{doc}->{frominstance}) ) {
+  for my $pg (@{$ent->{childtype}{generic}}, @{$ent->{childtype}{port}}) {
+    next unless defined($pg->{doc}{frominstance}) || defined($pg->{doc}{fromwrapper});
+    if( defined($_= $pg->{doc}{frominstance}) ) {
       s/\..*$//;
       push @{$frominst{lc($_)}}, $pg;
     }
-    if( defined($_= $pg->{doc}->{fromwrapper}) ) {
+    if( defined($_= $pg->{doc}{fromwrapper}) ) {
       s/\..*$//;
       push @{$fromwrap{lc($_)}}, $pg;
     }
@@ -6692,19 +6685,19 @@ for my $ent (@entities) {
       if %fromwrap;
   for my $wrapname (keys %fromwrap) {
     my %wrapents= map { $_->{entity} => $_->{entity}; }
-        ($wrapname ? (grep lc($_->{entity}->{name}) eq $wrapname, @wrapnodes) : @wrapnodes);
+        ($wrapname ? (grep lc($_->{entity}{name}) eq $wrapname, @wrapnodes) : @wrapnodes);
     for my $targetpg (@{$fromwrap{$wrapname}}) {
-      my $pgname= $targetpg->{doc}->{fromwrapper} =~ /\.([^\.]+)$/ ? $1 : $targetpg->{name};
+      my $pgname= $targetpg->{doc}{fromwrapper} =~ /\.([^\.]+)$/ ? $1 : $targetpg->{name};
       $pgname= lc($pgname);
       my %wrappgs;
       for my $wrapent (values %wrapents) {
-        for (@{$wrapent->{childtype}->{port}}, @{$wrapent->{childtype}->{generic}}) {
+        for (@{$wrapent->{childtype}{port}}, @{$wrapent->{childtype}{generic}}) {
           $wrappgs{$_}= $_ if lc($_->{name}) eq $pgname;
         }
       }
       push(@nowrap, $targetpg->{name}), next unless %wrappgs;
       push(@multiwrap, $targetpg->{name}) if values(%wrappgs) > 1;
-      $targetpg->{doc}->{inherit}= $wrappgs{[ keys %wrappgs ]->[0]};
+      $targetpg->{doc}{inherit}= $wrappgs{[ keys %wrappgs ]->[0]};
     }
   }
   my (@instances, %compinsts, %entinsts);
@@ -6721,30 +6714,30 @@ for my $ent (@entities) {
     @entinsts= grep lc($_->{name}) eq $instname || lc($_->{objname}) eq $instname, @entinsts
         if $instname;
     for my $targetpg (@{$frominst{$instname}}) {
-      my $pgname= $targetpg->{doc}->{frominstance} =~ /\.([^\.]+)$/ ? $1 : $targetpg->{name};
+      my $pgname= $targetpg->{doc}{frominstance} =~ /\.([^\.]+)$/ ? $1 : $targetpg->{name};
       $pgname= lc($pgname);
       my %instpgs;
       for my $comp (map $_->{component}, @compinsts) {
-        for (@{$comp->{childtype}->{port}}, @{$comp->{childtype}->{generic}}) {
+        for (@{$comp->{childtype}{port}}, @{$comp->{childtype}{generic}}) {
           $instpgs{$_}= $_ if lc($_->{name}) eq $pgname
-                              && $_->{doc}->{description};
+                              && $_->{doc}{description};
         }
       }
       unless( %instpgs ) {
         for my $comp (map $_->{binding}, @compinsts) {
-          for (@{$comp->{childtype}->{port}}, @{$comp->{childtype}->{generic}}) {
+          for (@{$comp->{childtype}{port}}, @{$comp->{childtype}{generic}}) {
             $instpgs{$_}= $_ if lc($_->{name}) eq $pgname;
           }
         }
       }
       for my $instent (map $_->{binding}, @entinsts) {
-        for (@{$instent->{childtype}->{port}}, @{$instent->{childtype}->{generic}}) {
+        for (@{$instent->{childtype}{port}}, @{$instent->{childtype}{generic}}) {
           $instpgs{$_}= $_ if lc($_->{name}) eq $pgname;
         }
       }
       push(@noinst, $targetpg->{name}), next unless %instpgs;
       push(@multiinst, $targetpg->{name}) if values(%instpgs) > 1;
-      $targetpg->{doc}->{inherit}= $instpgs{[ keys %instpgs ]->[0]};
+      $targetpg->{doc}{inherit}= $instpgs{[ keys %instpgs ]->[0]};
     }
   }
   print "Warning: Can't find inherited documentation in wrapper for port(s) / generic(s) ",
@@ -6766,12 +6759,12 @@ for my $ent (@entities) {
 for my $ent (@entities) {
   next unless $ent->{docfrominst} || $ent->{docfromwrapper};
   my @cycles;
-  for my $pg (@{$ent->{childtype}->{generic}}, @{$ent->{childtype}->{port}}) {
-    next unless $pg->{doc}->{inherit};
+  for my $pg (@{$ent->{childtype}{generic}}, @{$ent->{childtype}{port}}) {
+    next unless $pg->{doc}{inherit};
     my %visited= ($pg => 1);
     my @trace= ($pg);
     my $inhpg= $pg;
-    while( defined($inhpg= $inhpg->{doc}->{inherit}) ) {
+    while( defined($inhpg= $inhpg->{doc}{inherit}) ) {
       if( $visited{$inhpg} ) {
         push @cycles, $pg->{name};
         last;
@@ -6780,8 +6773,8 @@ for my $ent (@entities) {
       push @trace, $inhpg;
     }
     for my $pgind (0..$#trace-1) {
-      $trace[$pgind]->{doc}->{description}= $trace[-1]->{doc}->{description};
-      delete $trace[$pgind]->{doc}->{inherit};
+      $trace[$pgind]{doc}{description}= $trace[-1]{doc}{description};
+      delete $trace[$pgind]{doc}{inherit};
     }
   }
   print "Warning: Cyclical inheritance of documentation for port(s) / generic(s) ",
@@ -6833,12 +6826,12 @@ benchmark() if $config{benchmark};
 # Find targets of cross references, if any
 for my $obj (@entities, @architectures, @configurations, @packages,
                 @packagebodies) {
-  next unless $obj->{doc}->{see};
-  resolve_seealso($obj->{doc}->{see}, $obj->{file}->{libname});
+  next unless $obj->{doc}{see};
+  resolve_seealso($obj->{doc}{see}, $obj->{file}{libname});
 }
 for my $pack (@packages, @packagebodies) {
   for my $decl (@{$pack->{children}}) {
-    next unless $decl->{doc}->{see};
+    next unless $decl->{doc}{see};
     resolve_packagesee($decl, $pack);
   }
 }
