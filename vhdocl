@@ -4616,9 +4616,19 @@ sub printtracehtml
                 "following construct", (@{$obj->{trace}}>1? "s":""), ":</td></tr>\n";
   for my $trc (@{$obj->{trace}}) {
     if( $trc->{type} eq "generate" ) {
-      print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID$trc->{name}",
-          "$SP_</b> : $SPWD", $trc->{subtype}, "$SP_ ",
-          markvhdl($trc->{parameters}), " ${SPWD}generate$SP_</td></tr>\n";
+      print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID$trc->{name}$SP_</b> :";
+      if( $trc->{parent} ) {
+        if( $trc->{parent}{subtype} eq "if" ) {
+          print $handle " ${SPWD}if$SP_ ...";
+        }
+        else {  # case
+          print $handle " ${SPWD}case$SP_ ", markvhdl($trc->{parent}{parameters});
+        }
+      }
+      print $handle " $SPWD$trc->{subtype}$SP_ ";
+      print $handle "$SPID$trc->{subname}$SP_ : "
+        if $trc->{subname};
+      print $handle markvhdl($trc->{parameters}), " ${SPWD}generate$SP_</td></tr>\n";
     }
     elsif( $trc->{type} eq "block" ) {
       my $guard= $trc->{guard} ? "( " . markvhdl($trc->{guard}) . " )" : "";
