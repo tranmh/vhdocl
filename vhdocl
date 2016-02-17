@@ -591,8 +591,7 @@ sub parseargv
       }
     }
     else {
-      print STDERR "The option ", $$argv[0], " requires an argument.  ",
-                        "Aborting.\n";
+      print STDERR "The option $$argv[0] requires an argument.  Aborting.\n";
       croak;
     }
   }
@@ -752,14 +751,14 @@ sub parseopt
     my @vals= grep /^\Q$value\E/i, @{$opt->[2]};
     if( !@vals ) {
       print STDERR "Unrecognised value `$value' for option ",
-                  ($opt->[0]? " -".$opt->[0]." /": ""), " --", $opt->[1],
+                  ($opt->[0]? " -$opt->[0] /": ""), " --$opt->[1]",
                   ".  Legal values are ", cswordlist(" and ", @{$opt->[2]}),
                   ".  Aborting.\n";
       croak;
     }
     elsif( @vals > 1 ) {
       print STDERR "Ambiguous value `$value' for option ",
-                  ($opt->[0]? " -".$opt->[0]." /": ""), " --", $opt->[1],
+                  ($opt->[0]? " -$opt->[0] /": ""), " --$opt->[1]",
                   ".  (Could be ", cswordlist(" or ", @vals), ".)  Aborting.\n";
       croak;
     }
@@ -779,16 +778,16 @@ sub parseopt
   else {
     if( $opt->[2] eq "w" ) {
       unless( $value =~ /^\w*$/ ) {
-        print STDERR "The argument of", ($opt->[0]? " -".$opt->[0]." /": ""),
-                     " --", $opt->[1], " may only contain letters, digits and ",
+        print STDERR "The argument of", ($opt->[0]? " -$opt->[0] /": ""),
+                     " --$opt->[1] may only contain letters, digits and ",
                      "the underscore.  Aborting.\n";
         croak;
       }
     }
     elsif( $opt->[2] eq "#" ) {
       unless( $value =~ /^\d+$/ ) {
-        print STDERR "The argument of", ($opt->[0]? " -".$opt->[0]." /": ""),
-                     " --", $opt->[1], " must be numerical.  Aborting.\n";
+        print STDERR "The argument of", ($opt->[0]? " -$opt->[0] /": ""),
+                     " --$opt->[1] must be numerical.  Aborting.\n";
         croak;
       }
     }
@@ -1244,7 +1243,7 @@ sub examplefilehtml
                     cswordlist(" or ", map $_->{name}, @files), ".\n";
       }
     }
-    $link= @files ? "../sources/" . $files[0]{docfilename} : undef;
+    $link= @files ? "../sources/$files[0]{docfilename}" : undef;
     $filerefcache{$fileref}= $link;
     $fileref =~ s!^.*/!! if $link;
   }
@@ -2272,7 +2271,7 @@ vhdlline:
                        "parent", $parent->{parent} || $parent,
                        "name", $parent->{name}, "parameters", $cond };
           if( $parsdbg ) {
-            print "$.: ", $subtype, " branch of generate ", $parent->{name}, "\n";
+            print "$.: $subtype branch of generate $parent->{name}\n";
           }
           $prevlevel= pop @parsestack;
           $parent= $prevlevel->{backtrack};
@@ -2291,7 +2290,7 @@ vhdlline:
                        "parameters", $2, "name", $parent->{name},
                        "parent", $parent->{parent} || $parent };
           if( $parsdbg ) {
-            print "$.: new alternative ", ($1 || ""), " of generate ", $parent->{name}, "\n";
+            print "$.: new alternative ", ($1 || ""), " of generate $parent->{name}\n";
           }
           $prevlevel= pop @parsestack;
           $parent= $prevlevel->{backtrack};
@@ -2686,12 +2685,12 @@ sub uniq_files
         unless( $config{quiet} ) {
           print STDERR "Duplicate source file ", $elem2->{name};
           if( $elem->{libname} ne $elem2->{libname} ) {
-            print STDERR ", in libraries ", $elem2->{libname}, " and ",
-                      $elem->{libname}, ".  Discarding the one in library ",
-                      $elem->{libname}, ".\n";
+            print STDERR ", in libraries $elem2->{libname} and ",
+                      "$elem->{libname}.  Discarding the one in library ",
+                      "$elem->{libname}.\n";
           }
           else {
-            print STDERR " in library ", $elem->{libname}, ".\n";
+            print STDERR " in library $elem->{libname}.\n";
           }
         }
         $elem= undef;
@@ -2804,10 +2803,10 @@ sub uniq_objs
         my @all= @{$byname{$name}{$objname}};
         next unless @all > 1;
         print STDERR ucfirst($type), " ", $$ary[$all[0]]{name},
-             " of $lib", $$ary[$all[0]]{objname}, " was found ",
+             " of $lib$$ary[$all[0]]{objname} was found ",
              @all > 2 ? (0+@all)." times" : "twice", ", in:\n   ",
              join("\n   ", map $$ary[$_]{filename}, @all),
-             "\nKeeping the one from ", $$ary[$all[0]]{filename}, ".\n"
+             "\nKeeping the one from $$ary[$all[0]]{filename}.\n"
             unless $config{quiet};
         @$ary[@all[1..$#all]]= (undef) x $#all;
         $removed= 1;
@@ -2824,10 +2823,10 @@ sub uniq_objs
       my @all= @{$byname{$name}};
       next unless @all > 1;
       if( !$config{quiet} && ($type ne "entity" || !sameentities(map $$ary[$_], @all)) ) {
-        print STDERR ucfirst($type), " $lib", $$ary[$all[0]]{name},
+        print STDERR ucfirst($type), " $lib$$ary[$all[0]]{name}",
            " was found ", @all > 2 ? (0+@all)." times" : "twice", ", in:\n   ",
            join("\n   ", map $$ary[$_]{filename}, @all),
-           "\nKeeping the one from ", $$ary[$all[0]]{filename}, ".\n";
+           "\nKeeping the one from $$ary[$all[0]]{filename}.\n";
       }
       @$ary[@all[1..$#all]]= (undef) x $#all;
       $removed= 1;
@@ -3009,7 +3008,7 @@ typeexprid:
           last;
         }
         unless( $typedef ) {
-          my $selname= $obj->{libname}.".".$id;
+          my $selname= "$obj->{libname}.$id";
           $typedef= find_selname($selname, "type");
           $resolved{$selname}= $typedef if $typedef;
         }
@@ -3058,7 +3057,7 @@ sub merge_selname
   my $selname;
 
   $suse =~ s/\.all$//i;
-  $selname= $suse . "." . $sobj;
+  $selname= "$suse.$sobj";
   $selname =~ s/\.([^.]+)\.\1\./.$1./i;
   return ($selname =~ tr/././) <= 2 ? $selname : undef;
 }
@@ -3090,7 +3089,7 @@ sub add_selnames
     else {
       $table->{lc($_->{name})}= $_;
     }
-    $table->{lc($prefix . "." . $_->{name})}= $_;
+    $table->{lc("$prefix.$_->{name}")}= $_;
   }
 }
 
@@ -3110,7 +3109,7 @@ sub find_selname
     my $obj= $selnames{$type}{lc($name)};
     return $obj if $obj && $obj != \$multiple;
     return ($obj ? 0 : undef) if !$prefix;
-    return $selnames{$type}{lc($prefix . "." . $name)};
+    return $selnames{$type}{lc("$prefix.$name")};
   }
   # Try all types if type is not given:
   for my $t (keys %selnames) {
@@ -3143,16 +3142,16 @@ sub resolve_seealso
     next unless $candidate;
     $see->[1]= $candidate;
     if( $candidate->{type} eq "entity" ) {
-      $see->[2]= "../entities/" . $candidate->{docfilename};
+      $see->[2]= "../entities/$candidate->{docfilename}";
     }
     elsif( $candidate->{type} eq "architecture" ) {
-      $see->[2]= "../architectures/" . $candidate->{docfilename};
+      $see->[2]= "../architectures/$candidate->{docfilename}";
     }
     elsif( $candidate->{type} eq "configuration" ) {
-      $see->[2]= "../configurations/" . $candidate->{docfilename};
+      $see->[2]= "../configurations/$candidate->{docfilename}";
     }
     elsif( $candidate->{type} =~ /^package(?:body)?$/ ) {
-      $see->[2]= "../packages/" . $candidate->{docfilename};
+      $see->[2]= "../packages/$candidate->{docfilename}";
     }
     elsif( $candidate->{doclink} ) {  # declarative item in a package
       $see->[2]= $candidate->{doclink};
@@ -3803,14 +3802,14 @@ EOF
     if( $config{$item} ) {
       $config{$item."url"}= $config{$item} =~ /^\w+:\/\//;
       if( !$config{$item."url"} ) {
-        my $destname= $config{prefix} . $item . "." . fileext($config{$item});
+        my $destname= "$config{prefix}$item." . fileext($config{$item});
         if( ! copyfile($config{$item}, File::Spec->catfile($styledir, $destname)) ) {
-          print STDERR "Could not copy `", $config{$item}, "' to style",
+          print STDERR "Could not copy `$config{$item}' to style",
                     " directory.  Continuing regardless.\n"
             unless $config{quiet};
         }
         else {
-          $config{$item}= "style/" . $destname;
+          $config{$item}= "style/$destname";
         }
       }
     }
@@ -3848,10 +3847,10 @@ EOF
         unless $config{toplinkabs};
   }
   else {
-    $config{toplink}= $config{prefix} . "index.html";
+    $config{toplink}= "$config{prefix}index.html";
     $config{toplinktext}= "Home";
     $config{toplinkabs}= 0;
-    my $fname= $config{outputdir} . "/" . $config{toplink};
+    my $fname= "$config{outputdir}/$config{toplink}";
     open INDEX, ">$fname" or croak "Could not create index.html.\n";
     printhtmlheader(*INDEX{IO}, "Home", 1);
     my $homecontent= gethtml($config{homehtml});
@@ -3861,7 +3860,7 @@ EOF
   }
   if( $config{cellpadding} ) {
     $STDTAB= "<table class=\"vhdocltab\" border=\"0\" cellpadding=\"" .
-             $config{cellpadding} .  "\">";
+             "$config{cellpadding}\">";
     print STDERR <<EOF;
 Warning: The option -c / --cellpadding is deprecated and may be removed.
 Instead, use the --stylefile option with a file containing something like:
@@ -3869,7 +3868,7 @@ table.vhdocltab td { padding:3px; }
 EOF
   }
   if( $config{indentation} ) {
-    $TDI= "<td class=\"vhdoclind\" width=\"" . $config{indentation} . "\"></td>";
+    $TDI= "<td class=\"vhdoclind\" width=\"$config{indentation}\"></td>";
     print STDERR <<EOF;
 Warning: The option -i / --indentation is deprecated and may be removed.
 Instead, use the --stylefile option with a file containing something like:
@@ -3900,26 +3899,23 @@ sub printhtmlheader
     my ($top, $doctitle, $stylesheet, $leftlogo, $rightlogo, $toplink, $custom, $common);
 
     $doctitle= length($config{title})?
-                  "\n<center>" . $config{title} . "</center><hr>\n" : "";
+                  "\n<center>$config{title}</center><hr>\n" : "";
     $stylesheet= "<link rel=\"stylesheet\" type=\"text/css\" " .
-                 "href=\"${prepre}style/" .  $requisites{basestyle} . "\">";
+                 "href=\"${prepre}style/$requisites{basestyle}\">";
     if( $config{stylesheet} ) {
       $top= $config{stylesheeturl}? "" : $prepre;
       $stylesheet .= "\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"" .
-                     $top . $config{stylesheet} . "\">";
+                     "$top$config{stylesheet}\">";
     }
     $top= $config{leftlogourl}? "" : $prepre;
-    $leftlogo= $config{leftlogo}?
-                  "<img style=\"vertical-align:middle\" src=\"" . $top .
-                  $config{leftlogo} . "\">" : "";
+    $leftlogo= $config{leftlogo} ?
+     "<img style=\"vertical-align:middle\" src=\"$top$config{leftlogo}\">" : "";
     $top= $config{rightlogourl}? "" : $prepre;
-    $rightlogo= $config{rightlogo}?
-                  "<img style=\"vertical-align:middle\" src=\"" . $top .
-                  $config{rightlogo} . "\">" : "";
+    $rightlogo= $config{rightlogo} ?
+    "<img style=\"vertical-align:middle\" src=\"$top$config{rightlogo}\">" : "";
     $top= $config{toplinkabs}? "" : $prepre;
-    $toplink= $config{toplink}?  "<a href=\"" . $top . $config{toplink} .
-                  "\">" .  $config{toplinktext} .
-                  "</a>\n&nbsp;&nbsp; -- &nbsp;&nbsp;" : "";
+    $toplink= $config{toplink}?  "<a href=\"$top$config{toplink}" .
+              "\">$config{toplinktext}</a>\n&nbsp;&nbsp; -- &nbsp;&nbsp;" : "";
     $custom= join "", map "&nbsp;&nbsp; -- &nbsp;&nbsp;<a href=\"" .
                           ($$_[2] ? "" : $prepre) . "$$_[1]\">$$_[0]</a>",
                       @{$config{custom} || []};
@@ -4165,7 +4161,7 @@ sub printobjhtml
 {
   my ($handle, $obj)= @_;
 
-  print $handle "<p><b>$SPBRIEF", $obj->{doc}{brief}, "$SP_</b></p>\n" 
+  print $handle "<p><b>$SPBRIEF$obj->{doc}{brief}$SP_</b></p>\n" 
         if $obj->{doc}{brief};
   if( $obj->{filename} ) {
     print $handle "<p>Defined in ";
@@ -4191,11 +4187,11 @@ sub printobjhtml
                                         "Authors: " : "Author: ");
     print $handle $obj->{doc}{author}, "<br>\n";
   }
-  print $handle "Date: ", $obj->{doc}{date}, "<br>\n"
+  print $handle "Date: $obj->{doc}{date}<br>\n"
         if $obj->{doc}{date};
-  print $handle "Version: ", $obj->{doc}{version}, "<br>\n"
+  print $handle "Version: $obj->{doc}{version}<br>\n"
         if $obj->{doc}{version};
-  print $handle "ID: ", $obj->{doc}{id}, "<br>\n"
+  print $handle "ID: $obj->{doc}{id}<br>\n"
         if $obj->{doc}{id};
   print $handle "</p>\n\n";
   if( $obj->{doc}{description} && @{$obj->{doc}{description}} ) {
@@ -4208,7 +4204,7 @@ sub printobjhtml
   }
   if( $obj->{doc}{see} && @{$obj->{doc}{see}} ) {
     print $handle "<p>See also: ", join(", ", map( ($_->[2]?
-            "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
+            "<a href=\"$_->[2]\">$_->[0]</a>" : $_->[0]),
             @{$obj->{doc}{see}})), "</p>\n\n";
   }
   if( $obj->{attributes} && keys(%{$obj->{attributes}}) ) {
@@ -4275,7 +4271,7 @@ sub printusehtml
   elsif( $use->{package} ) {
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ",
               "<a href=\"../packages/", $use->{package}{docfilename},
-              "\">", $markedname, "</a></td></tr>\n";
+              "\">$markedname</a></td></tr>\n";
   }
   else {
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ", $markedname,
@@ -4320,7 +4316,7 @@ sub printgenporthtml
   }
   if( $gp->{doc}{see} && @{$gp->{doc}{see}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>See also: ",
-            join(", ", map( ($_->[2]? "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
+            join(", ", map( ($_->[2]? "<a href=\"$_->[2]\">$_->[0]</a>" : $_->[0]),
             @{$gp->{doc}{see}})), "</td></tr>\n";
   }
 }
@@ -4358,12 +4354,12 @@ sub entityhtml
     return;
   }
   printhtmlheader(*ENT{IO}, $ent->{fullname});
-  print ENT "\n<h1>Entity ", $ent->{fullname}, "</h1>\n";
+  print ENT "\n<h1>Entity $ent->{fullname}</h1>\n";
   printobjhtml(*ENT{IO}, $ent);
   if( @{$ent->{architectures}} ) {
     print ENT "\n<h2>Architectures</h2>\n\n$STDTAB\n";
-    map { print ENT "<h3><a href=\"../architectures/",
-            $_->{docfilename}, "\">", $_->{name}, "</a></h3>\n"; }
+    map { print ENT "<h3><a href=\"../architectures/$_->{docfilename}",
+                    "\">$_->{name}</a></h3>\n"; }
             @{$ent->{architectures}};
     print ENT "</table>\n\n";
   }
@@ -4372,8 +4368,8 @@ sub entityhtml
   }
   if( @{$ent->{configurations}} ) {
     print ENT "\n<h2>Configurations</h2>\n\n$STDTAB\n";
-    map { print ENT "<h3><a href=\"../configurations/",
-            $_->{docfilename}, "\">", $_->{name}, "</a></h3>\n"; }
+    map { print ENT "<h3><a href=\"../configurations/$_->{docfilename}",
+                    "\">$_->{name}</a></h3>\n"; }
             @{$ent->{configurations}};
     print ENT "</table>\n\n";
   }
@@ -4426,7 +4422,7 @@ sub printcommonhtml
   }
   if( $obj->{doc}{see} && @{$obj->{doc}{see}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>See also: ",
-            join(", ", map( ($_->[2]? "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
+            join(", ", map( ($_->[2]? "<a href=\"$_->[2]\">$_->[0]</a>" : $_->[0]),
             @{$obj->{doc}{see}})), "</td></tr>\n";
   }
   if( $obj->{attributes} && keys(%{$obj->{attributes}}) ) {
@@ -4599,7 +4595,7 @@ sub printtypehtml
   }
   if( $type->{doc}{see} && @{$type->{doc}{see}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>See also: ",
-            join(", ", map( ($_->[2]? "<a href=\"" . $_->[2] . "\">" . $_->[0] . "</a>" : $_->[0]),
+            join(", ", map( ($_->[2]? "<a href=\"$_->[2]\">$_->[0]</a>" : $_->[0]),
             @{$type->{doc}{see}})), "</td></tr>\n";
   }
 }
@@ -4627,7 +4623,7 @@ sub printtracehtml
     elsif( $trc->{type} eq "block" ) {
       my $guard= $trc->{guard} ? "( " . markvhdl($trc->{guard}) . " )" : "";
       print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\"><b>$SPID$trc->{name}",
-          "$SP_</b> : ${SPWD}block$SP_ ", $guard, "</td></tr>\n";
+          "$SP_</b> : ${SPWD}block$SP_ $guard</td></tr>\n";
     }
     else {
       print $handle "<tr$CCO>$TDI$TDI<td colspan=\"3\">$SPWD", $trc->{type},
@@ -4668,7 +4664,7 @@ sub printinsthtml
   my ($handle, $inst)= @_;
 
   print $handle "<tr$ARDCL><td colspan=\"5\"><b><a name=\"", $labels{instance},
-              $inst->{name}, "\">$SPDID", $inst->{name}, "$SP_</a></b> : ";
+              $inst->{name}, "\">$SPDID$inst->{name}$SP_</a></b> : ";
   if( $inst->{subtype} eq "configuration" ) {
     print $handle "${SPWD}configuration$SP_ ";
     if( $inst->{binding} ) {
@@ -4696,12 +4692,12 @@ sub printinsthtml
                     $inst->{archname}, "$SP_</a>)";
     }
     elsif( $inst->{archname} ) {
-      print $handle " ($SPID", $inst->{archname}, "$SP_)";
+      print $handle " ($SPID$inst->{archname}$SP_)";
     }
     print $handle "</td></tr>\n";
   }
   elsif( $inst->{component} ) {
-    print $handle "<a href=\"", $inst->{component}{doclink}, "\">$SPID",
+    print $handle "<a href=\"$inst->{component}{doclink}\">$SPID",
                   $inst->{objname}, "$SP_</a></td></tr>\n";
   }
   else {
@@ -4712,7 +4708,7 @@ sub printinsthtml
     my @gmap= @{$inst->{genericmap}};
     print $handle "<tr>$TDI<td colspan=\"4\">Generic map:</td></tr>\n",
                   "<tr>$TDI$TDI<td colspan=\"3\"><table border=\"0\"$CCO>\n";
-    map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
+    map { print $handle "  <tr><td>$SPID$$_[0]$SP_</td><td> => ",
                               markvhdl($$_[1]), "</td></tr>\n"; } @gmap;
     print $handle "</table></td></tr>\n";
   }
@@ -4736,7 +4732,7 @@ sub printinsthtml
                       $inst->{archname}, "$SP_</a>)";
       }
       else {
-        print $handle " ($SPID", $inst->{archname}, "$SP_)";
+        print $handle " ($SPID$inst->{archname}$SP_)";
       }
     }
     print $handle "$SP_</td></tr>\n";
@@ -4746,7 +4742,7 @@ sub printinsthtml
       my $map= $inst->{bindgen}{map};
       print $handle "<tr>$TDI$TDI<td colspan=\"3\">Generic map:</td></tr>\n",
                 "<tr>$TDI$TDI$TDI<td colspan=\"2\"><table border=\"0\"$CCO>\n";
-      map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
+      map { print $handle "  <tr><td>$SPID$$_[0]$SP_</td><td> => ",
                                 markvhdl($$_[1]), "</td></tr>\n"; } @$map;
       print $handle "</table></td></tr>\n";
     }
@@ -4837,7 +4833,7 @@ sub architecturehtml
   my $fname= File::Spec->catfile($config{outputdir}, "architectures",
                                  $arch->{docfilename});
   my $ent= $arch->{entity};
-  my $headname= $arch->{name} . " of " . $arch->{objname};
+  my $headname= "$arch->{name} of $arch->{objname}";
 
   if( !open(ARCH, ">$fname") ) {
     limitfileerr("Cannot create output file $fname", \$archhtmlerr);
@@ -4847,10 +4843,10 @@ sub architecturehtml
   if( $ent ) {
     print ARCH "\n<h1>Architecture ", $arch->{name}, 
           " of <a href=\"../entities/", $ent->{docfilename},
-          "\">", $ent->{fullname}, "</a></h1>\n\n";
+          "\">$ent->{fullname}</a></h1>\n\n";
   }
   else {
-    print ARCH "\n<h1>Architecture ", $arch->{name}, " of ", 
+    print ARCH "\n<h1>Architecture $arch->{name} of ", 
           $arch->{objname}, "</a></h1>\n\n";
   }
   printobjhtml(*ARCH{IO}, $arch);
@@ -4903,7 +4899,7 @@ sub printconfightml
   my $span= $maxdepth - $curdepth + 3;
 
   for my $for (@$fors) {
-    print $handle "<tr$CCO>$ind2<td colspan=\"", $span, "\">${SPWD}for$SP_ <b>";
+    print $handle "<tr$CCO>$ind2<td colspan=\"$span\">${SPWD}for$SP_ <b>";
     if( $for->{subtype} eq "architecture" ) {
       if( $for->{object} && $for->{object}{type} eq "architecture" ) {
         print $handle "<a href=\"../architectures/",
@@ -4926,8 +4922,8 @@ sub printconfightml
                 if $for->{objects} && @{$for->{objects}};
       }
       elsif( $for->{objects} && @{$for->{objects}} ) {
-        print $handle join("</b>, <b>", map("<a href=\"" . $_->{doclink} .
-              "\">$SPID" . $_->{name} . "$SP_</a>", @{$for->{objects}}));
+        print $handle join("</b>, <b>", map("<a href=\"$_->{doclink}" .
+              "\">$SPID$_->{name}$SP_</a>", @{$for->{objects}}));
         $comp= $for->{objects}[0]{component};
       }
       else {
@@ -4935,7 +4931,7 @@ sub printconfightml
                       $SP_;
       }
       if( $comp ) {
-        print $handle "</b> : <a href=\"", $comp->{doclink}, "\">$SPID",
+        print $handle "</b> : <a href=\"$comp->{doclink}\">$SPID",
                       $for->{objtype}, "$SP_</a>";
       }
       else {
@@ -4943,7 +4939,7 @@ sub printconfightml
       }
       if( $use= $for->{use} ) {
         if( $for->{binding} ) {
-          print $handle " ${SPWD}use$SP_ $SPDCL", $use->{subtype},
+          print $handle " ${SPWD}use$SP_ $SPDCL$use->{subtype}",
                 "$SP_ <a href=\"../",
               ($use->{subtype} eq "entity"? "entities/" : "configurations/"),
                 $for->{binding}{docfilename}, "\">$SPID", $use->{name},
@@ -4954,13 +4950,13 @@ sub printconfightml
                           $for->{archname}, "$SP_</a>)</td>$SP_</tr>\n";
           }
           elsif( $use->{archname} ) {
-           print $handle " ($SPID", $use->{archname}, "$SP_)</td>$SP_</tr>\n";
+           print $handle " ($SPID$use->{archname}$SP_)</td>$SP_</tr>\n";
           }
         }
         else {
-          print $handle " use ", $use->{subtype}, " ", $use->{name},
-            ($use->{archname}? "($SPID" . $use->{archname} . "$SP_)" : ""),
-                "</td>$SP_</tr>\n";
+          print $handle " use $use->{subtype} $use->{name}",
+                        ($use->{archname}? "($SPID$use->{archname}$SP_)" : ""),
+                        "</td>$SP_</tr>\n";
         }
       }
       else {
@@ -4975,7 +4971,7 @@ sub printconfightml
         print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1,
                 "\">Generic map:</td></tr>\n<tr>$ind2$TDI$TDI<td colspan=\"",
                 $span-2, "\"><table border=\"0\"$CCO>\n";
-        map { print $handle "  <tr><td>$SPID", $$_[0], "$SP_</td><td> => ",
+        map { print $handle "  <tr><td>$SPID$$_[0]$SP_</td><td> => ",
                                   markvhdl($$_[1]), "</td></tr>\n"; } @$map;
         print $handle "</table></td></tr>\n";
       }
@@ -4996,7 +4992,7 @@ sub configurationhtml
   my $fname= File::Spec->catfile($config{outputdir}, "configurations",
                                  $conf->{docfilename});
   my $ent= $conf->{entity};
-  my $headname= $conf->{name} . " of " . $conf->{objname};
+  my $headname= "$conf->{name} of $conf->{objname}";
   my $maxdepth;
   my @topfors;
 
@@ -5008,10 +5004,10 @@ sub configurationhtml
   if( $ent ) {
     print CONF "\n<h1>Configuration ", $conf->{name}, 
           " of <a href=\"../entities/", $ent->{docfilename},
-          "\">", $ent->{fullname}, "</a></h1>\n\n";
+          "\">$ent->{fullname}</a></h1>\n\n";
   }
   else {
-    print CONF "\n<h1>Configuration ", $conf->{name}, " of ", 
+    print CONF "\n<h1>Configuration $conf->{name} of ", 
           $conf->{objname}, "</a></h1>\n\n";
   }
   printobjhtml(*CONF{IO}, $conf);
@@ -5067,11 +5063,11 @@ sub resolve_packagesee
           labelfuncproc($see->[1])
         }
         else {
-          $see->[1]{label}= substr($see->[1]{type},0,4) . ":" . $see->[1]{name};
+          $see->[1]{label}= substr($see->[1]{type},0,4) . ":$see->[1]{name}";
         }
 
       }
-      $see->[2]= "../packages/" . $objpack->{docfilename} . "#" . $see->[1]{label};
+      $see->[2]= "../packages/$objpack->{docfilename}#$see->[1]{label}";
       next;
     }
     next if $see->[0] =~ /\./;    # already tried lookup for selected names
@@ -5089,7 +5085,7 @@ sub labelfuncproc
   my ($func)= @_;
 
   return if $func->{label};
-  $func->{label}= substr($func->{type},0,4) . ":" . $func->{name} .
+  $func->{label}= substr($func->{type},0,4) . ":$func->{name}" .
                   "-" . substr(Digest::MD5::md5_hex($func->{parlist} . 
                                           ($func->{subtype} || "")), 0, 8);
 }
@@ -5155,7 +5151,7 @@ sub printpackagesummary
     print $handle "\n<h3>Functions and procedures</h3>\n$SUMTAB";
     for my $func (@{$pack->{childtype}{funcproc}}) {
       labelfuncproc($func);
-      my $href= "#" . $func->{label};
+      my $href= "#$func->{label}";
       my $declstr= "<tr><td align=\"right\"><a href=\"$href\">$func->{type}" .
                     " <b>$func->{name}</b>";
       $declstr .= " ($func->{parlist})" if $func->{parlist};
@@ -5307,7 +5303,7 @@ sub packagehtml
       @{$pbody->{childtype}}{qw(function procedure funcproc constant)}=
                                  ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts);
     }
-    print PACK "<h1>Package ", $pack->{fullname}, "</h1>\n\n";
+    print PACK "<h1>Package $pack->{fullname}</h1>\n\n";
     printobjhtml(*PACK{IO}, $pack);
     print PACK "\n<hr>\n\n";
     printpackagesummary(*PACK{IO}, $pack) if $config{packagesummary} ne "never";
@@ -5348,7 +5344,7 @@ sub packagehtml
     return;
   }
   print PACK "\n\n<hr>\n\n";
-  print PACK "<h1>Package body ", $pbody->{fullname}, "</h1>\n\n";
+  print PACK "<h1>Package body $pbody->{fullname}</h1>\n\n";
   printobjhtml(*PACK{IO}, $pbody);
   print PACK "\n<hr>\n\n";
   printlibusehtml(*PACK{IO}, $pbody);
@@ -5438,7 +5434,7 @@ sub sourcehtml
 sub makemarkupjs
 {
   my $jsfname= File::Spec->catfile($config{outputdir}, "style",
-                                    $config{prefix} . "vhdlmarkup.js");
+                                    "$config{prefix}vhdlmarkup.js");
   my %markwords= revhash %SPANCLASS;
   my %markrenames;
 
@@ -5596,7 +5592,7 @@ sub entitylisthtml
   my ($ents, $oarchs, $oconfs, $haveconfs)= @_;
   my @list;
   my $fname= File::Spec->catfile($config{outputdir},
-                                $config{prefix} . "entities.html");
+                                "$config{prefix}entities.html");
 
   if( !open(LIST, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
@@ -5639,27 +5635,26 @@ sub entitylisthtml
   for my $item (@list) {
     if( $item->{entity} ) {
       print LIST "<tr><td colspan=\"2\"><a href=\"entities/",
-                $item->{entity}{docfilename}, 
-                "\"><b>", $item->{name}, "</b></a></td>";
+                "$item->{entity}{docfilename}\"><b>$item->{name}</b></a></td>";
       if( my $brief= $item->{entity}{doc}{brief} ) {
         print LIST "<td>$brief</td>\n";
       }
       print LIST "</tr>\n";
     }
     else {
-      print LIST "<tr><td colspan=\"2\"><b>", $item->{name}, "</b></td></tr>\n";
+      print LIST "<tr><td colspan=\"2\"><b>$item->{name}</b></td></tr>\n";
     }
     for my $arch (@{$item->{architectures}}) {
-      print LIST "<tr>$TDI<td><a href=\"architectures/",$arch->{docfilename},
-                 "\">", $arch->{name}, "</a></td>";
+      print LIST "<tr>$TDI<td><a href=\"architectures/$arch->{docfilename}",
+                 "\">$arch->{name}</a></td>";
       if( my $brief= $arch->{doc}{brief} ) {
         print LIST "<td>$brief</td>\n";
       }
       print LIST "</tr>\n";
     }
     for my $conf (@{$item->{configurations}}) {
-      print LIST "<tr>$TDI<td><a href=\"configurations/",
-            $conf->{docfilename}, "\"><i>", $conf->{name}, "</i></a></td>";
+      print LIST "<tr>$TDI<td><a href=\"configurations/$conf->{docfilename}",
+                 "\"><i>$conf->{name}</i></a></td>";
       if( my $brief= $conf->{doc}{brief} ) {
         print LIST "<td>$brief</td>\n";
       }
@@ -5680,7 +5675,7 @@ sub packagelisthtml
 {
   my ($packs, $opbodies)= @_;
   my $fname= File::Spec->catfile($config{outputdir},
-                                $config{prefix} . "packages.html");
+                                "$config{prefix}packages.html");
 
   if( !open(LIST, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
@@ -5699,8 +5694,8 @@ sub packagelisthtml
     print LIST "\n\n$STDTAB\n";
     my @sorted= sort { lc($a->{fullname}) cmp lc($b->{fullname}) } @$packs;
     for my $pack (@sorted) {
-      print LIST "<tr><td><a href=\"packages/", $pack->{docfilename},
-                  "\"><b>", $pack->{fullname}, "</b></td>";
+      print LIST "<tr><td><a href=\"packages/$pack->{docfilename}",
+                  "\"><b>$pack->{fullname}</b></td>";
       if( my $brief= $pack->{doc}{brief} ) {
         print LIST "<td>$brief</td>";
       }
@@ -5712,8 +5707,8 @@ sub packagelisthtml
     print LIST "\n<h1>List of orphaned package bodies</h1>\n\n";
     print LIST "\n\n$STDTAB\n";
     for my $pbody (@$opbodies) {
-      print LIST "<tr><td><a href=\"packages/", $pbody->{docfilename},
-                  "\"><b>", $pbody->{fullname}, "</b></td>";
+      print LIST "<tr><td><a href=\"packages/$pbody->{docfilename}",
+                  "\"><b>$pbody->{fullname}</b></td>";
       if( my $brief= $pbody->{doc}{brief} ) {
         print LIST "<td>$brief</td>";
       }
@@ -5866,29 +5861,26 @@ sub nodehtml
   }
   else {
     if( $node->{entname} ) {
-      $html .= "<a href=\"entities/" . $node->{entity}{docfilename} .
-                    "\">"
+      $html .= "<a href=\"entities/$node->{entity}{docfilename}\">"
         if $node->{entity};
-      $html .= "<b>" . $node->{entname} . "</b>";
+      $html .= "<b>$node->{entname}</b>";
       $html .= "</a>"
         if $node->{entity};
     }
     if( $node->{archname} ) {
       $html .= "&nbsp;";
-      $html .= "<a href=\"architectures/" .
-                    $node->{architecture}{docfilename} . "\">"
+      $html .= "<a href=\"architectures/$node->{architecture}{docfilename}\">"
         if $node->{architecture};
-      $html .= "(" . $node->{archname} . ")";
+      $html .= "($node->{archname})";
       $html .= "</a>"
         if $node->{architecture};
     }
   }
   if( $node->{confname} ) {
     $html .= "&nbsp;";
-    $html .= "<a href=\"configurations/" .
-                  $node->{configuration}{docfilename} . "\">"
+    $html .= "<a href=\"configurations/$node->{configuration}{docfilename}\">"
       if $node->{configuration};
-    $html .= "[<i>" . $node->{confname} . "</i>]";
+    $html .= "[<i>$node->{confname}</i>]";
     $html .= "</a>"
       if $node->{configuration};
   }
@@ -5906,7 +5898,7 @@ sub instantiationhtml
 {
   my ($hier, $haveconfs)= @_;
   my $fname= File::Spec->catfile($config{outputdir},
-                                $config{prefix} . "instantiations.html");
+                                "$config{prefix}instantiations.html");
   my $header;
   my $maxdepth;
 
@@ -5942,7 +5934,7 @@ sub hierarchyhtml
 {
   my ($hier, $topmods, $haveconfs)= @_;
   my $fname= File::Spec->catfile($config{outputdir},
-                                $config{prefix} . "hierarchy.html");
+                                "$config{prefix}hierarchy.html");
   my $header;
   my $maxdepth;
 
@@ -5979,7 +5971,7 @@ sub sourcelisthtml
 {
   my ($sources)= @_;
   my $fname= File::Spec->catfile($config{outputdir},
-                                $config{prefix} . "sources.html");
+                                "$config{prefix}sources.html");
 
   if( !open(SOURCE, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
@@ -5991,9 +5983,9 @@ sub sourcelisthtml
   my @srclist= sort { $a->{name} cmp $b->{name} } @$sources;
   print SOURCE "\n<table border=\"0\">\n";
   for my $file (@srclist) {
-    print SOURCE "<tr><td><a href=\"sources/", $file->{docfilename}, "\">",
+    print SOURCE "<tr><td><a href=\"sources/$file->{docfilename}\">",
                 substr($file->{name}, $config{prepathlen}), "</a>";
-    print SOURCE "&nbsp;&nbsp;&nbsp;</td><td><a href=\"" . $file->{link}, "\">[source file]</a>"
+    print SOURCE "&nbsp;&nbsp;&nbsp;</td><td><a href=\"$file->{link}\">[source file]</a>"
         if defined $file->{link};
     print SOURCE "</td></tr>\n";
   }
@@ -6014,7 +6006,7 @@ sub hierarchyjson
   my $keycache;
   my $ind= "  ";
   my $fname= File::Spec->catfile($config{outputdir},
-                                $config{prefix} . "hierarchy.json");
+                                "$config{prefix}hierarchy.json");
 
   if( !open(JSON, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
@@ -6073,7 +6065,7 @@ sub jsonnodekey
   return $cache->[0]{$node} if defined $cache->[0]{$node};
   my $real= $node->{proxy} || $node;
   my $name= ($real->{entname} || "unknown") . "-" . ($real->{archname} || "unknown");
-  $name .= "-" . $node->{confname} if $node->{confname};
+  $name .= "-$node->{confname}" if $node->{confname};
   if( $cache->[1]{$name} ) {
     $name .= "-";
     my $num= 1;
@@ -6129,7 +6121,7 @@ for my $file (@vhdlfiles) {
   (undef, undef, $trunkname)= File::Spec->splitpath($file->{name});
   $trunkname =~ s/\.[^\.]*$//;
   $file->{link}= sourcelink($file->{name}) if $config{sourcelinks};
-  $file->{docfilename}= $config{prefix} . $trunkname . ".html";
+  $file->{docfilename}= "$config{prefix}$trunkname.html";
   push @{$docfilenames{$file->{docfilename}}}, $file;
 }
 
@@ -6195,11 +6187,11 @@ for my $lib (keys(%libraries)) {
     $ac->{libname} = $lib;
     next if $ac->{objname} =~ /\..*\./ || 
   ($ac->{objname} =~ /^([^.\s]+)\s*\./ && grep($_ eq $1, keys(%libraries)));
-    $ac->{objname}= $lib . "." . $ac->{objname};
+    $ac->{objname}= "$lib.$ac->{objname}";
   }
   for (@ents, @packs, @pbods) {
     $_->{libname} = $lib;
-    $_->{fullname}= $lib . "." . $_->{name};
+    $_->{fullname}= "$lib.$_->{name}";
   }
   add_selnames($lib, @ents, @archs, @confs, @packs, @pbods);
   push @entities, @ents;
@@ -6274,8 +6266,7 @@ for my $ent (@entities)
         my ($subject)= grep $_->{name} eq $docname, @gens;
         if( !$subject ) {
           print STDERR "Spurious \@generic referring to non-existing generic ",
-                        "$docname of entity ", $ent->{name}, " in file ",
-                        $ent->{filename}, "\n";
+                  "$docname of entity $ent->{name} in file $ent->{filename}\n";
           next;
         }
         unshift @{$subject->{doc}{description}}, $ent->{doc}{generic}{$docname};
@@ -6287,8 +6278,7 @@ for my $ent (@entities)
         my ($subject)= grep $_->{name} eq $docname, @ports;
         if( !$subject ) {
           print STDERR "Spurious \@port referring to non-existing port ",
-                        "$docname of entity ", $ent->{name}, " in file ",
-                        $ent->{filename}, "\n";
+                  "$docname of entity $ent->{name} in file $ent->{filename}\n";
           next;
         }
         unshift @{$subject->{doc}{description}}, $ent->{doc}{port}{$docname};
@@ -6299,7 +6289,7 @@ for my $ent (@entities)
   # Match attribute specifications to declarations and to targets
   match_attributes($ent);
   # HTML file name
-  $ent->{docfilename}= $config{prefix} . $ent->{fullname} . ".html";
+  $ent->{docfilename}= "$config{prefix}$ent->{fullname}.html";
 }
 
 
@@ -6312,11 +6302,10 @@ for my $arch (@architectures) {
   # Match attribute specifications to declarations and to targets
   match_attributes($arch);
   # HTML file name
-  $arch->{docfilename}= $config{prefix} . $arch->{objname} . "-" .
-                          $arch->{name} . ".html";
+  $arch->{docfilename}= "$config{prefix}$arch->{objname}-$arch->{name}.html";
   for my $child (@{$arch->{children}}, @{$arch->{allinstances}}, @{$arch->{allpsldefs}}) {
     if( $labels{$child->{type}} && $child->{name} ) {
-      $child->{doclink}= "../architectures/" . $arch->{docfilename} . "#"
+      $child->{doclink}= "../architectures/$arch->{docfilename}#"
                             . $labels{$child->{type}} . $child->{name};
     }
   }
@@ -6330,8 +6319,7 @@ for my $conf (@configurations) {
   # Build list of configurations we do not know the entity of
   push @orphanedconfs, $conf unless $conf->{entity};
   # HTML file name
-  $conf->{docfilename}= $config{prefix} . $conf->{objname} . "-" .
-                          $conf->{name} . ".html";
+  $conf->{docfilename}= "$config{prefix}$conf->{objname}-$conf->{name}.html";
   # Now assign objects to the use statements
   resolve_configuration($conf, \%libraries);
 }
@@ -6348,13 +6336,13 @@ for my $pack (@packages)
     }
   }
   # HTML file name
-  $pack->{docfilename}= $config{prefix} . $pack->{fullname} . ".html";
+  $pack->{docfilename}= "$config{prefix}$pack->{fullname}.html";
   # Create full name and HTML link (where applicable) for declarative items in
   # package
   for my $child (@{$pack->{children}}, @{$pack->{allpsldefs}}) {
-    $child->{fullname}= $pack->{fullname} . "." . $child->{name};
+    $child->{fullname}= "$pack->{fullname}.$child->{name}";
     if( $labels{$child->{type}} && $child->{name} ) {
-      $child->{doclink}= "../packages/" . $pack->{docfilename} . "#" .
+      $child->{doclink}= "../packages/$pack->{docfilename}#" .
                                 $labels{$child->{type}} . $child->{name};
     }
   }
@@ -6382,7 +6370,7 @@ for my $pbody (@packagebodies)
   # Match attribute specifications to declarations and to targets
   match_attributes($pbody);
   # HTML file name
-  $pbody->{docfilename}= $config{prefix} . $pbody->{fullname} . ".html";
+  $pbody->{docfilename}= "$config{prefix}$pbody->{fullname}.html";
 }
 
 for my $opb (@orphanedpbodies)
@@ -6393,9 +6381,9 @@ for my $opb (@orphanedpbodies)
   # Create full name and HTML link (where applicable) for declarative items in
   # package body, since we do not have a package to match
   for my $child (@{$opb->{children}}) {
-    $child->{fullname}= $opb->{fullname} . "." . $child->{name};
+    $child->{fullname}= "$opb->{fullname}.$child->{name}";
     if( $labels{$child->{type}} && $child->{name} ) {
-      $child->{doclink}= "../packages/" . $opb->{docfilename} . "#" .
+      $child->{doclink}= "../packages/$opb->{docfilename}#" .
                                 $labels{$child->{type}} . $child->{name};
     }
   }
