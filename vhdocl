@@ -2474,9 +2474,9 @@ sub prepareparallel
       }
       $config{jobs}= 0 if $config{jobs} <= 1;
     }
-    elsif( $^O eq "darwin" ) {    # OS X
+    elsif( $^O eq "darwin" || $^O =~ /bsd/i ) {    # OS X and BSDs
       local $SIG{__WARN__}= sub {};   # silence warnings about failed `...`
-      $config{jobs}= `sysctl -n hw.ncpu`;
+      $config{jobs}= `sysctl -n hw.ncpu` + 0;
       $config{jobs}= 3 unless $? == 0;
     }
     else {
