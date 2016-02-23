@@ -1555,12 +1555,12 @@ sub readcomplete
 }
 
 
-# Read generic or port declaration list.  Nested parentheses are tracked.
-# Documentation comments are assigned to individual ports or generics.  Before
-# returning, the doc comment variables are cleared to avoid reuse at the end of
-# the main loop in parsefile().
-# -> String to write to the "type" entry of the resulting hashes, "port" or
-#    "generic"
+# Read generic, port or record element declaration list.  Nested parentheses
+# are tracked.  Documentation comments are assigned to individual ports or
+# generics.  Before returning, the doc comment variables are cleared to avoid
+# reuse at the end of the main loop in parsefile().
+# -> String to write to the "type" entry of the resulting hashes:  "port",
+#    "generic" or "recordelement"
 #    Error file handle (IO reference for error messages)
 #    Reference to hash of parent declaration (used only for ports and generics
 #    when @fromwrapper or @frominstance is used)
