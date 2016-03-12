@@ -1902,10 +1902,11 @@ vhdlline:
     elsif( !$label && $vline =~ s/^context\s+//i ) {
       last vhdlline unless defined(readuntil( qr/\sis\b/i ));
       if( $vline =~ s/($ID)\s+is\b//io ) {
-        $newchild= { "type", "context", "name", $1 };
+        $newchild= { "type", "context", "name", $1, "subtype", "declaration" };
       }
       elsif( $vline =~ s/($SIDLIST)\s*;//io ) {
-        @newentries= map +{ "type", "context", "name", $_ }, split(/\s*,\s*/, $1);
+        @newentries= map +{ "type", "context", "name", $_, "subtype", "reference" },
+                        split(/\s*,\s*/, $1);
         map { $_->{name} =~ s/\s+//g; } @newentries;
       }
     }
@@ -2955,6 +2956,100 @@ tryfunctarget:
 }
 
 
+# Recursively find all contexts referenced directly or indirectly by a given
+# context.
+# -> Reference to context declaration hash
+#    Reference to hash set of context declarations in this branch of the
+#    dependency tree, to prevent infinite recursion
+sub collect_subcontexts
+{
+  my ($context, $trace)= @_;
+  my @loops;
+
+  $trace ||= {};
+  $trace->{$context}= 1;
+  $context->{allcontexts}= {};
+  $context->{alluses}= {};
+  for my $contref (@{$context->{childtype}{context}}) {
+    my $subcont= $contref->{object};
+    next unless $subcont;
+    if( $trace->{$subcont} ) {
+      push @loops, $subcont;
+    }
+    else {
+      collect_subcontexts($subcont, $trace)
+          unless $subcont->{allcontexts};
+      @{$context->{allcontexts}}{keys %{$subcont->{allcontexts}}}= values %{$subcont->{allcontexts}};
+      $context->{allcontexts}{$subcont}= $subcont;
+      merge_uselist($context->{alluses}, $subcont->{alluses});
+    }
+  }
+  for my $loop (@loops) {
+    @{$context->{allcontexts}}{keys %{$loop->{allcontexts}}}= values %{$loop->{allcontexts}};
+    $context->{allcontexts}{$loop}= $loop;
+    $loop->{allcontexts}= $context->{allcontexts};
+    merge_uselist($context->{alluses}, $loop->{alluses});
+    $loop->{alluses}= $context->{alluses};
+  }
+  for my $use (@{$context->{childtype}{use}}) {
+    add2uselist($context->{alluses}, $use, $context->{libname});
+  }
+  delete $trace->{$context};
+}
+
+
+# Add a selected name from a package use statement to a hash representation of
+# use clauses.  Use of "all" causes all more specific use clauses from the same
+# package to be removed.
+# -> Reference to use clause list in the following format: The top-level hash
+#    reference contains as its keys the full names of the packages.  Its values
+#    can be the reference to the corresponding use statement (corresponding to
+#    "all") or a reference to a hash mapping identifiers to use statements
+#    of identifiers.
+#    Selected name from a use clause
+#    Default library
+sub add2uselist
+{
+  my ($list, $use, $lib)= @_;
+
+  my ($pack, $uitem)= $use->{name} =~ /^(.*)\.(\w+)$/ or return;
+  $pack= "$lib.$pack" unless $pack =~ /\./;
+  if( lc($uitem) eq "all" ) {
+    $list->{$pack}= $use;
+  }
+  # The "type" entry distinguishes a hash representing a use statement from a
+  # hash containing a list of non-"all" use statements.
+  elsif( ! $list->{$pack} || ! $list->{$pack}{type} ) {
+    $list->{$pack}{$uitem}= $use;
+  }
+}
+
+
+# Merge the content of a hash representation of a list of use clauses to
+# another.  "all" entries override all more specific ones from the same
+# package; otherwise the individual symbols are added.
+# -> Reference to hash representation of destination list
+#    Reference to hash representation of list to merge
+sub merge_uselist
+{
+  my ($dest, $src)= @_;
+
+  for (keys %$src) {
+    # The "type" entry distinguishes a hash representing a use statement from a
+    # hash containing a list of non-"all" use statements.
+    if( $src->{$_}{type} ) {
+      $dest->{$_}= $src->{$_};
+    }
+    elsif( ! $dest->{$_} ) {
+      $dest->{$_}= { %{$src->{$_}} };
+    }
+    elsif( ! $dest->{$_}{type} ) {
+      @{$dest->{$_}}{keys %{$src->{$_}}}= values %{$src->{$_}};
+    }
+  }
+}
+
+
 # Blacklist to avoid false positives when searching type expressions for
 # user-defined types: (this is merely an optimisation)
 my %no_usertypes= map { $_ => 1; } qw( array of to downto range integer
@@ -3063,12 +3158,16 @@ sub merge_selname
 }
 
 
+# Primary design units we document and their doc subdirectories:
+my %unitdirs= ( "entity" => "entities", "architecture" => "architectures",
+                "configuration" => "configurations", "context" => "contexts",
+                "package" => "packages", "packagebody" => "packages" );
+
 {
 
 # Table of selected names.  Those tables which will be searched are initialised
 # up-front to avoid "can't use undef as hash ref" errors.
-my %selnames= map { $_ => {}; }
-  qw(entity architecture configuration package packagebody component type psl);
+my %selnames= map { $_ => {}; } (keys(%unitdirs), qw(component type psl));
 # Dummy scalar the reference to which indicates that multiple objects with that
 # name and type exist.
 my $multiple;
@@ -3122,7 +3221,6 @@ sub find_selname
 }
 
 
-
 # Try to resolve @see cross references to design elements.  This function
 # should only be called when the "docfilename" and "doclink" entries of various
 # possible reference targets have already been defined.
@@ -3141,17 +3239,8 @@ sub resolve_seealso
     my $candidate= find_selname($see->[0], "", $libname);
     next unless $candidate;
     $see->[1]= $candidate;
-    if( $candidate->{type} eq "entity" ) {
-      $see->[2]= "../entities/$candidate->{docfilename}";
-    }
-    elsif( $candidate->{type} eq "architecture" ) {
-      $see->[2]= "../architectures/$candidate->{docfilename}";
-    }
-    elsif( $candidate->{type} eq "configuration" ) {
-      $see->[2]= "../configurations/$candidate->{docfilename}";
-    }
-    elsif( $candidate->{type} =~ /^package(?:body)?$/ ) {
-      $see->[2]= "../packages/$candidate->{docfilename}";
+    if( $unitdirs{$candidate->{type}} ) {
+      $see->[2]= "../$unitdirs{$candidate->{type}}/$candidate->{docfilename}";
     }
     elsif( $candidate->{doclink} ) {  # declarative item in a package
       $see->[2]= $candidate->{doclink};
@@ -3761,8 +3850,7 @@ sub prepareoutput
 
   eval { File::Path::mkpath( $dir ); };
   croak "Cannot create output directory `$dir' - $@" if $@;
-  for my $d ("entities", "architectures", "configurations", "packages",
-            "sources", "style")
+  for my $d (values(%unitdirs), "sources", "style")
   {
     my $subdir= File::Spec->catdir($dir, $d);
     if( opendir(DIR, $subdir) ) {
@@ -4153,8 +4241,8 @@ sub printdescription
 }
 
 
-# Print the common part of a HTML file pertaining to an entity, architecture or
-# package, below the header and headline.
+# Print the common part of an HTML file pertaining to an entity, architecture,
+# configuration, package or context, below the header and headline.
 # -> File handle to print to
 #    Reference to hash representing the entity etc.
 sub printobjhtml
@@ -4217,26 +4305,37 @@ sub printobjhtml
 my %labels= ( component => "comp:", instance => "inst:", type => "type:",
               psl => "psl:" );
 
-# Print HTML fragment describing the libraries and package use clauses
-# affecting an object.
+# Print HTML fragment describing the libraries, package use clauses and context
+# references affecting an object.
 # -> File handle to print to
 #    Reference to hash representing entity, architecture, configuration,
-#    package or package body
+#    context, package or package body
+#    Flag to omit declarations in the file outside the object
 sub printlibusehtml
 {
-  my ($handle, $obj)= @_;
-  my (%libs, %uses);        # use hashes to make libs/packages unique
+  my ($handle, $obj, $nofile)= @_;
+  my (%libs, %uses, %conts);        # use hashes for deduplication
+  my @headwords;
 
-  for (@{$obj->{file}{children}}, @{$obj->{children}}) {
+  for ( ($nofile ? () : @{$obj->{file}{children}}), @{$obj->{children}}) {
     if( $_->{type} eq "library" ) {
       $libs{lc($_->{name})}= $_;
     }
     elsif( $_->{type} eq "use" && $_->{subtype} eq "package" ) {
       $uses{lc($_->{name})}= $_;
     }
+    elsif( $_->{type} eq "context" && $_->{subtype} eq "reference" ) {
+      $conts{lc($_->{name})}= $_;
+    }
   }
-  return unless keys(%libs) || keys(%uses);
-  print $handle "\n<h2>Libraries and global use clauses</h2>\n\n$STDTAB\n";
+  push @headwords, "libraries" if %libs;
+  push @headwords, "global use clauses" if %uses;
+  push @headwords, "context references" if %conts;
+  return unless @headwords;
+  print $handle "\n<h2>", ucfirst(cswordlist(" and ", @headwords)), "</h2>\n\n$STDTAB\n";
+  for my $contname (sort keys %conts) {
+    printusehtml($handle, $conts{$contname});
+  }
   my @sortuses= sort keys %uses;
   for my $lib (sort keys %libs) {
     my $markedname= markvhdl($libs{$lib}{name});
@@ -4256,25 +4355,26 @@ sub printlibusehtml
 }
 
 
-# Print HTML fragment describing a package use clause
+# Print HTML fragment describing a package use clause or context reference
 # -> File handle to print to
 #    Reference to hash representing use clause
 sub printusehtml
 {
   my ($handle, $use)= @_;
+  my $type= $use->{type};
   my $markedname= markvhdl($use->{name});
 
   if( $use->{object} && (my $link= $use->{object}{doclink}) ) {
-    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ <a href=\"$link\">",
-                  $markedname, "</a></td></tr>\n";
+    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}$type$SP_ ",
+                  "<a href=\"$link\">$markedname</a></td></tr>\n";
   }
   elsif( $use->{package} ) {
-    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ",
+    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}$type$SP_ ",
               "<a href=\"../packages/", $use->{package}{docfilename},
               "\">$markedname</a></td></tr>\n";
   }
   else {
-    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}use$SP_ ", $markedname,
+    print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}$type$SP_ $markedname",
                   "</td></tr>\n";
   }
   map { print $handle "<tr>$TDI<td$CLSDESC>$_</td></tr>\n"; }
@@ -5034,7 +5134,7 @@ sub configurationhtml
 }
 
 
-# Resolve @see cross references in documentation of package declarations.
+# Resolve @see cross references in documentation of declarations in packages.
 # -> Reference to hash of the declaration being documented
 #    Reference to hash of package
 # (<-) For those references which are resolved, the second element of the array
@@ -5374,6 +5474,57 @@ sub packagehtml
 }
 
 
+# Generate the documentation HTML page of a context declaration.  First the
+# package use clauses and context references are printed (similar as for other
+# top-level constructs but without those in effect from the file level).  Then
+# a list of all packages and package elements made available is printed, sorted
+# by the full package name.
+# -> Reference to hash representing context declaration
+sub contexthtml
+{
+  my ($cont)= @_;
+  my $fname= File::Spec->catfile($config{outputdir}, "contexts",
+                                 $cont->{docfilename});
+
+  if( !open(CONT, ">$fname") ) {
+    limitfileerr("Cannot create output file $fname", \$packhtmlerr);
+    return;
+  }
+  printhtmlheader(*CONT{IO}, $cont->{fullname});
+  print CONT "\n<h1>Context $cont->{fullname}</h1>\n";
+  printobjhtml(*CONT{IO}, $cont);
+  printlibusehtml(*CONT{IO}, $cont, 1);
+  if( %{$cont->{alluses}} ) {
+    print CONT "\n\n<h2>All packages made available</h2>\n\n$STDTAB\n";
+    for my $usepack (sort keys %{$cont->{alluses}}) {
+      my $use= $cont->{alluses}{$usepack};
+      # The "type" entry distinguishes a hash representing a use statement from
+      # a hash containing a list of non-"all" use statements.
+      my $pack= $use->{type} ? $use->{package} : $use->{(keys %$use)[0]}->{package};
+      print CONT "<tr$CCO><td align=\"left\">";
+      print CONT "From " unless $use->{type};
+      print CONT "<a href=\"../packages/$pack->{docfilename}\">" if $pack;
+      print CONT markvhdl($usepack);
+      print CONT "</a>" if $pack;
+      print CONT ":" unless $use->{type};
+      print CONT " </td><td align=\"left\">";
+      if( ! $use->{type} ) {
+        print CONT join(", ",
+          map $use->{$_}{object} && $use->{$_}{object}{doclink} ?
+               "<a href=\"$use->{$_}{object}{doclink}\">$_</a>" : $_,
+          sort keys %$use);
+      }
+      elsif( $pack && $pack->{doc}{brief} ) {
+        print CONT $pack->{doc}{brief};
+      }
+      print CONT "</td></tr>\n";
+    }
+    print CONT "</table>\n\n";
+  }
+  close CONT;
+}
+
+
 my $sourcehtmlerr= 0;
 my @htmlescapes= qw( x &amp; &lt; &gt; &quot; );
 
@@ -5677,13 +5828,15 @@ sub entitylisthtml
 }
 
 
-# Generate the HTML page listing packages
+# Generate the HTML page listing packages and context declarations.
 # -> Reference to array of hash references representing packages
 #    Reference to array of hash references representing package bodies not
-#    associated with any package (known to us), or undef
+#    associated with any package (known to us)
+#    Reference to array of hash references representing contexts
 sub packagelisthtml
 {
-  my ($packs, $opbodies)= @_;
+  my ($packs, $opbodies, $conts)= @_;
+  my %plural= ( "context" => "contexts", "package" => "packages", "opbodies" => "orphaned package bodies" );
   my $fname= File::Spec->catfile($config{outputdir},
                                 "$config{prefix}packages.html");
 
@@ -5691,35 +5844,24 @@ sub packagelisthtml
     print STDERR "Cannot create output file $fname - $!\n";
     return;
   }
-  printhtmlheader(*LIST{IO}, "Packages", 1);
-  if( !@$packs && (!$opbodies || !@$opbodies) ) {
-    print LIST "\n<h1>List of packages</h1>\n\n";
-    print LIST "<p>No packages were found.</p>\n";
+  printhtmlheader(*LIST{IO}, "Packages" . (@$conts ? " and contexts":""), 1);
+  if( !@$packs && !@$opbodies && !@$conts ) {
+    print LIST "\n<h1>List of packages and contexts</h1>\n\n";
+    print LIST "<p>No packages or context declarations were found.</p>\n";
     printhtmlfooter(*LIST{IO});
     close LIST;
     return;
   }
-  if( @$packs ) {
-    print LIST "\n<h1>List of packages</h1>\n\n";
+  for my $list ($packs, $opbodies, $conts) {
+    next unless @$list;
+    print LIST "\n<h1>List of $plural{$$list[0]{type}}</h1>\n\n";
     print LIST "\n\n$STDTAB\n";
-    my @sorted= sort { lc($a->{fullname}) cmp lc($b->{fullname}) } @$packs;
-    for my $pack (@sorted) {
-      print LIST "<tr><td><a href=\"packages/$pack->{docfilename}",
-                  "\"><b>$pack->{fullname}</b></td>";
-      if( my $brief= $pack->{doc}{brief} ) {
-        print LIST "<td>$brief</td>";
-      }
-      print LIST "</tr>\n";
-    }
-    print LIST "</table>\n\n";
-  }
-  if( $opbodies && @$opbodies ) {
-    print LIST "\n<h1>List of orphaned package bodies</h1>\n\n";
-    print LIST "\n\n$STDTAB\n";
-    for my $pbody (@$opbodies) {
-      print LIST "<tr><td><a href=\"packages/$pbody->{docfilename}",
-                  "\"><b>$pbody->{fullname}</b></td>";
-      if( my $brief= $pbody->{doc}{brief} ) {
+    my @sorted= sort { lc($a->{fullname}) cmp lc($b->{fullname}) } @$list;
+    my $dir= $unitdirs{$$list[0]{type}};
+    for my $obj (@sorted) {
+      print LIST "<tr><td><a href=\"$dir/$obj->{docfilename}",
+                  "\"><b>$obj->{fullname}</b></td>";
+      if( my $brief= $obj->{doc}{brief} ) {
         print LIST "<td>$brief</td>";
       }
       print LIST "</tr>\n";
@@ -6167,6 +6309,7 @@ my @architectures;
 my @configurations;
 my @packages;
 my @packagebodies;
+my @contexts;
 my @usertypes;
 my @userdeclids;
 my @pslids;
@@ -6193,22 +6336,25 @@ for my $lib (keys(%libraries)) {
   $duplicate += uniq_objs(\@packs, $lib);
   my @pbods= grep $_->{type} eq "packagebody", @$decls;
   $duplicate += uniq_objs(\@pbods, $lib);
+  my @conts= grep $_->{type} eq "context" && $_->{subtype} eq "declaration", @$decls;
+  $duplicate += uniq_objs(\@conts, $lib);
   for my $ac (@archs, @confs) {
     $ac->{libname} = $lib;
     next if $ac->{objname} =~ /\..*\./ || 
   ($ac->{objname} =~ /^([^.\s]+)\s*\./ && grep($_ eq $1, keys(%libraries)));
     $ac->{objname}= "$lib.$ac->{objname}";
   }
-  for (@ents, @packs, @pbods) {
+  for (@ents, @packs, @pbods, @conts) {
     $_->{libname} = $lib;
     $_->{fullname}= "$lib.$_->{name}";
   }
-  add_selnames($lib, @ents, @archs, @confs, @packs, @pbods);
+  add_selnames($lib, @ents, @archs, @confs, @packs, @pbods, @conts);
   push @entities, @ents;
   push @architectures, @archs;
   push @configurations, @confs;
   push @packages, @packs;
   push @packagebodies, @pbods;
+  push @contexts, @conts;
   push @userdeclids, map lc($_->{name}),
         map( ($_, @{$_->{childtype}{function} ||= []},
                   @{$_->{childtype}{procedure} ||= []},
@@ -6217,7 +6363,7 @@ for my $lib (keys(%libraries)) {
             (@archs, @packs, @pbods) );
   push @userdeclids, map lc($_->{name}), grep $_->{name},
                     map @{$_->{allprocesses}}, @archs;
-  push @userdeclids, map lc($_->{name}), (@ents, @confs);
+  push @userdeclids, map lc($_->{name}), (@ents, @confs, @conts);
   push @pslids, map lc($_->{name}), grep $_->{name},
                 map @{$_->{childtype}{psl} || []}, (@archs, @packs)
     if $config{psl};
@@ -6402,19 +6548,37 @@ for my $opb (@orphanedpbodies)
 }
 
 
-# Resolve package use clauses and link to the package.
-for my $file (@vhdlfiles)
+# Resolve package use clauses and context references in files at the top level
+# and in context declarations.
+for my $obj ( @vhdlfiles, @contexts )
 {
-  my @fuses= grep $_->{subtype} eq "package", @{$file->{uses}};
-  for my $useclause (@fuses) {
+  my @uses= grep $_->{subtype} eq "package", @{$obj->{type} eq "context" ?
+                                $obj->{childtype}{use} || [] : $obj->{uses}};
+  for my $useclause (@uses) {
     next unless $useclause->{name} =~ /^([^.\s]+\s*\.\s*[^.\s]+)/;
     my $pack= $1;
-    $useclause->{package}= find_selname($pack, "package", $file->{libname});
+    $useclause->{package}= find_selname($pack, "package", $obj->{libname});
     next unless $useclause->{package};
     next if $useclause->{name} =~ /\ball$/i;
     $useclause->{name} =~ /^$pack\s*\.\s*([^.\s]+)/;
     ($useclause->{object})= find_children($useclause->{package}, "name", $1);
   }
+  my @contrefs= grep $_->{subtype} eq "reference", ($obj->{type} eq "context" ?
+                          @{$obj->{childtype}{context}} :
+                          grep $_->{type} eq "context", @{$obj->{children}});
+  for my $ref (@contrefs) {
+    $ref->{object}= find_selname($ref->{name}, "context", $obj->{libname});
+  }
+}
+
+
+for my $cont (@contexts)
+{
+  # HTML file name
+  $cont->{docfilename}= "$config{prefix}$cont->{fullname}.html";
+  $cont->{doclink}= "../contexts/$cont->{docfilename}";
+  # Build list of [in]direct context references and use clauses
+  collect_subcontexts($cont);
 }
 
 
@@ -6823,7 +6987,7 @@ benchmark() if $config{benchmark};
 
 # Find targets of cross references, if any
 for my $obj (@entities, @architectures, @configurations, @packages,
-                @packagebodies) {
+                @packagebodies, @contexts) {
   next unless $obj->{doc}{see};
   resolve_seealso($obj->{doc}{see}, $obj->{file}{libname});
 }
@@ -6835,7 +6999,7 @@ for my $pack (@packages, @packagebodies) {
 }
 
 entitylisthtml(\@entities, \@orphanedarchs, \@orphanedconfs, scalar(@configurations));
-packagelisthtml(\@packages, \@orphanedpbodies);
+packagelisthtml(\@packages, \@orphanedpbodies, \@contexts);
 instantiationhtml(\@hierarchy, scalar(@chier));
 hierarchyhtml(\@hierarchy, \@topmods, scalar(@chier));
 sourcelisthtml(\@vhdlfiles);
@@ -6856,6 +7020,10 @@ for my $arch (@architectures) {
 
 for my $pack (@packages, @orphanedpbodies) {
   packagehtml($pack);
+}
+
+for my $cont (@contexts) {
+  contexthtml($cont);
 }
 
 if( $config{javasyntax} ) {
