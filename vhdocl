@@ -2351,7 +2351,8 @@ skipnext:
         # new entries having the same type.
         push @{$parent->{childtype}{$newentries[0]{type}}}, @newentries;
       }
-      if( $newentries[0]{type} eq "use" ) {
+      if( $newentries[0]{type} eq "use" ||
+          ($newentries[0]{type} eq "context" && $newentries[0]{subtype} eq "reference") ) {
         # List all use clauses to avoid recursive searches later
         if( @parsestack ) {
           my $top= @parsestack > 1? $parsestack[1]{backtrack} : $parent;
@@ -6552,8 +6553,16 @@ for my $opb (@orphanedpbodies)
 # and in context declarations.
 for my $obj ( @vhdlfiles, @contexts )
 {
-  my @uses= grep $_->{subtype} eq "package", @{$obj->{type} eq "context" ?
-                                $obj->{childtype}{use} || [] : $obj->{uses}};
+  my (@uses, @contrefs);
+
+  if( $obj->{type} eq "context" ) {
+    @uses= grep $_->{subtype} eq "package", @{$obj->{childtype}{use} || []};
+    @contrefs= grep $_->{subtype} eq "reference", @{$obj->{childtype}{context} || []};
+  }
+  else {
+    @uses= grep $_->{type} eq "use" && $_->{subtype} eq "package", @{$obj->{uses}};
+    @contrefs= grep $_->{type} eq "context", @{$obj->{uses}};
+  }
   for my $useclause (@uses) {
     next unless $useclause->{name} =~ /^([^.\s]+\s*\.\s*[^.\s]+)/;
     my $pack= $1;
@@ -6563,9 +6572,6 @@ for my $obj ( @vhdlfiles, @contexts )
     $useclause->{name} =~ /^$pack\s*\.\s*([^.\s]+)/;
     ($useclause->{object})= find_children($useclause->{package}, "name", $1);
   }
-  my @contrefs= grep $_->{subtype} eq "reference", ($obj->{type} eq "context" ?
-                          @{$obj->{childtype}{context}} :
-                          grep $_->{type} eq "context", @{$obj->{children}});
   for my $ref (@contrefs) {
     $ref->{object}= find_selname($ref->{name}, "context", $obj->{libname});
   }
@@ -6579,6 +6585,10 @@ for my $cont (@contexts)
   $cont->{doclink}= "../contexts/$cont->{docfilename}";
   # Build list of [in]direct context references and use clauses
   collect_subcontexts($cont);
+  # Generate flat list for resolving bindings.
+  # The "type" entry distinguishes a hash representing a use statement from
+  # a hash containing a list of non-"all" use statements.
+  $cont->{flatalluses}= [ map $_->{type} ? ($_) : (values %$_), values %{$cont->{alluses}} ];
 }
 
 
@@ -6590,10 +6600,16 @@ for my $obj (@architectures, @packages, @packagebodies) {
                     map( ( @{$_->{children} || []} ),
                          grep( $_->{subtype} eq "record",
                                @{$obj->{childtype}{type}} ))) );
+  @{$obj->{uses}}= map $_->{type} eq "context" ?
+                    ($_->{object} ? @{$_->{object}{flatalluses}} : ()) : ($_),
+                       @{$obj->{uses}};
   resolve_types($obj, @typed);
 }
 
 for my $ent (@entities) {
+  @{$ent->{uses}}= map $_->{type} eq "context" ?
+                    ($_->{object} ? @{$_->{object}{flatalluses}} : ()) : ($_),
+                       @{$ent->{uses}};
   resolve_types($ent, @{$ent->{childtype}{port}},
                       @{$ent->{childtype}{generic}} );
 }
@@ -6601,7 +6617,7 @@ for my $ent (@entities) {
 
 # Now take care of locally specified bindings and generic maps of instances.
 # Nested configurations will be tackled below.
-for my $arch (@architectures, @orphanedarchs)
+for my $arch (@architectures)
 {
   my @topuses= reverse grep $_->{subtype} eq "package", @{$arch->{uses}};
   my @comps= @{$arch->{childtype}{component}};
@@ -6639,7 +6655,7 @@ bindcompinst:
     # Now we tackle binding indications in the blocks enclosing the
     # instantiation.
     for my $use (reverse @{$inst->{uses}}) {
-      next if $use->{subtype} eq "package";
+      next if $use->{type} eq "context" || $use->{subtype} eq "package";
       my $for= $use->{for};
       next unless $for && lc($for->{objtype}) eq lc($inst->{objname}) &&
             ( lc($for->{objnames}[0]) eq "all" ||
