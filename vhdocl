@@ -5569,7 +5569,7 @@ sub sourcehtml
   $source= "<div class=\"shaded\">$source";
   my ($shadeon, $shadeoff)= ("\n<div class=\"shaded\">", "\n</div>");
   my $linenr= 0;
-  my $nlines= $source =~ s/\n/++$linenr & 1 ? $shadeoff : $shadeon/ge;
+  my $nlines= $source =~ s/\n/" " . (++$linenr & 1 ? $shadeoff : $shadeon)/ge;
   $source .= "</div>" if ($linenr & 1) == 0;
   ++$nlines unless $endnewline;
 
