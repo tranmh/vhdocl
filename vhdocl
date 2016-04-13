@@ -2091,8 +2091,8 @@ vhdlline:
     }
     elsif( $vline =~ s/^for\b//i ) {
       while( 13 ) {
-        if( $inconfiguration && $vline =~ s/^\s*($ID)\s*(for)/$2/io ) {
-          $newchild= { "type", "for", "subtype", "architecture", "objname", $1 };
+        if( $inconfiguration && $vline =~ s/^\s*($ID)\s*(?:\(\s*($ID)\s*\)\s*)?(for)/$3/io ) {
+          $newchild= { "type", "for", "subtype", "architecture", "objname", $1, "subname", $2 };
           # leave $aheaddoccom as it is
           last;
         }
@@ -2264,7 +2264,7 @@ vhdlline:
           $newchild= { type => "begin" };
         }
         elsif( $havegen && $parent->{subtype} =~ /^(?:els)?if$/ &&
-               $vline =~ s/^(?:($ID)\s*:\s*)?($MANY)\bgenerate\b//io ) {
+               $vline =~ s/^\s*(?:($ID)\s*:\s*)?($MANY)\bgenerate\b//io ) {
           my ($label2, $cond)= ($1, $2);
           $cond =~ s/^\s+//;
           $cond =~ s/\s+$//;
@@ -3293,6 +3293,8 @@ sub resolve_configuration
       else {
         my @candidates= grep $_->{type} =~ /^(?:generate|block)$/,
                 find_children($parentdecl, "name", $for->{objname});
+        @candidates= grep $_->{subname} && lc($_->{subname}) eq lc($for->{subname}), @candidates
+            if $for->{subname};
         $for->{object}= $candidates[0];
       }
       my @newfors= find_children($for, "type", "for");
@@ -5018,7 +5020,8 @@ sub printconfightml
                 $for->{objname}, "$SP_</a></b></td></tr>\n";
       }
       else {
-        print $handle $SPID, $for->{objname}, "$SP_</b></td></tr>\n";
+        print $handle $SPID, $for->{objname}, "$SP_</b>",
+              ($for->{subname} ? " ( $SPID$for->{subname}$SP_ )":""), "</td></tr>\n";
       }
       map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\"$CLSDESC>",
                    "$_</td></tr>\n" }    @{$for->{doc}{description}};
@@ -5050,7 +5053,7 @@ sub printconfightml
       }
       if( $use= $for->{use} ) {
         if( $for->{binding} ) {
-          print $handle " ${SPWD}use$SP_ $SPDCL$use->{subtype}",
+          print $handle " ${SPDCL}use$SP_ $SPDCL$use->{subtype}",
                 "$SP_ <a href=\"../",
               ($use->{subtype} eq "entity"? "entities/" : "configurations/"),
                 $for->{binding}{docfilename}, "\">$SPID", $use->{name},
@@ -5061,12 +5064,12 @@ sub printconfightml
                           $for->{archname}, "$SP_</a>)</td>$SP_</tr>\n";
           }
           elsif( $use->{archname} ) {
-           print $handle " ($SPID$use->{archname}$SP_)</td>$SP_</tr>\n";
+            print $handle " ($SPID$use->{archname}$SP_)</td>$SP_</tr>\n";
           }
         }
         else {
-          print $handle " use $use->{subtype} $use->{name}",
-                        ($use->{archname}? "($SPID$use->{archname}$SP_)" : ""),
+          print $handle " ${SPDCL}use $use->{subtype}$SP_ $SPID$use->{name}$SP_",
+                        ($use->{archname}? " ( $SPID$use->{archname}$SP_ )" : ""),
                         "</td>$SP_</tr>\n";
         }
       }
