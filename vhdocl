@@ -1568,14 +1568,18 @@ sub readcomplete
 sub readportlist
 {
   my ($type, $err, $parent)= @_;
-  my ($port, @ports);
+  my ($entry, @list);
+  my ($port, $generic, $recelem);   # flags for $type
   my $lastdoccom;
 
+  $port= $type eq "port";
+  $generic= $type eq "generic";
+  $recelem= $type eq "recordelement";
   while( 13 ) {
-    $port= "";
+    $entry= "";
     while( 13 ) {
       $vline =~ s/^($SEMIENTRY)//o;
-      $port .= $1;
+      $entry .= $1;
       last if $vline =~ /^[;)]/;
       my $new= <$vhandle>;
       return unless defined($new);
@@ -1590,26 +1594,31 @@ sub readportlist
     }
     $vline =~ s/^([;)])//;
     my $delimiter= $1;
-    if( $type eq "recordelement" && $port =~ /^\s*end\b/i ) {
-      $vline= $port . $delimiter . $vline;
+    if( $recelem && $entry =~ /^\s*end\b/i ) {
+      $vline= $entry . $delimiter . $vline;
       last;
     }
-    if( $port =~ /^\s*($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
+    my @newentries;
+    if( $generic && $entry =~ /^\s*type\s+($IDLIST)/ ) {
+      @newentries= map +{ "type", "generic", "subtype", "type", "name", $_ },
+                        split(/\s*,\s*/, $1);
+    }
+    elsif( $entry =~ /^\s*($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
                                   ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
       $doccomment ||= $lastdoccom if $keepdoccom;
       my $doc= $doccomment? parsedoccom($doccomment, $err) : undef;
       if( $doc && $parent && (exists($doc->{frominstance}) || exists($doc->{fromwrapper})) ) {
         $parent->{exists($doc->{frominstance}) ? "docfrominst":"docfromwrapper"}= 1;
       }
-      my @newports= map +{ "type", $type, "name", $_, "doc", $doc,
-                          "direction", $type eq "port" ? lc($2 || "in") : "",
+      @newentries= map +{ "type", $type, "name", $_, "doc", $doc,
+                          "direction", $port ? lc($2 || "in") : "",
                           "subtype", $3, "value", $4 }, split(/\s*,\s*/, $1);
-      push @ports, @newports;
-      if( $config{parsedebug} ) {
-        print "$.: found $type";
-        print "s" if $#newports;
-        print " ", join(", ", map($_->{name}, @newports)), "\n";
-      }
+    }
+    push @list, @newentries;
+    if( @newentries && $config{parsedebug} ) {
+      print "$.: found $type";
+      print "s" if $#newentries;
+      print " ", join(", ", map($_->{name}, @newentries)), "\n";
     }
     last if $delimiter eq ")";
     $lastdoccom= $doccomment if $keepdoccom;
@@ -1617,7 +1626,7 @@ sub readportlist
   }
   $doccomment= "";
   $keepdoccom= 0;
-  return @ports;
+  return @list;
 }
 
 
