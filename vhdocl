@@ -1605,20 +1605,23 @@ sub readportlist
     }
     elsif( $entry =~ /^\s*($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
                                   ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
+      @newentries= map +{ "type", $type, "name", $_,
+                          "direction", $port ? lc($2 || "in") : "",
+                          "subtype", $3, "value", $4 }, split(/\s*,\s*/, $1);
+    }
+    if( @newentries ) {
       $doccomment ||= $lastdoccom if $keepdoccom;
       my $doc= $doccomment? parsedoccom($doccomment, $err) : undef;
       if( $doc && $parent && (exists($doc->{frominstance}) || exists($doc->{fromwrapper})) ) {
         $parent->{exists($doc->{frominstance}) ? "docfrominst":"docfromwrapper"}= 1;
       }
-      @newentries= map +{ "type", $type, "name", $_, "doc", $doc,
-                          "direction", $port ? lc($2 || "in") : "",
-                          "subtype", $3, "value", $4 }, split(/\s*,\s*/, $1);
-    }
-    push @list, @newentries;
-    if( @newentries && $config{parsedebug} ) {
-      print "$.: found $type";
-      print "s" if $#newentries;
-      print " ", join(", ", map($_->{name}, @newentries)), "\n";
+      $_->{doc}= $doc for @newentries;
+      push @list, @newentries;
+      if( @newentries && $config{parsedebug} ) {
+        print "$.: found $type";
+        print "s" if $#newentries;
+        print " ", join(", ", map($_->{name}, @newentries)), "\n";
+      }
     }
     last if $delimiter eq ")";
     $lastdoccom= $doccomment if $keepdoccom;
