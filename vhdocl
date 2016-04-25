@@ -1603,8 +1603,8 @@ sub readportlist
       @newentries= map +{ "type", "generic", "subtype", "type", "name", $_ },
                         split(/\s*,\s*/, $1);
     }
-    elsif( $entry =~ /^\s*($IDLIST)\s*:\s*(?:(in|out|inout)\b)?\s*
-                                  ($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
+    elsif( $entry =~ /^\s*(?:(?:constant|signal)\s+)?($IDLIST)\s*:\s*
+           (?:(in|out|inout)\b)?\s*($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
       @newentries= map +{ "type", $type, "name", $_,
                           "direction", $port ? lc($2 || "in") : "",
                           "subtype", $3, "value", $4 }, split(/\s*,\s*/, $1);
