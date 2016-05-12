@@ -1924,14 +1924,20 @@ vhdlline:
     }
     elsif( !$label && $vline =~ s/^(entity|component|package|packagebody)\b//i ) {
       my $type= lc($1);
-      while( $vline !~ /\S/ ) {
-        getnextline(0) or last vhdlline;
+      last vhdlline unless defined readuntil( qr/\bis\s+\S/i );
+      if( $vline =~ s/\s+($ID)\s+is\s+new\b/new/io  ) {
+        @newentries= ( { "type", $type, "name", $1 } );
       }
-      if( $vline =~ s/\s+($ID)(?:\s+is\b)?//io  ) {
+      elsif( $vline =~ s/\s+($ID)(?:\s+is\b)?//io  ) {
         $newchild= { "type", $type, "name", $1 };
       }
       else {
         goto skipnext;
+      }
+    }
+    elsif( $vline =~ s/^new\s+($SID)//io ) {
+      if( $parent->{children} && @{$parent->{children}} ) {
+        $parent->{children}[-1]{instanceofname}= $1;
       }
     }
     elsif( $vline =~ /^case\b/i || (!$label && $vline =~ /^(?:architecture|configuration)\b/i) ) {
@@ -2167,13 +2173,12 @@ vhdlline:
       elsif( $type eq "generic" && $vline =~ s/^\s*map\s*\(//i ) {
         my $genmap= [];
         readcommalist($genmap);
-        @newentries= ( { "type", "genericmap", "map", $genmap } );
         skipstatement() or last vhdlline;
         if( $parent->{children} && @{$parent->{children}} ) {
-          $parent->{children}[-1]{genericmap}= $newentries[0];
+          $parent->{children}[-1]{genericmap}= $genmap;
         }
         else {
-          $parent->{genericmap}= $newentries[0];
+          $parent->{genericmap}= $genmap;
         }
       }
       else {
@@ -4830,11 +4835,10 @@ sub printinsthtml
   }
   printcommonhtml($handle, $inst);
   if( $inst->{genericmap} && @{$inst->{genericmap}} ) {
-    my @gmap= @{$inst->{genericmap}};
     print $handle "<tr>$TDI<td colspan=\"4\">Generic map:</td></tr>\n",
                   "<tr>$TDI$TDI<td colspan=\"3\"><table border=\"0\"$CCO>\n";
     map { print $handle "  <tr><td>$SPID$$_[0]$SP_</td><td> => ",
-                              markvhdl($$_[1]), "</td></tr>\n"; } @gmap;
+                    markvhdl($$_[1]), "</td></tr>\n"; } @{$inst->{genericmap}};
     print $handle "</table></td></tr>\n";
   }
   # Now for explicit binding of component instances
@@ -4863,8 +4867,7 @@ sub printinsthtml
     print $handle "$SP_</td></tr>\n";
     map { print $handle "<tr>$TDI$TDI<td colspan=\"3\"$CLSDESC>$_</td></tr>\n" }
                         @{$inst->{binddoc}};
-    if( $inst->{bindgen} ) {
-      my $map= $inst->{bindgen}{map};
+    if( my $map= $inst->{bindgen} ) {
       print $handle "<tr>$TDI$TDI<td colspan=\"3\">Generic map:</td></tr>\n",
                 "<tr>$TDI$TDI$TDI<td colspan=\"2\"><table border=\"0\"$CCO>\n";
       map { print $handle "  <tr><td>$SPID$$_[0]$SP_</td><td> => ",
@@ -5092,8 +5095,7 @@ sub printconfightml
                    "$_</td></tr>\n" }    @{$for->{doc}{description}};
       map { print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1, "\"$CLSDESC>",
                "$_</td></tr>\n" }    @{$for->{use}{doc}{description}};
-      if( $for->{bindgen} ) {
-        my $map= $for->{bindgen}{map};
+      if( my $map= $for->{bindgen} ) {
         print $handle "<tr>$ind2$TDI<td colspan=\"", $span-1,
                 "\">Generic map:</td></tr>\n<tr>$ind2$TDI$TDI<td colspan=\"",
                 $span-2, "\"><table border=\"0\"$CCO>\n";
@@ -5429,11 +5431,37 @@ sub packagehtml
       @{$pbody->{childtype}}{qw(function procedure funcproc constant)}=
                                  ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts);
     }
-    print PACK "<h1>Package $pack->{fullname}</h1>\n\n";
+    my $packstr= @{$pack->{childtype}{generic}} ? "Generic package" : "Package";
+    print PACK "<h1>$packstr $pack->{fullname}</h1>\n\n";
     printobjhtml(*PACK{IO}, $pack);
     print PACK "\n<hr>\n\n";
     printpackagesummary(*PACK{IO}, $pack) if $config{packagesummary} ne "never";
     printlibusehtml(*PACK{IO}, $pack);
+    if( my @gens= @{$pack->{childtype}{generic}} ) {
+      print PACK "\n<h2>Generics</h2>\n\n$STDTAB\n";
+      map { printgenporthtml(*PACK{IO}, $_) } @gens;
+      print PACK "</table>\n\n";
+    }
+    if( $pack->{instances} && @{$pack->{instances}} ) {
+      print PACK "\n<h2>Instances</h2>\n\n$STDTAB\n";
+      for my $inst (@{$pack->{instances}}) {
+        print PACK "<tr$PCDCL><td colspan=\"3\"><b><a name=\"", $labels{instance},
+              $inst->{name}, "\">$SPDID$inst->{name}$SP_</a></b></td></tr>\n";
+        printcommonhtml(*PACK{IO}, $inst);
+        if( $inst->{genericmap} && @{$inst->{genericmap}} ) {
+          print PACK "<tr>$TDI<td colspan=\"2\">Generic map:</td></tr>\n",
+                     "<tr>$TDI$TDI<td><table border=\"0\"$CCO>\n";
+          map { print PACK "  <tr><td>$SPID$$_[0]$SP_</td><td> => ",
+                   markvhdl($$_[1]), "</td></tr>\n"; } @{$inst->{genericmap}};
+          print PACK "</table></td></tr>\n";
+        }
+        else {
+          print PACK "<tr>$TDI<td colspan=\"2\">Default generic values</td></tr>\n";
+        }
+      }
+      print PACK "</table>\n\n";
+    }
+    print PACK "<hr>\n\n" if @{$pack->{childtype}{generic}};
     if( my @types= @{$pack->{childtype}{type}} ) {
       print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
       map { printtypehtml(*PACK{IO}, $_, 1) } @types;
@@ -6530,6 +6558,16 @@ for my $pack (@packages)
   map { $_->{binding}= find_selname($_->{name}, "entity",
                             $pack->{fullname}); }
             @{$pack->{childtype}{component}};
+  $pack->{childtype}{generic} ||= [];
+  if( $pack->{instanceofname} ) {
+    $pack->{instanceof}= find_selname($pack->{instanceofname}, "package", $pack->{libname});
+    push @{$pack->{instanceof}{instances}}, $pack if $pack->{instanceof};
+  }
+}
+for my $pack (@packages)
+{
+    next unless $pack->{instances};
+    @{$pack->{instances}}= sort { lc($$a{fullname}) cmp lc($$b{fullname}) } @{$pack->{instances}};
 }
 
 
