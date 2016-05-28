@@ -4261,6 +4261,29 @@ sub printdescription
 }
 
 
+# Print HTML fragment of file name and optional link to source file page and
+# actual source file.  No newline is appended.
+# -> File handle to print to
+#    Reference to hash representing the declaration.  The "filename" entry must
+#    exist.
+sub printfileref
+{
+  my ($handle, $obj)= @_;
+
+  if( $obj->{file} ) {
+    print $handle "<a href=\"../sources/", $obj->{file}{docfilename},
+          "\">", substr($obj->{filename}, $config{prepathlen}), "</a>";
+    print $handle "&nbsp;&nbsp;&nbsp;<a href=\"",
+          ($obj->{file}{link} =~ /^\w+:\/\// ? "":"../"),
+           $obj->{file}{link}, "\">[source file]</a>"
+        if defined $obj->{file}{link};
+  }
+  else {
+    print $handle substr($obj->{filename}, $config{prepathlen});
+  }
+}
+
+
 # Print the common part of an HTML file pertaining to an entity, architecture,
 # configuration, package or context, below the header and headline.
 # -> File handle to print to
@@ -4273,18 +4296,8 @@ sub printobjhtml
         if $obj->{doc}{brief};
   if( $obj->{filename} ) {
     print $handle "<p>Defined in ";
-    if( $obj->{file} ) {
-      print $handle "<a href=\"../sources/", $obj->{file}{docfilename},
-            "\">", substr($obj->{filename}, $config{prepathlen}), "</a>";
-      print $handle "&nbsp;&nbsp;&nbsp;<a href=\"",
-            ($obj->{file}{link} =~ /^\w+:\/\// ? "":"../"),
-             $obj->{file}{link}, "\">[source file]</a>"
-          if defined $obj->{file}{link};
-      print $handle "</p>\n";
-    }
-    else {
-      print $handle substr($obj->{filename}, $config{prepathlen}), "</p>\n"
-    }
+    printfileref($handle, $obj);
+    print $handle "</p>\n";
   }
   for (qw(synthesis simulation testbench deprecated internal)) {
     print $handle "<h3><b>", ucfirst($_), "</b></h3>\n" if $obj->{doc}{$_};
@@ -5452,6 +5465,11 @@ sub packagehtml
       print PACK "<tr$PCDCL><td colspan=\"3\"><b><a name=\"$labels{instance}",
         "$inst->{fullname}\">$SPDID$inst->{fullname}$SP_</a></b></td></tr>\n";
       printcommonhtml(*PACK{IO}, $inst);
+      if( $inst->{filename} ) {
+        print PACK "<tr>$TDI<td colspan=\"2\">Defined in ";
+        printfileref(*PACK{IO}, $inst);
+        print PACK "</td></tr>\n";
+      }
       if( $inst->{genericmap} && @{$inst->{genericmap}} ) {
         print PACK "<tr>$TDI<td colspan=\"2\">Generic map:</td></tr>\n",
                    "<tr>$TDI$TDI<td><table border=\"0\"$CCO>\n";
