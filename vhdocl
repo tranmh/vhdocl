@@ -5225,9 +5225,20 @@ sub labelfuncproc
   my ($func)= @_;
 
   return if $func->{label};
-  $func->{label}= substr($func->{type},0,4) . ":$func->{name}" .
-                  "-" . substr(Digest::MD5::md5_hex($func->{parlist} . 
-                                          ($func->{subtype} || "")), 0, 8);
+  my $labelname= $func->{name};
+  if( $labelname !~ /^\w+$/ ) {
+    $labelname =~ s/^"//;
+    $labelname =~ s/"$//;
+    if( $labelname =~ /^\w+$/ ) {
+      $labelname= "op-$labelname";
+    }
+    else {
+      $labelname= "op-" . unpack("H*", $labelname);
+    }
+  }
+  $func->{label}= substr($func->{type},0,4) . ":$labelname-" .
+                  substr(Digest::MD5::md5_hex($func->{parlist} . 
+                          ($func->{subtype} || "")), 0, 8);
 }
 
 
