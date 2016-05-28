@@ -4390,8 +4390,7 @@ sub printusehtml
   }
   elsif( $use->{package} ) {
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}$type$SP_ ",
-              "<a href=\"../packages/", $use->{package}{docfilename},
-              "\">$markedname</a></td></tr>\n";
+          "<a href=\"../$use->{package}{doclink}\">$markedname</a></td></tr>\n";
   }
   else {
     print $handle "<tr$CCO><td colspan=\"2\">${SPDCL}$type$SP_ $markedname",
@@ -5371,14 +5370,14 @@ sub printpacksumitem
 
 my $packhtmlerr= 0;
 
-# Write the HTML documentation for a package or orphaned package body.  The
-# documentation of functions and procedures in a package and the corresponding
-# package body are concatenated and printed in the documentation of the package
-# only.  To this end, the duplicate functions/procedures are removed from the
-# package body hash, and their the documentation in the package is modified.
-# If no declarations specific to the package body remain to be documented, the
+# Write the HTML documentation for a package.  The documentation of functions
+# and procedures in a package and the corresponding package body are
+# concatenated and printed in the documentation of the package only.  To this
+# end, the duplicate functions/procedures are removed from the package body
+# hash, and their the documentation in the package is modified.  If no
+# declarations specific to the package body remain to be documented, the
 # section about the package body is left out.
-# -> Reference to hash representing package or package body
+# -> Reference to hash representing the package
 sub packagehtml
 {
   my ($pack)= @_;
@@ -5391,103 +5390,104 @@ sub packagehtml
     return;
   }
   printhtmlheader(*PACK{IO}, $pack->{fullname});
-  if( $pack->{type} eq "package" ) {
-    $pbody= $pack->{packagebody};
-    if( $pbody ) {
-      my ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts)= ( [], [], [], [] );
-      for my $f (@{$pbody->{childtype}{function}}) {
-        my $el= elem { packsubeq($_, $f) } @{$pack->{childtype}{function}};
-        if( $el ) {
-          push @{$el->{doc}{description}}, @{$f->{doc}{description} || []};
-        }
-        else {
-          push @$pbfuncs, $f
-        }
+  $pbody= $pack->{packagebody};
+  if( $pbody ) {
+    my ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts)= ( [], [], [], [] );
+    for my $f (@{$pbody->{childtype}{function}}) {
+      my $el= elem { packsubeq($_, $f) } @{$pack->{childtype}{function}};
+      if( $el ) {
+        push @{$el->{doc}{description}}, @{$f->{doc}{description} || []};
       }
-      for my $p (@{$pbody->{childtype}{procedure}}) {
-        my $el= elem { packsubeq($_, $p) } @{$pack->{childtype}{procedure}};
-        if( $el ) {
-          push @{$el->{doc}{description}}, @{$p->{doc}{description} || []};
-        }
-        else {
-          push @$pbprocs, $p;
-        }
+      else {
+        push @$pbfuncs, $f
       }
-      # Can't just concatenate ->{function} and ->{procedure} because we
-      # want to preserve order
-      for my $f (@{$pbody->{childtype}{funcproc}}) {
-        push @$pbfuncprocs, $f if elem { $_ == $f } (@$pbfuncs, @$pbprocs);
+    }
+    for my $p (@{$pbody->{childtype}{procedure}}) {
+      my $el= elem { packsubeq($_, $p) } @{$pack->{childtype}{procedure}};
+      if( $el ) {
+        push @{$el->{doc}{description}}, @{$p->{doc}{description} || []};
       }
-      for my $c (@{$pbody->{childtype}{constant}}) {
-        my $el= elem { lc($c->{name}) eq lc($_->{name}) }
-                        @{$pack->{childtype}{constant}};
-        if( $el ) {
-          push @{$el->{doc}{description}}, @{$c->{doc}{description} || []};
-        }
-        else {
-          push @$pbconsts, $c;
-        }
+      else {
+        push @$pbprocs, $p;
       }
-      @{$pbody->{childtype}}{qw(function procedure funcproc constant)}=
-                                 ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts);
     }
-    my $packstr= @{$pack->{childtype}{generic}} ? "Generic package" : "Package";
-    print PACK "<h1>$packstr $pack->{fullname}</h1>\n\n";
-    printobjhtml(*PACK{IO}, $pack);
-    print PACK "\n<hr>\n\n";
-    printpackagesummary(*PACK{IO}, $pack) if $config{packagesummary} ne "never";
-    printlibusehtml(*PACK{IO}, $pack);
-    if( my @gens= @{$pack->{childtype}{generic}} ) {
-      print PACK "\n<h2>Generics</h2>\n\n$STDTAB\n";
-      map { printgenporthtml(*PACK{IO}, $_) } @gens;
-      print PACK "</table>\n\n";
+    # Can't just concatenate ->{function} and ->{procedure} because we
+    # want to preserve order
+    for my $f (@{$pbody->{childtype}{funcproc}}) {
+      push @$pbfuncprocs, $f if elem { $_ == $f } (@$pbfuncs, @$pbprocs);
     }
-    if( $pack->{instances} && @{$pack->{instances}} ) {
-      print PACK "\n<h2>Instances</h2>\n\n$STDTAB\n";
-      for my $inst (@{$pack->{instances}}) {
-        print PACK "<tr$PCDCL><td colspan=\"3\"><b><a name=\"", $labels{instance},
-              $inst->{name}, "\">$SPDID$inst->{name}$SP_</a></b></td></tr>\n";
-        printcommonhtml(*PACK{IO}, $inst);
-        if( $inst->{genericmap} && @{$inst->{genericmap}} ) {
-          print PACK "<tr>$TDI<td colspan=\"2\">Generic map:</td></tr>\n",
-                     "<tr>$TDI$TDI<td><table border=\"0\"$CCO>\n";
-          map { print PACK "  <tr><td>$SPID$$_[0]$SP_</td><td> => ",
-                   markvhdl($$_[1]), "</td></tr>\n"; } @{$inst->{genericmap}};
-          print PACK "</table></td></tr>\n";
-        }
-        else {
-          print PACK "<tr>$TDI<td colspan=\"2\">Default generic values</td></tr>\n";
-        }
+    for my $c (@{$pbody->{childtype}{constant}}) {
+      my $el= elem { lc($c->{name}) eq lc($_->{name}) }
+                      @{$pack->{childtype}{constant}};
+      if( $el ) {
+        push @{$el->{doc}{description}}, @{$c->{doc}{description} || []};
       }
-      print PACK "</table>\n\n";
+      else {
+        push @$pbconsts, $c;
+      }
     }
-    print PACK "<hr>\n\n" if @{$pack->{childtype}{generic}};
-    if( my @types= @{$pack->{childtype}{type}} ) {
-      print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
-      map { printtypehtml(*PACK{IO}, $_, 1) } @types;
-      print PACK "</table>\n\n";
-    }
-    if( my @consts= @{$pack->{childtype}{constant}} ) {
-      print PACK "\n<h2>Constants</h2>\n\n$STDTAB\n";
-      map { printgenporthtml(*PACK{IO}, $_, "const:$_->{name}") } @consts;
-      print PACK "</table>\n\n";
-    }
-    printfuncprochtml(*PACK{IO}, $pack, 1);
-    if( my @comps= @{$pack->{childtype}{component}} ) {
-      print PACK "\n<h2>Component declarations</h2>\n\n$STDTAB\n";
-      map { printcomphtml(*PACK{IO}, $_, 1) } @comps;
-      print PACK "</table>\n\n";
-    }
-    printpslhtml(*PACK{IO}, $pack, 1);
-    unless( $pbody ) {
-      printhtmlfooter(*PACK{IO});
-      close PACK;
-      return;
-    }
+    @{$pbody->{childtype}}{qw(function procedure funcproc constant)}=
+                               ($pbfuncs, $pbprocs, $pbfuncprocs, $pbconsts);
+  }
+  my $packstr= @{$pack->{childtype}{generic}} || $pack->{instances} ?
+                "Generic package" : "Package";
+  print PACK "<h1>$packstr $pack->{fullname}</h1>\n\n";
+  if( ! $pack->{filename} ) {
+    print PACK "<p>\n(Package declaration not found)\n</p>\n\n";
   }
   else {
-    $pbody= $pack;
-    $pack= undef;
+    printobjhtml(*PACK{IO}, $pack);
+    print PACK "\n<hr>\n\n";
+  }
+  printpackagesummary(*PACK{IO}, $pack) if $config{packagesummary} ne "never";
+  printlibusehtml(*PACK{IO}, $pack);
+  if( my @gens= @{$pack->{childtype}{generic}} ) {
+    print PACK "\n<h2>Generics</h2>\n\n$STDTAB\n";
+    map { printgenporthtml(*PACK{IO}, $_) } @gens;
+    print PACK "</table>\n\n";
+  }
+  if( $pack->{instances} && @{$pack->{instances}} ) {
+    print PACK "\n<h2>Instances</h2>\n\n$STDTAB\n";
+    for my $inst (@{$pack->{instances}}) {
+      print PACK "<tr$PCDCL><td colspan=\"3\"><b><a name=\"$labels{instance}",
+        "$inst->{fullname}\">$SPDID$inst->{fullname}$SP_</a></b></td></tr>\n";
+      printcommonhtml(*PACK{IO}, $inst);
+      if( $inst->{genericmap} && @{$inst->{genericmap}} ) {
+        print PACK "<tr>$TDI<td colspan=\"2\">Generic map:</td></tr>\n",
+                   "<tr>$TDI$TDI<td><table border=\"0\"$CCO>\n";
+        map { print PACK "  <tr><td>$SPID$$_[0]$SP_</td><td> => ",
+                 markvhdl($$_[1]), "</td></tr>\n"; } @{$inst->{genericmap}};
+        print PACK "</table></td></tr>\n";
+      }
+      else {
+        print PACK "<tr>$TDI<td colspan=\"2\">Default generic values</td></tr>\n";
+      }
+    }
+    print PACK "</table>\n\n";
+  }
+  print PACK "<hr>\n\n" if @{$pack->{childtype}{generic}};
+  if( my @types= @{$pack->{childtype}{type}} ) {
+    print PACK "\n<h2>Type declarations</h2>\n\n$STDTAB\n";
+    map { printtypehtml(*PACK{IO}, $_, 1) } @types;
+    print PACK "</table>\n\n";
+  }
+  if( my @consts= @{$pack->{childtype}{constant}} ) {
+    print PACK "\n<h2>Constants</h2>\n\n$STDTAB\n";
+    map { printgenporthtml(*PACK{IO}, $_, "const:$_->{name}") } @consts;
+    print PACK "</table>\n\n";
+  }
+  printfuncprochtml(*PACK{IO}, $pack, 1);
+  if( my @comps= @{$pack->{childtype}{component}} ) {
+    print PACK "\n<h2>Component declarations</h2>\n\n$STDTAB\n";
+    map { printcomphtml(*PACK{IO}, $_, 1) } @comps;
+    print PACK "</table>\n\n";
+  }
+  printpslhtml(*PACK{IO}, $pack, 1);
+
+  unless( $pbody ) {
+    printhtmlfooter(*PACK{IO});
+    close PACK;
+    return;
   }
   # Only document package body if it contains further declarations
   unless( @{$pbody->{childtype}{type}} ||
@@ -5547,7 +5547,7 @@ sub contexthtml
       my $pack= $use->{type} ? $use->{package} : $use->{(keys %$use)[0]}->{package};
       print CONT "<tr$CCO><td align=\"left\">";
       print CONT "From " unless $use->{type};
-      print CONT "<a href=\"../packages/$pack->{docfilename}\">" if $pack;
+      print CONT "<a href=\"../$pack->{doclink}\">" if $pack;
       print CONT markvhdl($usepack);
       print CONT "</a>" if $pack;
       print CONT ":" unless $use->{type};
@@ -5874,40 +5874,48 @@ sub entitylisthtml
 
 # Generate the HTML page listing packages and context declarations.
 # -> Reference to array of hash references representing packages
-#    Reference to array of hash references representing package bodies not
-#    associated with any package (known to us)
+#    Reference to array of hash references representing packages not found in
+#    source but with package body or instances (if generic)
 #    Reference to array of hash references representing contexts
 sub packagelisthtml
 {
-  my ($packs, $opbodies, $conts)= @_;
-  my %plural= ( "context" => "contexts", "package" => "packages", "opbodies" => "orphaned package bodies" );
+  my ($packs, $mispacks, $conts)= @_;
   my $fname= File::Spec->catfile($config{outputdir},
                                 "$config{prefix}packages.html");
+  my @sorted= sort { lc($a->{fullname}) cmp lc($b->{fullname}) } @$packs, @$mispacks;
 
   if( !open(LIST, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
     return;
   }
-  printhtmlheader(*LIST{IO}, "Packages" . (@$conts ? " and contexts":""), 1);
-  if( !@$packs && !@$opbodies && !@$conts ) {
+  printhtmlheader(*LIST{IO}, "Packages" . (@$conts || !@sorted ? " and contexts":""), 1);
+  if( !@sorted && !@$conts ) {
     print LIST "\n<h1>List of packages and contexts</h1>\n\n";
     print LIST "<p>No packages or context declarations were found.</p>\n";
-    printhtmlfooter(*LIST{IO});
-    close LIST;
-    return;
   }
-  for my $list ($packs, $opbodies, $conts) {
-    next unless @$list;
-    print LIST "\n<h1>List of $plural{$$list[0]{type}}</h1>\n\n";
-    print LIST "\n\n$STDTAB\n";
-    my @sorted= sort { lc($a->{fullname}) cmp lc($b->{fullname}) } @$list;
-    my $dir= $unitdirs{$$list[0]{type}};
+  if( @sorted ) {
+    print LIST "\n<h1>List of packages</h1>\n\n\n$STDTAB\n";
     for my $obj (@sorted) {
-      print LIST "<tr><td><a href=\"$dir/$obj->{docfilename}",
-                  "\"><b>$obj->{fullname}</b></td>";
-      if( my $brief= $obj->{doc}{brief} ) {
-        print LIST "<td>$brief</td>";
+      print LIST "<tr><td colspan=\"2\"><a href=\"packages/$obj->{docfilename}",
+                  "\"><b>$obj->{fullname}</b></a></td>";
+      print LIST "<td>$obj->{doc}{brief}</td>" if $obj->{doc}{brief};
+      print LIST "</tr>\n";
+      for (@{$obj->{instances} || []}) {
+        print LIST "<tr>$TDI<td><a href=\"packages/$obj->{docfilename}",
+                   "#$labels{instance}$_->{fullname}\">$_->{fullname}</a></td>";
+        print LIST "<td>$_->{doc}{brief}</td>" if $_->{doc}{brief};
+        print LIST "</tr>\n";
       }
+    }
+    print LIST "</table>\n\n";
+  }
+  if( @$conts ) {
+    @sorted= sort { lc($a->{fullname}) cmp lc($b->{fullname}) } @$conts;
+    print LIST "\n<h1>List of contexts</h1>\n\n\n$STDTAB\n";
+    for my $obj (@sorted) {
+      print LIST "<tr><td><a href=\"contexts/$obj->{docfilename}",
+                  "\"><b>$obj->{fullname}</b></a></td>";
+      print LIST "<td>$obj->{doc}{brief}</td>" if $obj->{doc}{brief};
       print LIST "</tr>\n";
     }
     print LIST "</table>\n\n";
@@ -6525,18 +6533,82 @@ for my $conf (@configurations) {
 }
 
 
+my %emptychildtypes= ( component => [], type => [], constant => [],
+    function => [], procedure => [], funcproc => [], generic => [] );
+
+my @standalonepacks;
+my @missingpacks;
+
+# Sort out instances of generic packages first:
 for my $pack (@packages)
 {
-  # Assign body to package
-  for my $pbod (@packagebodies) {
-    if( lc($pack->{fullname}) eq lc($pbod->{fullname}) ) {
-      $pack->{packagebody}= $pbod;
-      $pbod->{package}= $pack;
-      last;
-    }
+  if( ! $pack->{instanceofname} ) {
+    push @standalonepacks, $pack;
+    next;
   }
+  my $genpack= find_selname($pack->{instanceofname}, "package", $pack->{libname});
+  if( $genpack ) {
+    $pack->{instanceof}= $genpack;
+    push @{$genpack->{instances}}, $pack;
+  }
+  else {    # create package hash for missing generic package
+    my $packname= $pack->{instanceofname};
+    $packname =~ s/^.*\.//;
+    my $fullname= $pack->{instanceofname};
+    $fullname= "$pack->{libname}.$packname" unless $packname =~ /\./;
+    push @missingpacks,
+        { type => "package", name => $packname, libname => $pack->{libname},
+          fullname => $fullname, instances => [ $pack ],
+          children => [], allpsldefs => [], childtype => \%emptychildtypes };
+        # childtypes should be read only, so can be shared
+    add_selnames($pack->{libname}, $missingpacks[-1]);
+  }
+}
+
+@packages= @standalonepacks;
+@standalonepacks= ();
+
+for my $pbody (@packagebodies)
+{
+  # HTML file name
+  $pbody->{docfilename}= "$config{prefix}$pbody->{fullname}.html";
+  # Assign body to package
+  my $pack= find_selname($pbody->{name}, "package", $pbody->{libname});
+  if( $pack ) {
+    $pbody->{package}= $pack;
+    $pack->{packagebody}= $pbody;
+  }
+  else {    # create package hash for missing package
+    push @missingpacks,
+      { type => "package", name => $pbody->{name}, libname => $pbody->{libname},
+        fullname => $pbody->{fullname}, packagebody => $pbody,
+        children => [], allpsldefs => [], childtype => \%emptychildtypes };
+      # childtypes should be read only, so can be shared
+    add_selnames($pbody->{libname}, $missingpacks[-1]);
+    # Find default bindings for components declared in the package
+    map { $_->{binding}= find_selname($_->{name}, "entity", $pbody->{fullname}); }
+                @{$pbody->{childtype}{component}};
+    # Create full name and HTML link (where applicable) for declarative items in
+    # package body, since we do not have a package to match
+    for my $child (@{$pbody->{children}}) {
+      $child->{fullname}= "$pbody->{fullname}.$child->{name}";
+      if( $labels{$child->{type}} && $child->{name} ) {
+        $child->{doclink}= "../packages/$pbody->{docfilename}#" .
+                                  $labels{$child->{type}} . $child->{name};
+      }
+    }
+    # Add component declarations to selected name table
+    add_selnames($pbody->{fullname}, @{$pbody->{childtype}{component}});
+  }
+  # Match attribute specifications to declarations and to targets
+  match_attributes($pbody);
+}
+
+for my $pack (@packages, @missingpacks)
+{
   # HTML file name
   $pack->{docfilename}= "$config{prefix}$pack->{fullname}.html";
+  $pack->{doclink}= "packages/$pack->{docfilename}";
   # Create full name and HTML link (where applicable) for declarative items in
   # package
   for my $child (@{$pack->{children}}, @{$pack->{allpsldefs}}) {
@@ -6559,47 +6631,15 @@ for my $pack (@packages)
                             $pack->{fullname}); }
             @{$pack->{childtype}{component}};
   $pack->{childtype}{generic} ||= [];
-  if( $pack->{instanceofname} ) {
-    $pack->{instanceof}= find_selname($pack->{instanceofname}, "package", $pack->{libname});
-    push @{$pack->{instanceof}{instances}}, $pack if $pack->{instanceof};
-  }
-}
-for my $pack (@packages)
-{
-    next unless $pack->{instances};
-    @{$pack->{instances}}= sort { lc($$a{fullname}) cmp lc($$b{fullname}) } @{$pack->{instances}};
-}
-
-
-my @orphanedpbodies;
-
-for my $pbody (@packagebodies)
-{
-  # Build list of package bodies we didn't find a package for
-  push @orphanedpbodies, $pbody unless $pbody->{package};
-  # Match attribute specifications to declarations and to targets
-  match_attributes($pbody);
-  # HTML file name
-  $pbody->{docfilename}= "$config{prefix}$pbody->{fullname}.html";
-}
-
-for my $opb (@orphanedpbodies)
-{
-  # Find default bindings for components declared in the package
-  map { $_->{binding}= find_selname($_->{name}, "entity", $opb->{fullname}); }
-              @{$opb->{childtype}{component}};
-  # Create full name and HTML link (where applicable) for declarative items in
-  # package body, since we do not have a package to match
-  for my $child (@{$opb->{children}}) {
-    $child->{fullname}= "$opb->{fullname}.$child->{name}";
-    if( $labels{$child->{type}} && $child->{name} ) {
-      $child->{doclink}= "../packages/$opb->{docfilename}#" .
-                                $labels{$child->{type}} . $child->{name};
+  if( $pack->{instances} ) {
+    @{$pack->{instances}}=
+        sort { lc($$a{fullname}) cmp lc($$b{fullname}) } @{$pack->{instances}};
+    for (@{$pack->{instances}}) {
+      $_->{doclink}= "$pack->{doclink}#$labels{instance}$_->{fullname}";
     }
   }
-  # Add component declarations to selected name table
-  add_selnames($opb->{fullname}, @{$opb->{childtype}{component}});
 }
+
 
 
 # Resolve package use clauses and context references in files at the top level
@@ -7068,7 +7108,7 @@ for my $pack (@packages, @packagebodies) {
 }
 
 entitylisthtml(\@entities, \@orphanedarchs, \@orphanedconfs, scalar(@configurations));
-packagelisthtml(\@packages, \@orphanedpbodies, \@contexts);
+packagelisthtml(\@packages, \@missingpacks, \@contexts);
 instantiationhtml(\@hierarchy, scalar(@chier));
 hierarchyhtml(\@hierarchy, \@topmods, scalar(@chier));
 sourcelisthtml(\@vhdlfiles);
@@ -7087,7 +7127,7 @@ for my $arch (@architectures) {
   architecturehtml($arch);
 }
 
-for my $pack (@packages, @orphanedpbodies) {
+for my $pack (@packages, @missingpacks) {
   packagehtml($pack);
 }
 
