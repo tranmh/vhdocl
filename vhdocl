@@ -6789,7 +6789,8 @@ for my $cont (@contexts)
 }
 
 
-# Resolve the user-defined types in all kinds of declarations
+# Resolve the user-defined types in all kinds of declarations, and instances of
+# generic subprograms
 for my $obj (@architectures, @packages, @packagebodies) {
   my @typed= (@{$obj->{childtype}{constant}},
               @{$obj->{childtype}{type}},
@@ -6805,12 +6806,15 @@ for my $obj (@architectures, @packages, @packagebodies) {
   resolve_genfunc($obj, @funcprocinsts);
 }
 
-for my $ent (@entities) {
-  @{$ent->{uses}}= map $_->{type} eq "context" ?
+for my $obj (@entities, @packages) {
+  @{$obj->{uses}}= map $_->{type} eq "context" ?
                     ($_->{object} ? @{$_->{object}{flatalluses}} : ()) : ($_),
-                       @{$ent->{uses}};
-  resolve_types($ent, @{$ent->{childtype}{port}},
-                      @{$ent->{childtype}{generic}} );
+                       @{$obj->{uses}};
+  my %gentypes= map { lc($_->{name}) => 1 } grep $_->{subtype} eq "type", @{$obj->{childtype}{generic}};
+  $gentypes{type}= 1;
+  my @typed= grep ! $gentypes{lc($_->{subtype})},
+                @{$obj->{childtype}{generic}}, @{$obj->{childtype}{port} || []};
+  resolve_types($obj, @typed);
 }
 
 
