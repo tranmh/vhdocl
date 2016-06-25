@@ -1599,7 +1599,7 @@ sub readportlist
       last;
     }
     my @newentries;
-    if( $generic && $entry =~ /^\s*type\s+($IDLIST)/ ) {
+    if( $generic && $entry =~ /^\s*type\s+($IDLIST)/i ) {
       @newentries= map +{ "type", "generic", "subtype", "type", "name", $_ },
                         split(/\s*,\s*/, $1);
     }
