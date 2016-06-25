@@ -1963,7 +1963,8 @@ vhdlline:
     }
     elsif( $vline =~ s/^(?:(procedure|function)|((?:im)?pure))\b//i ) {
       my ($type, $pure)= (lc($1 || ""), lc($2 || "pure"));
-      my ($is, $return, $parlist, $params)= ("", "", "", []);
+      my ($isdef, $return, $parlist, $params)= ("", "", "", []);
+      my @generics;
       if( ! $type ) {   # if this started with "pure" or "impure"
         while( $vline !~ /\S/ ) {
           getnextline(0) or last vhdlline;
@@ -1975,32 +1976,45 @@ vhdlline:
       goto skipnext unless $vline =~ s/^\s*($ID|$OP)\s*//o;
       my $name= $1;
       while( 13 ) {
-        goto skipnext unless $vline =~ s/^\s*(\(|\b(?:is|return)\b|;)//i;
-        if( $1 eq "(" && !$parlist ) {
+        goto skipnext unless $vline =~ s/^\s*((?:parameter\s*)?\(|is\b|return\b|generic\s*\(|;)//i;
+        if( substr($1, -1) eq "(" && !$parlist ) {
           $parlist= readarglist($params);
           last vhdlline unless defined(readuntil( qr/\bis\b/i ));
+        }
+        elsif( lc(substr($1,0,7)) eq "generic" ) {
+          @generics= readportlist("generic", $err, $parent);
         }
         elsif( lc($1) eq "return" ) {
           goto skipnext if $type eq "procedure";
           $vline =~ s/^($MSTUFF)(?:\b(is)\b|;)//io;
-          ($return, $is)= ($1, $2);
+          ($return, $isdef)= ($1, $2);
           $return =~ s/^\s+//;
           $return =~ s/\s+$//;
           last;
         }
-        elsif( lc($1) eq "is" || $1 eq ";" ) {
-          $is= $1 ne ";";
+        elsif( lc($1) eq "is" ) {
+          $isdef= 1;
+          if( $type eq "function" && ! $return ) {
+            last vhdlline unless defined readuntil( qr/\bnew\b/i );
+            goto skipnext unless $vline =~ /^\s*new\b/i;
+            # Ignore function definition without return type, but allow
+            # instance of generic function.
+            $isdef= 0;
+          }
+          last;
+        }
+        elsif( $1 eq ";" ) {
           next vhdlline if $type eq "function";
-          # We will get here for a function only if no return type is present.
-          # We do not use "goto skipnext" because the ";" may already have been
-          # removed.
+          # Ignore function declaration without return type.  Do not use "goto
+          # skipnext" because the ";" has already been removed.
           last;
         }
       }
       $newchild= { "type", $type, "name", $name, "parlist", $parlist,
                     "parameters", $params };
       @$newchild{qw(subtype pure)}= ($return, $pure) if $type eq "function";
-      if( !$is ) {
+      $newchild->{childtype}{generic}= \@generics if @generics;
+      if( !$isdef ) {
         @newentries= ( $newchild );
         $newchild= undef;
       }
@@ -3068,9 +3082,71 @@ sub merge_uselist
 }
 
 
+# Resolve reference to minor declaration, i.e. sub-declaration of a major
+# design unit.  This function does the dirty work for resolve_types and
+# resolve_genfunc.  A declaration with the given name and type is searched for
+# in the parent design unit and all available packages.
+# -> Selected ID / name of declaration to look for
+#    Type of declaration to look for
+#    Reference to parent declaration hash
+#    Reference to array of package use clauses with two components (1 dot)
+#    Reference to array of package use clauses with three components (2 dot)
+#    Reference to hash for caching found declarations
+sub resolve_minordecl
+{
+  my ($id, $type, $parent, $puses2, $puses3, $cache)= @_;
+  my $result;
+
+  $id= lc($id);
+  return $$cache{$id} if exists $$cache{$id};
+  my $numdots= $id =~ tr/././;
+  if( $numdots > 2 ) {
+    $result= undef;
+  }
+  elsif( $numdots == 2 ) {
+    $result= find_selname($id, $type);
+  }
+  elsif( $numdots == 1 ) {
+    for my $use (@$puses2) {
+      my $selname= merge_selname(lc($use->{name}), $id);
+      next unless $selname;
+      $result= $$cache{$selname}, last if $$cache{$selname};
+      next if exists $$cache{$selname};
+      $result= $$cache{$selname}= find_selname($selname, $type);
+      last if $result;
+    }
+    unless( $result ) {
+      my $selname= "$parent->{libname}.$id";
+      if( exists $$cache{$selname} ) {
+        $result= $$cache{$selname};
+      }
+      else {
+        $result= find_selname($selname, $type);
+        $$cache{$selname}= $result;
+      }
+    }
+  }
+  else {
+    ($result)= grep lc($_->{name}) eq $id, @{$parent->{childtype}{$type}};
+    unless( $result ) {
+      for my $use (@$puses3) {
+        my $selname= merge_selname(lc($use->{name}), $id);
+        next unless $selname;
+        $result= $$cache{$selname}, last if $$cache{$selname};
+        next if exists $$cache{$selname};
+        $result= $$cache{$selname}= find_selname($selname, $type);
+        last if $result;
+      }
+    }
+  }
+  $$cache{$id}= $result;
+  return $result;
+}
+
+
 # Blacklist to avoid false positives when searching type expressions for
 # user-defined types: (this is merely an optimisation)
-my %no_usertypes= map { $_ => 1; } qw( array of to downto range integer
+my %no_usertypes= map { $_ => undef; } qw( array of to downto range integer
 positive natural boolean real string character time std_ulogic
 std_ulogic_vector std_logic std_logic_vector signed unsigned );
 
@@ -3086,10 +3162,9 @@ std_ulogic_vector std_logic std_logic_vector signed unsigned );
 sub resolve_types
 {
   my ($obj)= shift;
-  my %resolved;
-  my %unresolved= %no_usertypes;
-  my $typedef;
+  my %resolved= %no_usertypes;
 
+  return unless @_;
   my @puses= reverse grep $_->{package}, @{$obj->{uses}};
   my @puses2= grep $_->{name} =~ tr/././ == 1, @puses;
   my @puses3= grep $_->{name} =~ tr/././ == 2, @puses;
@@ -3098,59 +3173,34 @@ sub resolve_types
     my $typeexpr= $typed->{$typed->{type} eq "type" ? "definition" : "subtype"};
     next unless $typeexpr;
     my @ids= $typeexpr =~ /$SID/g;
-typeexprid:
     for my $id (@ids) {
-      $id= lc($id);
-      next if $unresolved{$id};
-      $typed->{typedef}= $resolved{$id}, last if $resolved{$id};
-      my $numdots= $id =~ tr/././;
-      if( $numdots > 2 ) {
-        $unresolved{$id}= 1;
-        next;
-      }
-      elsif( $numdots == 2 ) {
-        $typedef= find_selname($id, "type");
-      }
-      elsif( $numdots == 1 ) {
-        for my $use (@puses2) {
-          my $selname= merge_selname($use->{name}, $id);
-          next unless $selname;
-          $typedef= find_selname($selname, "type");
-          next unless $typedef;
-          $resolved{$selname}= $typedef if $typedef;
-          last;
-        }
-        unless( $typedef ) {
-          my $selname= "$obj->{libname}.$id";
-          $typedef= find_selname($selname, "type");
-          $resolved{$selname}= $typedef if $typedef;
-        }
-      }
-      else {
-        ($typedef)= grep lc($_->{name}) eq $id, @{$obj->{childtype}{type}};
-        unless( $typedef ) {
-          for my $use (@puses3) {
-            my $selname= merge_selname($use->{name}, $id);
-            next unless $selname;
-            $typedef= find_selname($selname, "type");
-            next unless $typedef;
-            $resolved{$selname}= $typedef if $typedef;
-            last;
-          }
-        }
-      }
-      if( $typedef ) {
-        if( !ref($typedef) ) {
-            print "typedef is >$typedef< for $id\n";
-        }
-        $resolved{$id}= $typedef;
-        $typed->{typedef}= $typedef;
-        last;
-      }
-      else {
-        $unresolved{$id}= 1;
-      }
+      my $typedef= resolve_minordecl($id, "type", $obj, \@puses2, \@puses3, \%resolved);
+      $typed->{typedef}= $typedef, last if $typedef;
     }
+  }
+}
+
+
+# Resolve instances of generic functions and procedures.  This is similar to
+# but simpler than resolving types.  As for type declarations, generic
+# subprogram declarations are searched for in the same top-level construct and
+# in packages accessible by use statements.
+# -> Top-level construct containing the following instances
+#    List of instances of generic subprograms; all have to have an
+#    "instanceofname" entry
+sub resolve_genfunc
+{
+  my ($obj)= shift;
+  my %resolved;
+
+  return unless @_;
+  my @puses= reverse grep $_->{package}, @{$obj->{uses}};
+  my @puses2= grep $_->{name} =~ tr/././ == 1, @puses;
+  my @puses3= grep $_->{name} =~ tr/././ == 2, @puses;
+  @puses= ();
+  for my $inst (@_) {
+    $inst->{instanceof}= resolve_minordecl($inst->{instanceofname},
+                          $inst->{type}, $obj, \@puses2, \@puses3, \%resolved);
   }
 }
 
@@ -3185,7 +3235,7 @@ my %unitdirs= ( "entity" => "entities", "architecture" => "architectures",
 
 # Table of selected names.  Those tables which will be searched are initialised
 # up-front to avoid "can't use undef as hash ref" errors.
-my %selnames= map { $_ => {}; } (keys(%unitdirs), qw(component type psl));
+my %selnames= map { $_ => {}; } (keys(%unitdirs), qw(component type psl function procedure));
 # Dummy scalar the reference to which indicates that multiple objects with that
 # name and type exist.
 my $multiple;
@@ -3209,6 +3259,7 @@ sub add_selnames
     $table->{lc("$prefix.$_->{name}")}= $_;
   }
 }
+
 
 # Find the object denoted by a selected name.
 # -> Name of the object
@@ -4336,7 +4387,7 @@ sub printobjhtml
 
 
 my %labels= ( component => "comp:", instance => "inst:", type => "type:",
-              psl => "psl:" );
+              function => "func:", procedure => "proc:", psl => "psl:" );
 
 # Print HTML fragment describing the libraries, package use clauses and context
 # references affecting an object.
@@ -4643,13 +4694,15 @@ sub printfuncprochtml
 sub printfunchtml
 {
   my ($handle, $func, $inpack)= @_;
+  my $gen= $func->{childtype}{generic} && @{$func->{childtype}{generic}} ?
+           "generic " : "";
   my $label= $func->{label} ? "<a name=\"$func->{label}\">" : "";
   my $aclose= $func->{label} ? "</a>" : "";
   my $arglist= $func->{parlist} ?
                 " (" . markvhdl($func->{parlist}) . ")" : "";
   my $class= $inpack ? $PCDCL : $ARDCL;
 
-  print $handle "<tr$class><td colspan=\"5\">$SPDCL$func->{type}$SP_ ",
+  print $handle "<tr$class><td colspan=\"5\">$gen$SPDCL$func->{type}$SP_ ",
                 "<b>$label$SPDID$func->{name}$SP_$aclose</b>", $arglist,
                 ($func->{subtype}? " ${SPWD}return$SP_ " .
                                 markvhdl($func->{subtype}) : ""),
@@ -4657,6 +4710,25 @@ sub printfunchtml
   print $handle "<tr$CCO>$TDI<td colspan=\"4\"><b>${SPWD}impure$SP_</b></td></tr>\n"
         if $func->{pure} && $func->{pure} eq "impure";
   printcommonhtml($handle, $func);
+  if( $gen ) {
+    print $handle "<tr>$TDI<td colspan=\"4\"><b>Generics:</b></td></tr>\n<tr>$TDI$TDI<td colspan=\"3\">$STDTAB\n";
+    map { printgenporthtml($handle, $_) } @{$func->{childtype}{generic}};
+    print $handle "</table></td></tr>\n";
+  }
+  elsif( $func->{instanceofname} ) {
+    print $handle "<tr>$TDI<td colspan=\"4\">Instance of ";
+    print $handle !$func->{instanceof} ? "$func->{instanceofname}</td></tr>\n" :
+                ( "<a href=\"$func->{instanceof}{doclink}\">" .
+                 ($func->{instanceof}{fullname} || $func->{instanceof}{name}) .
+                "</a></td></tr>\n" );
+    if( $func->{genericmap} && @{$func->{genericmap}} ) {
+      print $handle "<tr>$TDI<td colspan=\"4\">Generic map:</td></tr>\n",
+                    "<tr>$TDI$TDI<td colspan=\"3\"><table border=\"0\"$CCO>\n";
+      map { print $handle "  <tr><td>$SPID$$_[0]$SP_</td><td> => ",
+                    markvhdl($$_[1]), "</td></tr>\n"; } @{$func->{genericmap}};
+      print $handle "</table></td></tr>\n";
+    }
+  }
 }
 
 
@@ -6653,6 +6725,8 @@ for my $pack (@packages, @missingpacks)
   add_selnames($pack->{fullname}, @{$pack->{childtype}{component}});
   # Add type declarations to selected name table
   add_selnames($pack->{fullname}, @{$pack->{childtype}{type}});
+  # Add generic subprogram declarations to selected name table
+  add_selnames($pack->{fullname}, grep $_->{childtype}{generic} && @{$_->{childtype}{generic}}, @{$pack->{childtype}{funcproc}});
   # Abuse selected name database for resolving PSL definition references
   add_selnames($pack->{fullname}, @{$pack->{allpsldefs}});
   # Find default bindings for components declared in the package
@@ -6726,6 +6800,8 @@ for my $obj (@architectures, @packages, @packagebodies) {
                     ($_->{object} ? @{$_->{object}{flatalluses}} : ()) : ($_),
                        @{$obj->{uses}};
   resolve_types($obj, @typed);
+  my @funcprocinsts= grep $_->{instanceofname}, @{$obj->{childtype}{funcproc}};
+  resolve_genfunc($obj, @funcprocinsts);
 }
 
 for my $ent (@entities) {
