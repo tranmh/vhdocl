@@ -6698,8 +6698,9 @@ for my $pbody (@packagebodies)
                                   $labels{$child->{type}} . $child->{name};
       }
     }
-    # Add component declarations to selected name table
-    add_selnames($pbody->{fullname}, @{$pbody->{childtype}{component}});
+    # Add generic subprogram declarations to selected name table, as
+    # subprograms may be exported by the missing package
+    add_selnames($pbody->{fullname}, grep $_->{childtype}{generic} && @{$_->{childtype}{generic}}, @{$pbody->{childtype}{funcproc}});
   }
   # Match attribute specifications to declarations and to targets
   match_attributes($pbody);
