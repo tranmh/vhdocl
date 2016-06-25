@@ -3144,11 +3144,9 @@ sub resolve_minordecl
 }
 
 
-# Blacklist to avoid false positives when searching type expressions for
+# Blacklist keywords and IEEE types (below) when searching type expressions for
 # user-defined types: (this is merely an optimisation)
-my %no_usertypes= map { $_ => undef; } qw( array of to downto range integer
-positive natural boolean real string character time std_ulogic
-std_ulogic_vector std_logic std_logic_vector signed unsigned );
+my %no_usertypes= map { $_ => 1; } qw( array of to downto range );
 
 # Resolve type identifiers of user-defined types.  This is deliberately less
 # sophisticated than the resolving of component instances below, because typed
@@ -3162,7 +3160,7 @@ std_ulogic_vector std_logic std_logic_vector signed unsigned );
 sub resolve_types
 {
   my ($obj)= shift;
-  my %resolved= %no_usertypes;
+  my %resolved;
 
   return unless @_;
   my @puses= reverse grep $_->{package}, @{$obj->{uses}};
@@ -3172,7 +3170,7 @@ sub resolve_types
   for my $typed (@_) {
     my $typeexpr= $typed->{$typed->{type} eq "type" ? "definition" : "subtype"};
     next unless $typeexpr;
-    my @ids= $typeexpr =~ /$SID/g;
+    my @ids= grep ! $no_usertypes{$_}, map lc($_), $typeexpr =~ /$SID/g;
     for my $id (@ids) {
       my $typedef= resolve_minordecl($id, "type", $obj, \@puses2, \@puses3, \%resolved);
       $typed->{typedef}= $typedef, last if $typedef;
@@ -4231,6 +4229,8 @@ my %SPANCLASS= ( map( { $_ => $SPIO; } @IOWORDS),
                  map( { $_ => $SPWD; } @OTHERWORDS),
                  map( { $_ => $SPIE; } @IEEEWORDS),
                  map( { $_ => $SPIET; } @IEEETYPES) );
+# Add IEEE types to exlusion hash set for resolve_types:
+@no_usertypes{@IEEETYPES}= (1) x @IEEETYPES;
 
 # Convert VHDL code to HTML with syntax markup expressed in CSS classes.
 # -> VHDL code
