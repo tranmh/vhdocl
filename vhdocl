@@ -1599,9 +1599,25 @@ sub readportlist
       last;
     }
     my @newentries;
-    if( $generic && $entry =~ /^\s*type\s+($IDLIST)/i ) {
-      @newentries= map +{ "type", "generic", "subtype", "type", "name", $_ },
-                        split(/\s*,\s*/, $1);
+    if( $generic && $entry =~ s/^\s*(type|function|procedure|package)\b//i ) {
+      my $t= lc($1);
+      if( $t eq "type" && $entry =~ /^\s*($IDLIST)/i ) {
+        @newentries= map +{ "type", "generic", "subtype", "type", "name", $_ },
+                          split(/\s*,\s*/, $1);
+      }
+      elsif( $t eq "package" && $entry =~ /^\s*($ID)\s+is\s+new\s+($SID)\s+generic\s+map\s*\(\s*($STUFF)\s*\)\s*$/io ) {
+        @newentries= ( { "type", "generic", "subtype", "package", "name", $1,
+                         "subname", $2, "genmapstr", $3 } );
+      }
+      elsif( $entry =~ s/^\s*($ID)\s*//io ) {
+        my ($n, $p, $i, $r)= ($1, "", "", "");
+        $p =~ s/\s+$//;
+        $i= $1 if $entry =~ s/\s*\bis\s+($SID|new\s+$STUFF)\s*$//io;
+        $r= $1 if $entry =~ s/\s*return\s+($MSTUFF)\s*$//io;
+        $p= $1 if $entry =~ /^\s*\(\s*($ANY)\s*\)\s*$/;
+        @newentries= ( { "type", "generic", "subtype", $t, "name", $n,
+                         "parlist", $p, "return", $r, "value", $i } );
+      }
     }
     elsif( $entry =~ /^\s*(?:(?:constant|signal)\s+)?($IDLIST)\s*:\s*
            (?:(in|out|inout)\b)?\s*($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
@@ -4469,6 +4485,7 @@ sub printusehtml
 # -> File handle to print to
 #    Reference to hash representing the generic/port/...
 #    Optional hyperlink label to insert
+my %nogenconst= map { $_ => 1; } qw(type package function procedure);
 sub printgenporthtml
 {
   my ($handle, $gp, $label)= @_;
@@ -4480,9 +4497,30 @@ sub printgenporthtml
                 "$SP_$aclose</b></td>\n";
   print $handle "<td align=\"center\"><i><b>$SPIO", $gp->{direction}, 
                 "$SP_</b></i></td>" if $gp->{direction};
-  print $handle "<td align=\"left\">", marktype($gp->{subtype}, $gp), "</td>\n";
-  print $handle "<td align=\"left\">:= ", markvhdl($gp->{value}), "</td>\n"
+  if( $nogenconst{$gp->{subtype}} ) {
+    if( $gp->{subtype} eq "type" ) {
+      print $handle "<td align=\"left\">${SPDCL}type$SP_</td>\n";
+    }
+    elsif( $gp->{subtype} eq "package" ) {
+      print $handle "<td align=\"left\">${SPWD}new$SP_ ${SPDCL}package$SP_ ",
+                    "$SPID$gp->{subname}$SP_ ${SPWD}generic map$SP_ ( ",
+                    markvhdl($gp->{genmapstr}), " )</td>\n";
+    }
+    else {
+      print $handle "<td align=\"left\">${SPDCL}$gp->{subtype}$SP_ ( ",
+                    markvhdl($gp->{parlist}), " ) ";
+      print $handle "${SPWD}return$SP_ ", markvhdl($gp->{return})
+          if $gp->{return};
+      print $handle "</td>\n";
+      print $handle "<td align=\"left\">${SPWD}is$SP_ ", markvhdl($gp->{value}), "</td>\n"
+          if $gp->{value};
+    }
+  }
+  else {
+    print $handle "<td align=\"left\">", marktype($gp->{subtype}, $gp), "</td>\n";
+    print $handle "<td align=\"left\">:= ", markvhdl($gp->{value}), "</td>\n"
         if $gp->{value};
+  }
   print $handle "</tr>\n";
   print $handle "<tr>$TDI<td colspan=\"4\"$CLSBRF>$gp->{doc}{brief}</td></tr>\n"
       if $gp->{doc}{brief};
