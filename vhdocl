@@ -4502,9 +4502,13 @@ sub printgenporthtml
       print $handle "<td align=\"left\">${SPDCL}type$SP_</td>\n";
     }
     elsif( $gp->{subtype} eq "package" ) {
-      print $handle "<td align=\"left\">${SPWD}new$SP_ ${SPDCL}package$SP_ ",
-                    "$SPID$gp->{subname}$SP_ ${SPWD}generic map$SP_ ( ",
-                    markvhdl($gp->{genmapstr}), " )</td>\n";
+      print $handle "<td align=\"left\">${SPWD}new$SP_ ${SPDCL}package$SP_ ";
+      print $handle "<a href=\"../$gp->{instanceof}{doclink}\">"
+          if $gp->{instanceof} && $gp->{instanceof}{doclink};
+      print $handle "$SPID$gp->{subname}$SP_";
+      print $handle "</a>"
+          if $gp->{instanceof} && $gp->{instanceof}{doclink};
+      print $handle " ${SPWD}generic map$SP_ ( ", markvhdl($gp->{genmapstr}), " )</td>\n";
     }
     else {
       print $handle "<td align=\"left\">${SPDCL}$gp->{subtype}$SP_ ( ",
@@ -6853,6 +6857,10 @@ for my $obj (@entities, @packages) {
   my @typed= grep ! $gentypes{lc($_->{subtype})},
                 @{$obj->{childtype}{generic}}, @{$obj->{childtype}{port} || []};
   resolve_types($obj, @typed);
+  my @packgens= grep $$_{subtype} eq "package", @{$obj->{childtype}{generic}};
+  for (@packgens) {
+    $$_{instanceof}= find_selname($$_{subname}, "package", $obj->{libname});
+  }
 }
 
 
