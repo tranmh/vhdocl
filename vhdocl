@@ -6833,6 +6833,10 @@ for my $cont (@contexts)
 
 # Resolve the user-defined types in all kinds of declarations, and instances of
 # generic subprograms
+
+my @havegenerics= grep $_->{childtype}{generic} && @{$_->{childtype}{generic}},
+                        @packages;
+
 for my $obj (@architectures, @packages, @packagebodies) {
   my @typed= (@{$obj->{childtype}{constant}},
               @{$obj->{childtype}{type}},
@@ -6844,24 +6848,34 @@ for my $obj (@architectures, @packages, @packagebodies) {
                     ($_->{object} ? @{$_->{object}{flatalluses}} : ()) : ($_),
                        @{$obj->{uses}};
   resolve_types($obj, @typed);
+  my @gensubs= grep $_->{childtype}{generic} && @{$_->{childtype}{generic}},
+                    @{$obj->{childtype}{funcproc}};
+  map { $_->{parent}= $obj; } @gensubs;
+  push @havegenerics, @gensubs;
   my @funcprocinsts= grep $_->{instanceofname}, @{$obj->{childtype}{funcproc}};
   resolve_genfunc($obj, @funcprocinsts);
 }
 
-for my $obj (@entities, @packages) {
+for my $obj (@entities) {
   @{$obj->{uses}}= map $_->{type} eq "context" ?
                     ($_->{object} ? @{$_->{object}{flatalluses}} : ()) : ($_),
                        @{$obj->{uses}};
+}
+
+for my $obj (@entities, @havegenerics) {
   my %gentypes= map { lc($_->{name}) => 1 } grep $_->{subtype} eq "type", @{$obj->{childtype}{generic}};
   $gentypes{type}= 1;
   my @typed= grep ! $gentypes{lc($_->{subtype})},
                 @{$obj->{childtype}{generic}}, @{$obj->{childtype}{port} || []};
-  resolve_types($obj, @typed);
+  resolve_types($obj->{parent} || $obj, @typed);
   my @packgens= grep $$_{subtype} eq "package", @{$obj->{childtype}{generic}};
   for (@packgens) {
-    $$_{instanceof}= find_selname($$_{subname}, "package", $obj->{libname});
+    $$_{instanceof}= find_selname($$_{subname}, "package",
+                  $obj->{parent} ? $obj->{parent}{libname} : $obj->{libname});
   }
 }
+
+@havegenerics= ();    # no longer needed
 
 
 # Now take care of locally specified bindings and generic maps of instances.
