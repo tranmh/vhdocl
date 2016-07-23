@@ -4796,7 +4796,8 @@ sub printtypehtml
   if( $type->{subtype} eq "record" ) {
     print $handle "${SPWD}record$SP_</td></tr>\n$desc";
     if( my @elements= @{$type->{children} || []} ) {
-      print $handle "<tr><td></td><td align=\"right\">$STDTAB<tr><td>Elements: </td></tr></table></td><td colspan=\"3\">$STDTAB\n";
+      print $handle "<tr><td></td><td align=\"right\" valign=\"top\">$STDTAB",
+         "<tr><td>Elements: </td></tr></table></td><td colspan=\"3\">$STDTAB\n";
       map { printgenporthtml($handle, $_) } @elements;
       print $handle "</table></td></tr>\n";
     }
