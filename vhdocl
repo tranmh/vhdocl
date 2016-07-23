@@ -3235,7 +3235,7 @@ sub merge_selname
 
   $suse =~ s/\.all$//i;
   $selname= "$suse.$sobj";
-  $selname =~ s/\.([^.]+)\.\1\./.$1./i;
+  $selname =~ s/\.([^.]+)\.\1(\.|$)/.$1$2/i;
   return ($selname =~ tr/././) <= 2 ? $selname : undef;
 }
 
