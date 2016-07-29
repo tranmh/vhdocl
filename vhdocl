@@ -4955,7 +4955,11 @@ sub printinsthtml
   }
   elsif( $inst->{component} ) {
     print $handle "<a href=\"$inst->{component}{doclink}\">$SPID",
-                  $inst->{objname}, "$SP_</a></td></tr>\n";
+                  $inst->{objname}, "$SP_</a>";
+    print $handle " (from package instance <a href=\"../$inst->{packinst}{doclink}\">",
+                  "$SPID$inst->{packinst}{name}$SP_</a>)"
+        if $inst->{packinst};
+    print $handle "</td></tr>\n";
   }
   else {
     print $handle $SPID, $inst->{objname}, "$SP_</td></tr>\n";
@@ -6911,6 +6915,14 @@ bindcompinst:
         next unless $name;
         $inst->{component}= find_selname($name, "component");
         last if $inst->{component};
+        if( $useclause->{package} && $useclause->{package}{instanceof} ) {
+          $name= merge_selname($useclause->{package}{instanceof}{fullname}, $inst->{objname}); 
+          $inst->{component}= find_selname($name, "component");
+          if( $inst->{component} ) {
+            $inst->{packinst}= $useclause->{package};
+            last;
+          }
+        }
       }
     }
     # This procedure has the illogical side effect that an ambiguous component
