@@ -2763,7 +2763,7 @@ sub find_children
   my ($obj, $key, $val)= @_;
 
   return () unless $obj->{children};
-  return grep lc($_->{$key}) eq lc($val), @{$obj->{children}};
+  return grep defined($_->{$key}) && lc($_->{$key}) eq lc($val), @{$obj->{children}};
 }
 
 
