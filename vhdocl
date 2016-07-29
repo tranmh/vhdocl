@@ -2179,7 +2179,7 @@ vhdlline:
                         (configuration)\s+($SID)|(open)\b)//iox ) {
         @newentries= ( { "type", "use", "subtype", lc($1 || $4 || $6), 
                             "name", $2 || $5, "archname", $3 } );
-        $newentries[0]{name} =~ s/\s+//g;
+        $newentries[0]{name} =~ s/\s+//g unless $6;
         $newentries[0]{for}= $parent->{children}[-1]
               if $parent->{children} && @{$parent->{children}}
                 && $parent->{children}[-1]{type} eq "for"
@@ -4974,16 +4974,18 @@ sub printinsthtml
   }
   # Now for explicit binding of component instances
   if( $inst->{subtype} eq "component" &&
-      ((my $bind= $inst->{binding}) || $inst->{bindname}) ) {
+      ((my $bind= $inst->{binding}) || $inst->{bindname} || $inst->{bindopen}) ) {
     if( $bind ) {
       print $handle "<tr>$TDI<td colspan=\"4\">Binding: $SPCO<a href=\"",
       ($bind->{type} eq "entity" ?  "../entities/" : "../configurations/"),
-          $bind->{docfilename}, "\">$SPID", $bind->{fullname},
-          "$SP_</a>";
+            "$bind->{docfilename}\">$SPID$bind->{fullname}$SP_</a>";
     }
-    else {
+    elsif( $inst->{bindname} ) {
       print $handle "<tr>$TDI<td colspan=\"4\">Binding: $SPCO$SPID",
                       $inst->{bindname}, "$SP_";
+    }
+    else {
+      print $handle "<tr>$TDI<td colspan=\"4\">Binding explicitly $SPCO${SPWD}open$SP_";
     }
     if( $inst->{archname} ) {
       if( $inst->{bindarch} ) {
@@ -6940,8 +6942,10 @@ bindcompinst:
           if $for->{doc}{description};
       push @{$inst->{binddoc}}, @{$use->{doc}{description}}
                   if $use->{doc}{description};
-# TODO: handle open bindings, also in docs
-#     next bindcompinst if $use->{subtype} eq "open";
+      if( $use->{subtype} eq "open" ) {
+        $inst->{bindopen}= 1;
+        next bindcompinst;
+      }
       $inst->{bindname}= $use->{name};
       $inst->{binding}= find_selname($use->{name},
                               $use->{subtype}, $arch->{libname});
