@@ -19,25 +19,26 @@ B<vhdocl> [-f] E<lt>config.vhdoclE<gt>
 
 =head1 DESCRIPTION
 
-VHDocL is the pendant of doxygen, kdoc or javadoc for the hardware description
-language VHDL.  It generates a set of interlinked HTML pages from a hardware
-design.  Specially formatted comments in the VHDL code are read and
-incorporated into the HTML pages (see L</MARKUP LANGUAGE> below).  For
-undocumented designs, VHDocL can still help understanding by making the
-structure of the design apparent.
+VHDocL is the equivalent of doxygen, kdoc or javadoc for the hardware
+description language VHDL, including its newest variant, VHDL 2008.  It
+generates a set of interlinked HTML pages from a hardware design.  Specially
+formatted comments in the VHDL code are read and incorporated into the HTML
+pages (see L</MARKUP LANGUAGE> below).  For undocumented designs, VHDocL can
+still help understanding by making the structure of the design apparent.
 
-An HTML page is generated for every entity, architecture, configuration and
-package or package body.  Documented items include processes, instantiations,
-ports, generic constants, component declarations, function and procedure
-declarations.  Instances are bound to their matching entity and hyperlinked to
-its HTML page.  See L</OUTPUT> below for more information on generated files.
+An HTML page is generated for every entity, architecture, configuration,
+package or package body and context declaration.  Documented items include
+processes, instantiations, ports, generic constants, component declarations,
+function and procedure declarations.  Instances are bound to their matching
+entity and hyperlinked to its HTML page.  See L</OUTPUT> below for more
+information on generated files.
 
 Besides, VHDocL creates a global list of entities (with their architectures and
 configurations) and packages and an instantiation hierarchy.  The hierarchy
 results from the bindings of instantiations of components, entities and
 configurations within architectures or configurations.  VHDocL takes for...use
 statements, configurations and default bindings of components into account when
-determining bindings of component instantiations.  Nested configurations (ie
+determining bindings of component instantiations.  Nested configurations (i.e.
 configurations which configure sub-instances within instantiated modules) are
 also supported.
 
@@ -74,14 +75,14 @@ line are also filtered.  The I<glob> argument is a list of shell glob patterns
 separated by commas and/or spaces.  Each pattern has to match the complete file
 name or (if it contains a directory separator) the last part of the path.
 Matching is case insensitive.  This option can occur multiple times but is not
-cumulative; rather, its current values applies to subsequent source files until
+cumulative; rather, its current value applies to subsequent source files until
 the next B<--exclude> option.  The I<glob> pattern will usually have to be
 escaped from the shell, for example by enclosing it in single quotes.
 
 =item B<-f> I<file.vhdocl>, B<--configfile>=I<file.vhdocl>
 
 Tells VHDocL to interrupt command line argument processing and to read options
-and input file names from the given configuration file.  If given, this will
+and input file names from the given configuration file.  If present, this will
 usually be the only option (but need not be).  Processing of command-line
 arguments will resume after the config file has been read.  See
 L</CONFIGURATION FILE> below for the configuration file format.
@@ -249,8 +250,8 @@ encountered.
 
 =back
 
-Long options may be abbreviated.  Their arguments may also be separated by
-spaces instead of C<=>.  Boolean-valued short options can be negated by
+Long options may be abbreviated.  Their arguments may also be separated by a
+space instead of C<=>.  Boolean-valued short options can be negated by
 replacing the "-" by a "+", long options by prepending "no" to the option name.
 Options other than the B<-l>/B<--library>, B<--tabsize>, B<-r>/B<--recursive>
 and B<--exclude> options can be mixed freely with input file names, and the
@@ -276,7 +277,7 @@ design files are located in a single directory, it is sufficient to say:
 
 (Assuming you are currently in that directory.)  VHDocL will then process all
 files with the extension .vhd or .vhdl in that directory.  To include files in
-subdirectories, give the option B<-r>:
+subdirectories, add the option B<-r>:
 
     vhdocl -r .
 
@@ -293,12 +294,13 @@ The argument "-" causes VHDocL to suspend command-line processing and read
 arguments from standard input.
 
 It is not necessary to tell VHDocL which of the source files contains the top
-module, as it will automatically resolve instantiations and treat those modules
-which are instantiated nowhere as top modules.  (So unless you omit testbench
-files from the source file list, they will be regarded as top modules.)  The
-B<-t> option allows you to designate some top modules, which are then displayed
-more prominently on the hierarchy page.  This allows you to separate your
-design top modules from test benches and other uninstantiated modules.
+module(s), as it will automatically resolve instantiations and treat those
+modules which are instantiated nowhere as top modules.  (So unless you omit
+testbench files from the source file list, they will be regarded as top
+modules.)  The B<-t> option allows you to designate some top modules, which are
+then displayed more prominently on the hierarchy page.  This allows you to
+separate your design top modules from test benches and other uninstantiated
+modules.
 
 Arguments to VHDocL, both options and input file names, can be given in three
 ways: on the command line, on standard input and in the configuration file (see
@@ -391,21 +393,22 @@ names from standard input is not allowed in config files.
 Though VHDocL helps to understand undocumented designs, its primary purpose is
 as a documentation tool.  Most VHDL declarative items can have a description
 associated with them, which will be printed in the relevant HTML page.  These
-descriptions are given in comments in the VHDL code which start with --*
-instead of --.  They have to directly precede the declarative item to which
+descriptions are given in comments in the VHDL code which start with "--*"
+instead of "--".  They have to directly precede the declarative item to which
 they refer or be located on the same line.  Documentation comments preceding
 statements or declarations which are not documented are discarded.  Empty lines
-(just --* and white space) serve to separate paragraphs in the documentation
+(just "--*" and white space) serve to separate paragraphs in the documentation
 text.
 
 Here is an example:
 
-    --* This process defines an up-counter.  This would not normally warrant
-    --* much of a description, but this is to demonstrate that VHDocL
-    --* documentation comments can extend over several comment lines.
+    --* This process defines an up-counter.  This would not normally
+    --* warrant much of a description, but this is to demonstrate that
+    --* VHDocL documentation comments can extend over several comment
+    --* lines.
     --*
-    --* Here is an equally contrived second paragraph, again designed to show
-    --* how to write documentation for VHDocL.
+    --* Here is an equally contrived second paragraph, again designed to
+    --* show how to write documentation for VHDocL.
     upctr : process( reset, clk ) is
     begin
       if reset = '1' then
@@ -415,10 +418,10 @@ Here is an example:
       end if;
     end process upctr;
 
-To prevent separators from being misinterpreted as documentation, --* may not
+To prevent separators from being misinterpreted as documentation, "--*" may not
 be immediately followed by a further "*", or the comment will be ignored.  If
-you want to create a separator in the documentation, insert a space between --*
-and the row of asterisks.
+you want to create a separator in the documentation, insert a space between
+"--*" and the row of asterisks.
 
 The description text in the documentation comments can contain certain HTML
 tags.  The following tags are allowed without attributes: C<b>, C<i>, C<tt>,
@@ -430,8 +433,8 @@ an absolute URL or a path relative to the future location of the documentation
 HTML file in which they will appear.  The tags C<code> and C<var> are a special
 case: VHDocL will mark up text inside C<code> tags as VHDL source code, and
 within C<var> as VHDL identifiers.  This will not be done if these tags have
-any attributes already, allowing the user to override the default and apply CSS
-classes in custom style files.
+any attributes already, allowing the user to override the default and use CSS
+classes from custom style files.
 
 For example, the C<pre> tag can be used to create ASCII graphics:
 
@@ -452,39 +455,40 @@ For example, the C<pre> tag can be used to create ASCII graphics:
         in2    : in std_logic_vector(7 downto 0);
         in3    : in std_logic_vector(7 downto 0);
         in4    : in std_logic_vector(7 downto 0);
-        --* Output giving the addition result.  This is two bits wider than the
-        --* inputs to avoid overflow.
+        --* Output giving the addition result.  This is two bits wider
+        --* than the inputs to avoid overflow.
         result : out std_logic_vector(9 downto 0)
       );
     end entity adder4;
 
 The example demonstrates another feature of VHDocL:  If a documentation comment
-starts with --+ instead of --*, the given description is added not just to the
-following declaration, but to all following declarations of the same type
-(ports in this case), until a different description is encountered.  --+ is
-intended and will work only for "simple" declarations such as ports, constants
-and so on, not for declarations like processes or functions which are followed
-by a block of code.  Analogously as --*, --+ may not be immediately followed by
-a further "+".
+starts with "--+" instead of "--*", the given description is assigned not just
+to the following declaration, but to all following declarations of the same
+type (ports in this case), until a different description is encountered.  "--+"
+is intended and will work only for "simple" declarations such as ports,
+constants and so on, not for declarations like processes or functions which are
+followed by a block of code.  Similarly to "--*", "--+" may not be immediately
+followed by a further "+".
 
-This brings us to the question which declarations can be documented.  First,
-the "big five" top-level declarations (entities, architectures, configurations,
-packages and package bodies) can have descriptions.  Also documented are ports,
-generics, library and use statements.  Within architectures and packages,
-constants, functions, procedures and component and type declarations (including
-records and units) can be documented.  Likewise generate and block statements,
-processes and instantiations inside architectures and for ...  use statements
+This brings us to the question of what declarations can be documented.  First,
+the "big six" top-level declarations (entities, architectures, configurations,
+packages, package bodies and context declarations) can have descriptions.  Also
+documented are ports, generics, library and use statements, and context
+references.  Within architectures and packages, constants, functions,
+procedures and component and type declarations (including records, record
+elements and units) can be documented.  Likewise generate and block statements,
+processes and instantiations inside architectures and "for ...  use" statements
 in architectures and configurations.  Local declarations of constants,
 functions etc. within other functions, generate statements of similar
 declarations with their own declarative part cannot be documented and will not
 be output to the generated HTML pages.  See L</OUTPUT> below for a description
 of what VHDocL generates.
 
-The description of entities, architectures, configurations, packages and
-package bodies can contain the following markup codes, some of which are also
-valid for constants, types, functions, procedures and components (called "minor
-declarations" below).  Their arguments extend up to the next empty line or the
-next markup code.
+The description of entities, architectures, configurations, packages, package
+bodies and context declarations can contain the following markup codes, some of
+which are also valid for constants, types, functions, procedures and components
+(called "minor declarations" below).  Their arguments extend up to the next
+empty line or the next markup code.
 
 =over
 
@@ -510,16 +514,18 @@ file.  B<@deprecated> and B<@internal> are also valid for minor declarations.
 
 =item B<@frominstance> / B<@fromwrapper> [ I<entity>[I<.port>] ]
 
-Only for ports and generics: causes the documentation to be inherited from a
-homonymous port or generic of an entity instantiated in this one, or by which
-this one is instantiated.  The optional argument specifies the name of the
-entity, component or instance label from which to inherit, which allows
-resolving ambiguities.  Its optional suffix, separated by a dot, specifies the
-name of the port (or generic) to inherit from.  The documentation of the
-affected port or generic is replaced, not amended.  If the ports / generics of
-an instantiated component are documented, they take precedence over those of
-the corresponding entity.  Inheritance can be chained so long as no cycles are
-created.
+Only for ports and generics of entities: causes the documentation to be
+inherited from a homonymous port or generic of an entity instantiated in this
+one, or by which this one is instantiated.  This is intended to avoid
+duplication of documentation when an entity wraps or implements another.
+
+The optional argument specifies the name of the entity, component or instance
+label from which to inherit, which allows resolving ambiguities.  Its optional
+suffix, separated by a dot, specifies the name of the port (or generic) to
+inherit from.  The documentation of the affected port or generic is replaced,
+not amended.  If the ports / generics of an instantiated component are
+documented, they take precedence over those of the corresponding entity.
+Inheritance can be chained so long as no cycles are created.
 
 =item B<@id> I<ID>
 
@@ -549,15 +555,15 @@ Revision of the item.
 =back
 
 Markup codes have to be preceded by white space or the beginning of a line, so
-e-mail addresses can be given without risk of misinterpretation.  If this is
-not sufficient, you can use the HTML entity C<&#x40;> to insert a verbatim "@".
+e-mail addresses are not misinterpreted.  If this is not sufficient, you can
+use the HTML entity C<&#x40;> to insert a verbatim "@".
 
-@date, @id and @version tally nicely with keywords automatically substituted by
-revision management systems such as Subversion
-(L<http://subversion.tigris.org/>).  (@author is a different matter since
-Subversion merely substitutes the author who did the last commit.)  If you use
-Subversion, you can enable keyword substitution for your VHDL file with the
-following command:
+B<@date>, B<@id> and B<@version> tally nicely with keywords automatically
+substituted by revision management systems such as Subversion
+(L<http://subversion.tigris.org/>) or git (L<https://git-scm.com/>, see below).
+(B<@author> is a different matter since Subversion merely substitutes the
+author who did the last commit.)  If you use Subversion, you can enable keyword
+substitution for your VHDL file with the following command:
 
     svn propset svn:keywords "Date Id Rev" source.vhd
 
@@ -579,14 +585,14 @@ declaration.  But if you have a separate file for each entity/architecture and
 package/package body pair, having Subversion data in their description is still
 meaningful.
 
-Recent versions of VHDocL support a similar feature for sources stored in a git
-repository.  If the text after a @date, @version, @id or @author markup is just
+A similar feature is supported for sources stored in a git repository.  If the
+text after a B<@date>, B<@version>, B<@id> or B<@author> markup is just
 "$git$", VHDocL runs a git command on the source file to obtain that
 information.  The date, version and author is from the most recent revision of
 the file according to C<git log>; the version is made more readable by C<git
 describe>.  The file ID is determined by C<git hash-object> and can also be
-used for files not in a repository.  The same caveats as for SVN apply: The
-author of the most recent revision is not necessarily what you want, and a
+used for files not in a repository.  The same caveats as for Subversion apply:
+The author of the most recent revision is not necessarily what you want, and a
 design unit may not be modified even if its file was.
 
 
@@ -606,11 +612,11 @@ C<@> as well as C<\>.
 
 VHDocL generates five top-level documentation pages which are located in the
 output directory: A list of entities (with their architectures and
-configurations), a list of packages, an instantiation overview, an
+configurations), a list of packages and contexts, an instantiation overview, an
 instantiation hierarchy and a list of source files.  They are named
-entities.html, packages.html, instantiations.html, hierarchy.html and
-sources.html, possibly preceded by the prefix.  The difference between the
-instantiation overview and hierarchy is that the overview merely shows the
+C<entities.html>, C<packages.html>, C<instantiations.html>, C<hierarchy.html>
+and C<sources.html>, possibly preceded by the prefix.  The difference between
+the instantiation overview and hierarchy is that the overview merely shows the
 first-level instantiations in each architecture and configuration, while the
 hierarchy recursively shows all instantiations in sub-(sub-...)modules.  Both
 list every instantiated module only once, even when it is instantiated several
@@ -623,31 +629,32 @@ existing HTML document into this page, for example a general description of the
 project.  If a top-level URL is given  with the B<--toplink> option, this is
 supposed to replace the home page, and C<index.html> will not be generated.
 The top-level declarations listed in the top-level HTML files are hyperlinked
-to the HTML files which describe them in detail, located in the accordingly
-named subdirectory of the output directory.  If a @brief/@short description is
-available, the top-level HTML files display it.
+to the HTML files which describe them in detail, located in the correspondingly
+named subdirectory of the output directory.  If a B<@brief>/B<@short>
+description is available, the top-level HTML files display it.
 
-All entities, architectures, configurations, packages and package bodies are
-described in HTML files of their own located in the respective subdirectory.
-(Packages and their package body share the same file.)  It contains their
-description, with special markup codes such as @author displayed prominently
-near the top.  The name of the source file which contains their definition is
-displayed, and the source HTML page is hyperlinked.  The top-level library and
-use clauses in that source file are documented.  The documentation of other
+All entities, architectures, configurations, packages or package bodies and
+contexts are described in HTML files of their own located in the respective
+subdirectory.  Packages and their package body share the same file.  It
+contains their description, with special markup codes such as @author displayed
+prominently near the top.  The name of the source file which contains their
+definition is displayed, and the source HTML page may be hyperlinked depending
+on B<--sourcelinks>.  The top-level library and use clauses and context
+references in that source file are documented.  The documentation of other
 sub-declarations follows.
 
 An entity's HTML page documents its ports and generics and links to the pages
-of its architectures and configurations.  Architecture pages contain all of
-the following as applicable: declarations of functions, procedures, types,
-constants and components, instantiations, processes and generate and block
-statements.  Instantiations are hyperlinked to the instantiated component,
-entity or configuration.  Use statements referring to component instantiations
-are not printed separately, but expressed implicitly in the binding of the
-instances.  Attributes are mentioned in the documentation of the declarative
-items they refer to.  Similarly, generate and block statements are documented
-along with the instantiation or process they enclose.  If they do not contain
-either, they are ignored, like use statements or attributes which refer to
-nothing.
+of its architectures and configurations and to the entities and architectures
+that instantiate them.  Architecture pages contain all of the following as
+applicable: declarations of functions, procedures, types, constants and
+components, instantiations, processes and generate and block statements.
+Instantiations are hyperlinked to the instantiated component, entity or
+configuration.  Use statements referring to component instantiations are not
+printed separately, but expressed implicitly in the binding of the instances.
+Attributes are mentioned in the documentation of the declarative items they
+refer to.  Similarly, generate and block statements are documented along with
+the instantiation or process they enclose.  If they do not contain either, they
+are ignored, like use statements or attributes which refer to nothing.
 
 Here is an example of how an instantiation which is inside three nested
 generate statements is documented:
@@ -664,12 +671,12 @@ generate statements is documented:
 
 The first line gives the name of the instance and the name of the component,
 which is hyperlinked to its declaration.  This is followed by the instance's
-description and its generic map.  Next, the component's binding is given, with
+description and its generic map.  Next, the component binding is printed, with
 links to the appropriate entity and architecture.  Last comes a list of the
 generate statements enclosing this instantiation.  If they had descriptions,
 they would be printed under the generate statement they refer to.
 
-If the option B<--psl> is enabled, some PSL statements in architectures are
+When the option B<--psl> is enabled, some PSL statements in architectures are
 documented.  This includes definitions of named sequences, endpoints,
 properties and a default clock, and the verification statements C<assert>,
 C<assume>, C<assume_guarantee>, C<restrict>, C<restrict_guarantee> and
@@ -681,17 +688,17 @@ hyperlinked to the pages of the selected entities, architectures and/or other
 configurations.
 
 Packages and their package bodies are documented in the same HTML page.  It
-contains the declarations of types, constants, functions, procedures and
-components.  With B<--psl>, PSL sequence, endpoint and property definitions are
-also included.  The documentation of corresponding declarations in the package
-and its package body is merged, and the package body section is omitted unless
-it contains unique declarative items.
+contains the declarations of generics, types, constants, functions, procedures
+and components.  With B<--psl>, PSL sequence, endpoint and property definitions
+are also included.  The documentation of corresponding declarations in the
+package and its package body is merged, and the package body section is omitted
+unless it contains unique declarative items.
 
 Source files are converted to HTML files with syntax highlighting and line
 numbering.  This is done by assigning CSS classes to words and expressions in
 the code.  Their appearance is determined by a default CSS file and can be
-overridden in the user CSS file.  (The same applies to source code quoted in
-the documentation pages.)  The source file itself is hyperlinked from the
+overridden in the user CSS file.  The same applies to source code quoted in
+the documentation pages.  The source file itself is hyperlinked from the
 source pages (unless you choose B<--nosourcelinks>), so you can edit it by
 clicking on the link if you have the file associations of your browser set
 accordingly.
@@ -720,7 +727,7 @@ a different appearance for this class and B<packdecl>.
 =item B<bigdesc>
 
 Description of major design element (entity, architecture, configuration,
-package or package body).  See also B<smdesc>.
+package or package body, context).  See also B<smdesc>.
 
 =item B<bigbrief>
 
@@ -737,7 +744,7 @@ and instances.  By default, the appearance is the same as for B<identifier>.
 
 Appearance of VHDocL documentation comments in the source HTML pages.  Up to
 version 0.2.4, this also applied to descriptions in documentation pages, but
-for that purpose it has now been superseded by B<bigdesc> and B<smdesc>.
+for that purpose it has now been superceded by B<bigdesc> and B<smdesc>.
 
 =item B<identifier>
 
@@ -777,7 +784,7 @@ background colour.
 =item B<smdesc>
 
 Description of subordinate declaration.  Applies to all declarations except the
-five major design elements.  See also B<bigdesc>.
+six major design elements.  See also B<bigdesc>.
 
 =item B<smbrief>
 
@@ -887,7 +894,7 @@ Backfeed is welcome to the e-mail vhdocl at that domain.
 
 =head1 COPYRIGHT
 
-VHDocL is (c) 2007-2015 Volker Schatz.  Credits to Minh Cuong Tran for
+VHDocL is (c) 2007-2016 Volker Schatz.  Credits to Minh Cuong Tran for
 providing a first implementation of the clickable hierarchy view and syntax
 highlighting, and for much efficiency testing.  Many thanks to Torsten Meißner
 for testing on OS X.  Thanks to several other users for smaller fixes, bug
