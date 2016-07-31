@@ -3128,7 +3128,16 @@ sub resolve_minordecl
       next unless $selname;
       $result= $$cache{$selname}, last if $$cache{$selname};
       next if exists $$cache{$selname};
-      $result= $$cache{$selname}= find_selname($selname, $type);
+      $result= find_selname($selname, $type);
+      if( ! $result && $use->{package} && $use->{package}{instanceof} ) {
+        my $selname2= merge_selname(lc($use->{package}{instanceof}{fullname}), $id);
+        if( $selname2 ) {
+          $$cache{$selname2}= find_selname($selname2, $type)
+              unless exists $$cache{$selname2};
+          $result= $$cache{$selname2};
+        }
+      }
+      $$cache{$selname}= $result;
       last if $result;
     }
     unless( $result ) {
@@ -3150,7 +3159,16 @@ sub resolve_minordecl
         next unless $selname;
         $result= $$cache{$selname}, last if $$cache{$selname};
         next if exists $$cache{$selname};
-        $result= $$cache{$selname}= find_selname($selname, $type);
+        $result= find_selname($selname, $type);
+        if( ! $result && $use->{package} && $use->{package}{instanceof} ) {
+          my $selname2= merge_selname(lc($use->{package}{instanceof}{fullname}), $id);
+          if( $selname2 ) {
+            $$cache{$selname2}= find_selname($selname2, $type)
+                unless exists $$cache{$selname2};
+            $result= $$cache{$selname2};
+          }
+        }
+        $$cache{$selname}= $result;
         last if $result;
       }
     }
