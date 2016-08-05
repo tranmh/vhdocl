@@ -1998,7 +1998,7 @@ vhdlline:
           last vhdlline unless defined(readuntil( qr/\bis\b/i ));
         }
         elsif( lc(substr($1,0,7)) eq "generic" ) {
-          @generics= readportlist("generic", $err, $parent);
+          @generics= readportlist("generic", $err);
         }
         elsif( lc($1) eq "return" ) {
           goto skipnext if $type eq "procedure";
