@@ -52,7 +52,7 @@ use Storable;
 my $version= "? (use install script to install properly)";
 
 my %config= ( outputdir => "doc", prefix => "", libname => "work",
-  compat => 0, cwd => "", psl => 0, parsedebug => 0, quiet => 0, 
+  compat => 0, cwd => "", psl => 1, parsedebug => 0, quiet => 0, 
   stylesheet => "", leftlogo => "", rightlogo => "",
   homehtml => "", title => "", footer => "", topmodules => [],
   sourcelinks => 1, tabsize => 0, packagesummary => "never" );

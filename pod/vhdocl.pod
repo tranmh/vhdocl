@@ -170,10 +170,10 @@ directory without interference.
 
 =item B<--psl>
 
-Enable limited support for the Property Specification Language developed by
-Accelera and formalised in IEEE standard 1850.  Some PSL definitions and most
-verification directives occurring in architectures and packages will be
-documented.  See the L</OUTPUT> section below for details.
+This option is now enabled by default and will eventually be deprecated, as the
+Property Specification Language is part of the VHDL 2008 standard.  For now,
+PSL support can still be disabled with B<--nopsl>.  See the L</OUTPUT> section
+below for details on which PSL directives are documented.
 
 =item B<-q>, B<--quiet>
 
@@ -676,8 +676,8 @@ links to the appropriate entity and architecture.  Last comes a list of the
 generate statements enclosing this instantiation.  If they had descriptions,
 they would be printed under the generate statement they refer to.
 
-When the option B<--psl> is enabled, some PSL statements in architectures are
-documented.  This includes definitions of named sequences, endpoints,
+Unless the option B<--psl> is disabled, some PSL statements in architectures
+are documented.  This includes definitions of named sequences, endpoints,
 properties and a default clock, and the verification statements C<assert>,
 C<assume>, C<assume_guarantee>, C<restrict>, C<restrict_guarantee> and
 C<cover>.
@@ -689,7 +689,7 @@ configurations.
 
 Packages and their package bodies are documented in the same HTML page.  It
 contains the declarations of generics, types, constants, functions, procedures
-and components.  With B<--psl>, PSL sequence, endpoint and property definitions
+and components.  By default, PSL sequence, endpoint and property definitions
 are also included.  The documentation of corresponding declarations in the
 package and its package body is merged, and the package body section is omitted
 unless it contains unique declarative items.
@@ -768,13 +768,13 @@ Package summary section.  Only effective if B<--packagesummary> is enabled.
 
 =item B<pslid>
 
-Identifier of PSL named sequence, endpoint or property.  Only effective if
-B<--psl> was enabled.
+Identifier of PSL named sequence, endpoint or property.  Ineffective if PSL
+support was disabled.
 
 =item B<pslword>
 
-Keyword of PSL (Property Specification Language).  Only effective if B<--psl>
-was enabled.
+Keyword of PSL (Property Specification Language).  Ineffective if PSL support
+was disabled.
 
 =item B<shaded>
 
