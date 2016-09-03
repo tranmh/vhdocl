@@ -24,6 +24,7 @@
 # VHDL parsing functions            sectionvhdl
 # Data handling functions           sectiondata
 # Output functions                  sectionoutput
+# TeX output functions              sectiontex
 # Main program                      sectionmain
 
 
@@ -53,7 +54,7 @@ my $version= "? (use install script to install properly)";
 
 my %config= ( outputdir => "doc", prefix => "", libname => "work",
   compat => 0, cwd => "", psl => 1, parsedebug => 0, quiet => 0, 
-  stylesheet => "", leftlogo => "", rightlogo => "",
+  texout => 0, stylesheet => "", leftlogo => "", rightlogo => "",
   homehtml => "", title => "", footer => "", topmodules => [],
   sourcelinks => 1, tabsize => 0, packagesummary => "never" );
 
@@ -562,6 +563,7 @@ my @options= (
 [ "", "javasyntax", "?", "javasyntax" ],
 [ "", "sourcelinks", "?", "sourcelinks" ],
 [ "", "packagesummary", [ qw(always never auto section) ], "packagesummary" ],
+[ "", "latex", "?", "texout" ],
 );
 
 # Options that apply only to files following them and may be present multiple
@@ -3950,23 +3952,22 @@ sub getstyledatadir
 sub prepareoutput
 {
   my $dir= $config{absoutputdir};
+  my @subdirs;
+  my $mkpatherr;
 
-  eval { File::Path::mkpath( $dir ); };
-  croak "Cannot create output directory `$dir' - $@" if $@;
-  for my $d (values(%unitdirs), "sources", "style")
+  File::Path::mkpath( $dir, { error => \$mkpatherr } );
+  croak "Cannot create output directory `$dir' - ".(values %{$$mkpatherr[0]})[0] if @$mkpatherr;
+  @subdirs= map File::Spec->catdir($dir, $_), values(%unitdirs), "sources", "style";
+  if( $config{texout} ) {
+    push @subdirs, File::Spec->catdir($dir, "latex"),
+         map File::Spec->catdir($dir, "latex", $_), qw(entities contexts packages);
+  }
+  for my $subdir (@subdirs)
   {
-    my $subdir= File::Spec->catdir($dir, $d);
-    if( opendir(DIR, $subdir) ) {
-      closedir DIR;
-      next;
-    }
-    if( open(FILE, $subdir) ) {
-      close FILE;
-      croak "Cannot create output directory `$subdir' - a file of the same name exists!";
-    }
-    if( !mkdir($subdir) ) {
-      croak "Cannot create output directory `$subdir' - $!";
-    }
+    next if -d $subdir && -w $subdir;
+    croak "Cannot create output directory `$subdir' - the name exists and is no writable directory!"
+        if -e $subdir;
+    mkdir($subdir) or croak "Cannot create output directory `$subdir' - $!";
   }
   my $styledir= File::Spec->catdir($dir, "style");
   my $styledatadir= getstyledatadir();
@@ -6450,6 +6451,15 @@ sub jsonnodekey
 }
 
 
+#sectiontex###################################################################
+##############################################################################
+####                    TeX output functions
+##############################################################################
+##############################################################################
+
+
+
+
 #sectionmain##################################################################
 ##############################################################################
 ####                    Main program
@@ -7353,6 +7363,9 @@ if( $config{jobs} == 0 ) {
       sourcehtml($file);
     }
   }
+}
+
+if( $config{texout} ) {
 }
 
 benchmark("to generate HTML") if $config{benchmark};
