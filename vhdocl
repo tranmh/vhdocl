@@ -3958,10 +3958,8 @@ sub prepareoutput
   File::Path::mkpath( $dir, { error => \$mkpatherr } );
   croak "Cannot create output directory `$dir' - ".(values %{$$mkpatherr[0]})[0] if @$mkpatherr;
   @subdirs= map File::Spec->catdir($dir, $_), values(%unitdirs), "sources", "style";
-  if( $config{texout} ) {
-    push @subdirs, File::Spec->catdir($dir, "latex"),
-         map File::Spec->catdir($dir, "latex", $_), qw(entities contexts packages);
-  }
+  push @subdirs, File::Spec->catdir($dir, "latex")
+      if $config{texout};
   for my $subdir (@subdirs)
   {
     next if -d $subdir && -w $subdir;
@@ -6457,7 +6455,769 @@ sub jsonnodekey
 ##############################################################################
 ##############################################################################
 
+# Escape underscore in identifier.  No code markup.
+# -> VHDL identifier
+# <- Same identifier with backslash prepended to underscores
+sub texid
+{
+  my $id= shift;
+  $id =~ s/_/\\_/g;
+  return $id;
+}
 
+
+# Inline-markup of VHDL fragment using listings package.
+# -> VHDL code fragment
+# <- Corresponding TeX fragment
+sub texcode
+{
+  my $vhdl= shift;
+  $vhdl =~ s/^\s+/ /;
+  $vhdl =~ s/\s+$/ /;
+  $vhdl =~ s/\s+/ /g;   # compress white space and remove newlines
+  # Try delimiters not occurring in the code snippet.  Can't easily use "["
+  # because \lstinline accepts argument in square brackets.
+  for my $delimiter ("\$", "@", "~", "`", "^", "#", "%", "{", "}", "]") {
+    return "\\lstinline$delimiter$vhdl$delimiter" if index($vhdl, $delimiter) < 0;
+  }
+  # Hack as fallback for now: will break markup if ; occurs in strings.
+  my @parts= split /;/, $vhdl;
+  return join("\\lstinline+;+", map "\\lstinline;$_;", @parts);
+}
+
+
+# Create markup for type name and hyperlink to type definition if applicable.
+# -> VHDL code describing a type
+#    Reference to hash of the object that has this type, possibly including a
+#    "typedef" field referencing the type definition object
+# <- TeX fragment of the type designation
+sub textype
+{
+  my ($code, $obj)= @_;
+
+  return texcode($code) unless $obj->{typedef} && $obj->{typedef}{doclink};
+  my @occurrences;
+  while( $code =~ s/\b((?:\w+\.)*$obj->{typedef}{name})\b/\001/ ) {
+    push @occurrences, $1;
+  }
+  my @intermediates= split /\001/, $code, -1;
+  my $tex= "";
+  while( @occurrences ) {
+    $tex .= texcode(shift(@intermediates)) . texref(texcode(shift @occurrences), $obj->{typedef});
+  }
+  $tex .= texcode($intermediates[0]);
+  return $tex;
+}
+
+
+my %namedents= ( quot => 34, amp => 38, lt => 60, gt => 62, nbsp => 160, iexcl
+=> 161, cent => 162, pound => 163, curren => 164, yen => 165, brvbar => 166,
+sect => 167, uml => 168, copy => 169, ordf => 170, laquo => 171, not => 172,
+shy => 173, reg => 174, macr => 175, deg => 176, plusmn => 177, sup2 => 178,
+sup3 => 179, acute => 180, micro => 181, para => 182, middot => 183, cedil =>
+184, sup1 => 185, ordm => 186, raquo => 187, frac14 => 188, frac12 => 189,
+frac34 => 190, iquest => 191, Agrave => 192, Aacute => 193, Acirc => 194,
+Atilde => 195, Auml => 196, Aring => 197, AElig => 198, Ccedil => 199, Egrave
+=> 200, Eacute => 201, Ecirc => 202, Euml => 203, Igrave => 204, Iacute => 205,
+Icirc => 206, Iuml => 207, ETH => 208, Ntilde => 209, Ograve => 210, Oacute =>
+211, Ocirc => 212, Otilde => 213, Ouml => 214, times => 215, Oslash => 216,
+Ugrave => 217, Uacute => 218, Ucirc => 219, Uuml => 220, Yacute => 221, THORN
+=> 222, szlig => 223, agrave => 224, aacute => 225, acirc => 226, atilde =>
+227, auml => 228, aring => 229, aelig => 230, ccedil => 231, egrave => 232,
+eacute => 233, ecirc => 234, euml => 235, igrave => 236, iacute => 237, icirc
+=> 238, iuml => 239, eth => 240, ntilde => 241, ograve => 242, oacute => 243,
+ocirc => 244, otilde => 245, ouml => 246, divide => 247, oslash => 248, ugrave
+=> 249, uacute => 250, ucirc => 251, uuml => 252, yacute => 253, thorn => 254,
+yuml => 255, Alpha => 913, alpha => 945, Beta => 914, beta => 946, Gamma =>
+915, gamma => 947, Delta => 916, delta => 948, Epsilon => 917, epsilon => 949,
+Zeta => 918, zeta => 950, Eta => 919, eta => 951, Theta => 920, theta => 952,
+Iota => 921, iota => 953, Kappa => 922, kappa => 954, Lambda => 923, lambda =>
+955, Mu => 924, mu => 956, Nu => 925, nu => 957, Xi => 926, xi => 958, Omicron
+=> 927, omicron => 959, Pi => 928, pi => 960, Rho => 929, rho => 961, Sigma =>
+931, sigmaf => 962, sigma => 963, Tau => 932, tau => 964, Upsilon => 933,
+upsilon => 965, Phi => 934, phi => 966, Chi => 935, chi => 967, Psi => 936, psi
+=> 968, Omega => 937, omega => 969, thetasym => 977, upsih => 978, piv => 982,
+forall => 8704, part => 8706, exist => 8707, empty => 8709, nabla => 8711, isin
+=> 8712, notin => 8713, ni => 8715, prod => 8719, sum => 8721, minus => 8722,
+lowast => 8727, radic => 8730, prop => 8733, infin => 8734, ang => 8736, and =>
+8743, or => 8744, cap => 8745, cup => 8746, int => 8747, there4 => 8756, sim =>
+8764, cong => 8773, asymp => 8776, ne => 8800, equiv => 8801, le => 8804, ge =>
+8805, sub => 8834, sup => 8835, nsub => 8836, sube => 8838, supe => 8839, oplus
+=> 8853, otimes => 8855, perp => 8869, sdot => 8901, loz => 9674, lceil =>
+8968, rceil => 8969, lfloor => 8970, rfloor => 8971, lang => 9001, rang =>
+9002, larr => 8592, uarr => 8593, rarr => 8594, darr => 8595, harr => 8596,
+crarr => 8629, lArr => 8656, uArr => 8657, rArr => 8658, dArr => 8659, hArr =>
+8660, bull => 8226, prime => 8242, Prime => 8243, oline => 8254, frasl => 8260,
+weierp => 8472, image => 8465, real => 8476, trade => 8482, euro => 8364,
+alefsym => 8501, spades => 9824, clubs => 9827, hearts => 9829, diams => 9830,
+OElig => 338, oelig => 339, Scaron => 352, scaron => 353, Yuml => 376, fnof =>
+402, ensp => 8194, emsp => 8195, thinsp => 8201, zwnj => 8204, zwj => 8205, lrm
+=> 8206, rlm => 8207, ndash => 8211, mdash => 8212, lsquo => 8216, rsquo =>
+8217, sbquo => 8218, ldquo => 8220, rdquo => 8221, bdquo => 8222, dagger =>
+8224, Dagger => 8225, hellip => 8230, permil => 8240, lsaquo => 8249, rsaquo =>
+8250, circ => 710, tilde => 732 );
+
+my %texescseq= ( "^" => "\\textasciicircum ", "~" => "\\textasciitilde ",
+    "*" => "\\textasteriskcentered ", "\\" => "\\textbackslash ",
+    "|" => "\\textbar ", "<" => "\\textless ", ">" => "\\textgreater " );
+my $texescchars= quotemeta join("", keys %texescseq, "\$%_{}&\#");
+
+my %texcodepoint= ( 177 => "\$\\pm\$\\relax ", 960 => "\$\\pi\$\\relax ", 8776 => "\$\\approx\$\\relax " );
+sub texentitity
+{
+  my $entname= shift;
+  my $codepoint;
+
+  if( $entname =~ /^#(\d+)$/ ) {
+    $codepoint= $1;
+  }
+  elsif( $entname =~ /^#x([a-fA-F\d]+)$/ ) {
+    $codepoint= hex($1);
+  }
+  else {
+    $codepoint= $namedents{$entname};
+    return "\\&$entname;" unless $codepoint;
+  }
+  return $texcodepoint{$codepoint} if $texcodepoint{$codepoint};
+  my $c= chr($codepoint);
+  $c= $texescseq{$c} || "\\$c" if $c =~ /^[$texescchars]/o;
+  return $c;
+}
+
+my %tag2texblock= ( b => "{\\bf ", i => "{\\it ", tt => "{\\tt ",
+    u => "\\underline{", big => "{\\big ", small => "{\\small ",
+    em => "{\\em ", strong => "{\\bf " );
+my %tag2texenv= ( ul => "itemize", ol => "enumerate", center => "center", pre => "verbatim" );
+my %tag2texother= ( br => [ "\\\\ ", "" ], li => [ "\\item ", "" ],
+    sub => [ "\${}_{\\hbox{\\scriptsize ", "}}\$" ],
+    sup => [ "\${}^{\\hbox{\\scriptsize ", "}}\$" ],
+    a => [ "\\href{<>}{", "}", "href" ],
+    img => [ "\\includegraphics[scale=0.5]{<>}", "", "src" ] );
+
+# Convert an HTML tag allowed in doc comments to equivalent TeX.
+# -> HTML tag
+# <- TeX replacement or empty string for unknown tags
+sub tag2tex
+{
+  my ($end, $tagname)= $_[0] =~ m!^<(/)?\s*(\w+)[^>]*>$! or return "";
+
+  if( my $blockstart= $tag2texblock{$tagname} ) {
+    return $end ? "}" : $blockstart;
+  }
+  elsif( my $envname= $tag2texenv{$tagname} ) {
+    return $end ? "\\end{$envname}\n" : "\\begin{$envname}\n";
+  }
+  elsif( my $other= $tag2texother{$tagname} ) {
+    my $tex= $end ? $$other[1] : $$other[0];
+    return $tex unless @$other > 2 && $tex =~ m!<>!;
+    $_[0] =~ m!\b$$other[2]\b=(?:"([^"]*)"|([^ >]*))!i;
+    my $attrval= defined($1) ? $1 : defined($2) ? $2 : "";
+    $tex =~ s!<>!$attrval!g;
+    return $tex;
+  }
+  return "";
+}
+# TODO: table, tr, td, th
+# TODO: content of <pre> / \\verbatim needs to be treated differently from ordinary docs in doc2tex()
+
+
+# Convert document text that may contain some HTML markup to TeX.
+# -> Original text
+# <- Converted text
+sub doc2tex
+{
+  my $text= shift;
+
+  $text =~ s/(?:(<[^>]*>)|&(#?\w+);|([$texescchars]))/defined($1) ? tag2tex($1)
+              : defined($2) ? texentitity($2) : $texescseq{$3} || "\\$3"/oge;
+  return $text;
+}
+
+
+
+# TODO: use docfilename or doclink field to disambiguate declaration labels
+# instead of parent design unit, which may be unknown?  Is fullname field
+# available for constants, types and other minor declarations?
+
+# Return TeX string suitable as a label for a declarative item.
+# -> Reference to hash of declarative item
+sub texlabel
+{
+  my ($decl)= @_;
+
+  return undef unless $decl->{doclink} || $decl->{docfilename};
+  my $label= $decl->{doclink} || ($unitdirs{$decl->{type}} . "/" . $decl->{docfilename});
+#  if( !defined $label ) {
+#    $label= substr($obj->{type},0,4) . ":$obj->{fullname}";
+#    $label .= ":" . substr($decl->{type},0,4) . ":$decl->{name}"
+#        if $decl;
+#  }
+  return $label;
+}
+
+
+# TeX hyperlink to a declarative item.
+# -> Link text
+#    Reference to hash of declarative item to link to; may be undef to simplify
+#    calling context, then text is returned as is.  If the item is marked
+#    internal, the hyperlink is also omitted.
+sub texref
+{
+  my ($text, $decl)= shift;
+
+  return $text unless $decl && ($decl->{doclink} || $decl->{docfilename}) && !$decl->{doc}{internal};
+  return "\\hyperref[$text]{" . texlabel($decl) . "}";
+}
+
+
+
+my $texfileerr= 0;
+
+# Create top-level TeX file containing table of contents and including the TeX
+# files of all documented design units.
+# -> Reference to array of contexts to be documented in LaTeX
+#    Reference to array of packages to be documented in LaTeX
+#    Reference to array of entities to be documented in LaTeX
+sub texall
+{
+  my ($conts, $packs, $ents)= @_;
+  my $fname= File::Spec->catfile($config{outputdir}, "latex", "$config{prefix}top.tex");
+
+  if( !open(TOP, ">$fname") ) {
+    limitfileerr("Cannot create output file $fname", \$texfileerr);
+    return;
+  }
+  print TOP <<EOF;
+\\documentclass[twoside,11pt]{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage{amsmath}
+\\usepackage{geometry}
+\\usepackage{graphicx}
+\\usepackage{longtable}
+\\usepackage{tabu}
+\\usepackage{listings}
+\\usepackage{color}
+\\usepackage[pdfborder={0 0 0}]{hyperref}
+
+\\geometry{top=20mm,bottom=20mm,left=30mm,right=30mm}
+
+\\lstset{language=vhdl,basicstyle=\\ttfamily}
+
+\\parindent 0pt
+\\parskip 3pt plus 3pt
+\\newdimen\\texindent
+\\texindent=15mm
+
+\\input{$config{prefix}style.tex}
+
+\\begin{document}
+
+\\tableofcontents
+
+\\clearpage
+
+EOF
+  for my $ary (@_) {
+    next unless $ary && @$ary;
+    print TOP "\\section{", ucfirst($unitdirs{$$ary[0]{type}}), "}\n\n";
+    print TOP "\\input{", $config{prefix}, $unitdirs{$$ary[0]{type}}, ".tex}\n\n";
+#    my $docdir= File::Spec->catfile($unitdirs{$$ary[0]{type}}, "");
+#    print TOP "\\input{${docdir}$$_{docfilename}}\n" for @$ary;
+#    print TOP "\n\n";
+  }
+  print TOP <<EOF;
+
+\\end{document}
+
+EOF
+  close TOP;
+
+  texstyle();
+
+  if( $conts && @$conts ) {
+    my $fname= File::Spec->catfile($config{outputdir}, "latex", $config{prefix} . $unitdirs{$$conts[0]{type}} . ".tex");
+    if( !open(CONT, ">$fname") ) {
+      limitfileerr("Cannot create output file $fname", \$texfileerr);
+      return;
+    }
+    contexttex(*CONT{IO}, $_) for @$conts;
+    close CONT;
+  }
+
+  if( $packs && @$packs ) {
+    my $fname= File::Spec->catfile($config{outputdir}, "latex", $config{prefix} . $unitdirs{$$packs[0]{type}} . ".tex");
+    if( !open(PACK, ">$fname") ) {
+      limitfileerr("Cannot create output file $fname", \$texfileerr);
+      return;
+    }
+    packagetex(*PACK{IO}, $_) for @$packs;
+    close PACK;
+  }
+
+  if( $ents && @$ents ) {
+    my $fname= File::Spec->catfile($config{outputdir}, "latex", $config{prefix} . $unitdirs{$$ents[0]{type}} . ".tex");
+    if( !open(ENT, ">$fname") ) {
+      limitfileerr("Cannot create output file $fname", \$texfileerr);
+      return;
+    }
+    entitytex(*ENT{IO}, $_) for @$ents;
+    close ENT;
+  }
+}
+
+
+# Create and write TeX file containing style choices, style.tex.
+sub texstyle
+{
+  my $fname= File::Spec->catfile($config{outputdir}, "latex", "$config{prefix}style.tex");
+
+  if( !open(TSTYLE, ">$fname") ) {
+    limitfileerr("Cannot create output file $fname", \$texfileerr);
+    return;
+  }
+  print TSTYLE <<EOF;
+
+\\def\\txbrief{\\em}
+\\def\\txdesc{}
+
+\\texindent=15mm
+
+% Customisation of code listing appearance could go here:
+% \\lstset{basicstyle=\\ttfamily,keywordstyle=\\color{blue},identifierstyle=\\color{red}}
+
+EOF
+}
+
+
+my $texindpar= "\\hangindent\\texindent \\hangafter=0 ";
+
+
+# \lstset{basicstyle=\ttfamily,keywordstyle=\color{blue},identifierstyle=\color{red},commentstyle=\color{darkgreen},stringstyle=\color{brown}}
+# \lstset{language=vhdl,lineskip=-2mm}
+# \begin{lstlisting}
+# \lstinline$type mytype;$
+
+
+# Assumptions / limitations:
+# IP users don't need to know about source files, architectures/configurations,
+# synthesis / simulation (apply to architectures), testbenches; and must not
+# see internal
+# unsure about: Author, last change date; attributes ?
+# new "example" designation to document architectures / package bodies too?
+
+
+# Print detailed description of design unit.  The doxygen directive @li for
+# list items is not supported.
+# -> File handle to print to
+#    Reference to array containing paragraphs and list items of description
+sub printdesctex
+{
+  my ($handle, $desc, $indflag)= @_;
+
+  print $handle "{\\txdesc\n";
+  for my $line (@$desc) {
+    print $handle doc2tex($line), "\n\n";
+  }
+  print $handle "}\n";
+}
+
+
+# Print brief and detailed description of a declaration with indentation.
+# -> File handle to print to
+#    Reference to hash of declaration to document
+sub texbriefdescindent
+{
+  my ($handle, $obj)= @_;
+
+  if( $obj->{doc}{brief} ) {
+    print $handle "$texindpar\n{\\txbrief\n",
+                  doc2tex($obj->{doc}{brief}), "\n}\n\n";
+  }
+  if( $obj->{doc}{description} && @{$obj->{doc}{description}} ) {
+    print $handle "{\\txdesc\n";
+    for my $line (@{$obj->{doc}{description}}) {
+      print $handle "$texindpar\n", doc2tex($line), "\n\n";
+    }
+    print $handle "}\n\n";
+  }
+}
+
+
+# Print TeX code for a list of ports, generics or constants.  The calling
+# context should have removed internal items from the list (because there may
+# be none left).
+# -> File handle to print to
+#    Reference to array of hashes representing the generics/ports/...
+sub printportlisttex
+{
+  my ($handle, $list)= @_;
+
+  print $handle "\\vskip -1ex \\begin{longtabu}[l]{l l l}\n";
+  for my $gp (@$list) {
+    print $handle texcode($gp->{name}), " & ";
+    if( $nogenconst{$gp->{subtype}} ) {
+      if( $gp->{subtype} eq "type" ) {
+        print $handle texcode("type");
+      }
+      elsif( $gp->{subtype} eq "package" ) {
+        print $handle "\\multicolumn2{l}{";
+        print $handle texcode("new package "), texref(texcode($gp->{subname}), $gp->{instanceof});
+        print $handle texcode(" generic map ( $gp->{genmapstr} )");
+        print $handle "}";
+      }
+      else {
+        print $handle "\\multicolumn2{l}{";
+        my $funcproctype= "$gp->{subtype} ( $gp->{parlist} ) ";
+        $funcproctype .= "return $gp->{return}" if $gp->{return};
+        $funcproctype .= " is $gp->{value}" if $gp->{value};
+        print $handle texcode($funcproctype), "}";
+      }
+    }
+    else {
+      print $handle "\\hbox to 2em{\\hfil\\it $gp->{direction}\\hfil} " if $gp->{direction};
+      print $handle textype($gp->{subtype}, $gp);
+      print $handle " & ", texcode(":= $gp->{value}")
+          if $gp->{value};
+    }
+    print $handle " \\\\\n";
+    print $handle "\\noalign{$texindpar\\txbrief ", doc2tex($gp->{doc}{brief}) , "} \n"
+        if $gp->{doc}{brief};
+    map { print $handle "\\noalign{$texindpar\\txdesc ", doc2tex($_), "} \n"; }
+                          @{$gp->{doc}{description}};
+    next unless $gp->{type} eq "const";
+    for( qw(deprecated internal) ) {
+      print $handle "\\noalign{$texindpar ", ucfirst($_), "} \n"
+          if $gp->{doc}{$_};
+    }
+#    if( $gp->{doc}{example} && @{$gp->{doc}{example}} ) {
+#      print $handle "\\noalign{$texindpar {\\bf Example", (@{$gp->{doc}{example}} > 1 ? "s":""), ":} ";
+#      print $handle join(", ", map doc2tex($_), @{$gp->{doc}{example}}), "} \n";
+#    }
+    if( $gp->{doc}{see} && @{$gp->{doc}{see}} ) {
+      print $handle "\\noalign{$texindpar {\\bf See also:} ", join(", ", texref(texid($_->[0]), $_->[1]),
+                      @{$gp->{doc}{see}}), "} \n";
+    }
+  }
+  print $handle "\\end{longtabu}\n\n";
+}
+
+
+# Print the common TeX code for a top-level design unit.
+# -> File handle to print to
+#    Reference to hash representing the entity etc.
+#    String for subsection header, or undef if simply "<type> <name>"
+sub printobjtex
+{
+  my ($handle, $obj, $title)= @_;
+
+  if( ! defined $title ) {
+    $title= ucfirst($obj->{type}) . " " . texid($obj->{fullname});
+  }
+  print $handle "\n\n\\subsection{$title}\n\\label{", texlabel($obj), "}\n\n";
+  print $handle "{\\txbrief ", doc2tex($obj->{doc}{brief}), "}\n\n" 
+        if $obj->{doc}{brief};
+  print $handle "{\\bf Deprecated}\n\n" 
+        if $obj->{doc}{deprecated};
+  if( $obj->{doc}{author} ) {
+    print $handle ($obj->{doc}{author} =~ /,|;|\band\b/?
+                                        "Authors: " : "Author: ");
+    print $handle doc2tex($obj->{doc}{author}), "\\\\\n";
+  }
+  print $handle "Version: ", doc2tex($obj->{doc}{date}), "\\\\\n"
+        if $obj->{doc}{date};
+  print $handle "Version: ", doc2tex($obj->{doc}{version}), "\\\\\n"
+        if $obj->{doc}{version};
+  if( $obj->{doc}{description} && @{$obj->{doc}{description}} ) {
+    print $handle "\n\\subsubsection*{Detailed description}\n\n";
+    printdesctex($handle, $obj->{doc}{description});
+  }
+  if( $obj->{doc}{see} && @{$obj->{doc}{see}} ) {
+    use Data::Dumper;
+    for (@{$obj->{doc}{see}}) {
+      if( ref($_) ne "ARRAY" ) {
+        print "$obj->{type} $obj->{name}\n", Dumper($_);
+        last;
+      }
+    }
+    print $handle "{\\bf See also:} ", join(", ", map texref(texid($_->[0]), $_->[1]),
+                    @{$obj->{doc}{see}}), "\n\n";
+  }
+}
+
+
+# Write TeX code for an entity.
+# -> File handle to print to
+#    Reference to hash representing entity
+sub entitytex
+{
+  my ($handle, $ent)= @_;
+
+  printobjtex($handle, $ent);
+  if( my @gens= @{$ent->{childtype}{generic}} ) {
+    print $handle "\n\n\\subsubsection*{Generics}\n\n";
+    printportlisttex($handle, \@gens);
+  }
+  if( my @ports= @{$ent->{childtype}{port}} ) {
+    print $handle "\n\n\\subsubsection*{Ports}\n\n";
+    printportlisttex($handle, \@ports);
+  }
+}
+
+
+# Generate TeX code for context declaration.  As for the HTML output, separate
+# lists of explicitly and implicitly referenced packages are printed.
+# -> File handle to print to
+#    Reference to hash representing context declaration
+sub contexttex
+{
+  my ($handle, $cont)= @_;
+  my (%conts, %libs, %uses);
+
+  printobjtex($handle, $cont);
+
+  for ( @{$cont->{children}}) {
+    if( $_->{type} eq "library" ) {
+      $libs{lc($_->{name})}= $_;
+    }
+    elsif( $_->{type} eq "use" && $_->{subtype} eq "package" ) {
+      $uses{lc($_->{name})}= $_;
+    }
+    elsif( $_->{type} eq "context" && $_->{subtype} eq "reference" ) {
+      $conts{lc($_->{name})}= $_;
+    }
+  }
+  if( %conts ) {
+    print $handle "\n\n\\subsubsection*{Context references}\n\n";
+    for (sort keys %conts) {
+      print $handle texref(texid($_), $conts{$_}{object}), " \n\n";
+      texbriefdescindent($handle, $conts{$_});
+    }
+    print $handle "\n";
+  }
+  if( %uses ) {
+    print $handle "\n\n\\subsubsection*{Explicit use statements}\n\n";
+    for (sort keys %uses) {
+      my $refobj= $uses{$_}{object};
+      if( ! $refobj || ! $refobj->{doclink} ) {
+        $refobj= $uses{$_}{package};
+      }
+      print $handle texref(texid($_), $refobj), " \n\n";
+      texbriefdescindent($handle, $uses{$_});
+    }
+    print $handle "\n";
+  }
+  else {
+    print $handle "\n\n\\subsubsection*{No explicit use statements}\n\n";
+  }
+  if( %conts && $cont->{alluses} && %{$cont->{alluses}} > %uses ) {
+    print $handle "\n\n\\subsubsection*{All package declarations made available}\n\n";
+    print $handle "\n\\begin{longtabu}[l]{l l}\n";
+    for my $usepack (sort keys %{$cont->{alluses}}) {
+      my $use= $cont->{alluses}{$usepack};
+      # The "type" entry distinguishes a hash representing a use statement from
+      # a hash containing a list of non-"all" use statements.
+      my $pack= $use->{type} ? $use->{package} : $use->{(keys %$use)[0]}->{package};
+      print $handle "From " unless $use->{type};
+      print $handle texref(texcode($usepack), $pack);
+      print $handle ":" unless $use->{type};
+      print $handle " & ";
+      if( ! $use->{type} ) {
+        print $handle join(", ",
+              map texref(texid($_), $use->{$_}{object}), sort keys %$use);
+      }
+      elsif( $pack && $pack->{doc}{brief} ) {
+        print $handle "{\\txbrief ", doc2tex($pack->{doc}{brief}), "}\n";
+      }
+      print $handle " \\\\\n";
+    }
+    print $handle "\\end{longtabu}\n\n";
+  }
+}
+
+
+# Print description of component, procedure or function.
+# -> File handle to print to
+#    Reference to hash representing object
+sub printcommontex
+{
+  my ($handle, $obj)= @_;
+
+  texbriefdescindent($handle, $obj);
+  if( $obj->{doc}{param} && @{$obj->{doc}{param}} ) {
+    print $handle "${texindpar}{\\bf Parameters:}\n\\begin{longtabu}[l]{l X}\n";
+    for my $par (@{$obj->{doc}{param}}) {
+      $par =~ /^(?:\[(\w+)\]\s*)?(\w+)\s+(.*)$/s or next;
+      print $handle "\\hskip\\texindent ", texid($2), " & \\quad ", doc2tex($3), "\\\\\n";
+    }
+    print $handle "\\end{longtabu}\n\n";
+  }
+  print $handle "${texindpar}Return value: ", doc2tex($obj->{doc}{return}), "\n\n"
+      if $obj->{doc}{return};
+  print $handle "${texindpar}{\\bf Deprecated}\n\n" 
+        if $obj->{doc}{deprecated};
+  if( $obj->{doc}{see} && @{$obj->{doc}{see}} ) {
+    print $handle "${texindpar}{\\bf See also:} ",
+       join(", ", texref(texid($_->[0]), $_->[1]), @{$obj->{doc}{see}}), "\n\n";
+  }
+}
+
+
+# Print TeX subsubsection describing type declarations in a package.
+# -> File handle to print to
+#    Reference to hash representing package
+sub printtypestex
+{
+  my ($handle, $pack)= @_;
+
+  my @types= grep ! $_->{doc}{internal}, @{$pack->{childtype}{type}};
+  return unless @types;
+  print $handle "\n\\subsubsection*{Type declarations}\n\n";
+
+# TODO: set label;  check type hyperrefs generally
+  for my $type (@types) {
+    my $typestr= ($type->{subtype} eq "subtype"? "subtype ": "type ") . $type->{name} . " is ";
+    if( $type->{subtype} eq "record" ) {
+      print $handle texcode($typestr . "record"), "\n\n";
+      texbriefdescindent($handle, $type);
+      if( my @elements= @{$type->{children} || []} ) {
+        print $handle "$texindpar\nElements:\n\n$texindpar\n";;
+        printportlisttex($handle, \@elements);
+      }
+    }
+    elsif( $type->{subtype} eq "units" ) {
+      print $handle texcode($typestr . "units"), "\n\n";
+      texbriefdescindent($handle, $type);
+      for my $chain (@{$type->{chains}}) {
+        print $handle "$texindpar\n";
+        my $u= $chain;
+        my $closeparens= "";
+        while( @$u > 1 ) {
+          print $handle texid($$u[0]), " = $$u[1] ";
+          $u= $$u[2];
+          if( @$u > 1 ) {
+            print $handle "( ";
+            $closeparens .= " )";
+          }
+        }
+        print $handle texcode($$u[0]), $closeparens, "\n\n";
+      }
+    }
+    else {
+      if( $type->{subtype} =~ /type$/ ) {
+        print $handle texcode($typestr . $type->{definition}), "\n\n";
+      }
+      elsif( $type->{subtype} =~ /^protected/i ) {
+        print $handle texcode($typestr . "protected"), " \$\\ldots\$\n\n";
+      }
+      else {
+        print $handle texcode($typestr), " ???\n\n";
+      }
+      texbriefdescindent($handle, $type);
+    }
+    print $handle "${texindpar}{\\bf Deprecated}\n\n" 
+          if $type->{doc}{deprecated};
+    if( $type->{doc}{see} && @{$type->{doc}{see}} ) {
+      print $handle "${texindpar}{\\bf See also:} ",
+            join(", ", texref(texid($_->[0]), $_->[1]), @{$type->{doc}{see}}), "\n\n";
+    }
+  }
+}
+
+
+# Print TeX subsubsection describing all function and procedure declarations of
+# a library unit, in the order in which they appear in the source.
+# -> File handle to print to
+#    Reference to hash representing the top-level declaration (library unit)
+#    Flag indicating the declaration is in a package
+sub printfuncproctex
+{
+  my ($handle, $obj, $inpack)= @_;
+  my @funcprocs;
+
+  @funcprocs= grep ! $_->{doc}{internal}, @{$obj->{childtype}{funcproc}};
+  return unless @funcprocs;
+  print $handle "\n\\subsubsection*{Functions and procedures}\n\n";
+  for my $func (@funcprocs) {
+    my $gen= $func->{childtype}{generic} && @{$func->{childtype}{generic}} ?
+             "generic " : "";
+    my $arglist= $func->{parlist} ?  " (" . $func->{parlist} . ")" : "";
+
+# hyperref anchor for crossref from instance to generic function
+    print $handle texcode("$gen$func->{type} $func->{name}$arglist" .
+                  ($func->{subtype}? " return $func->{subtype}" : "")),
+                  "\n\n";
+    print $handle "{\\bf impure}\n\n" if $func->{pure} && $func->{pure} eq "impure";
+    printcommontex($handle, $func);
+    if( $gen ) {
+      print $handle "Generics:\n\n";
+      printportlisttex($handle, @{$func->{childtype}{generic}});
+    }
+    elsif( $func->{instanceofname} ) {
+      print $handle "Instance of ";
+      print $handle (!$func->{instanceof} ? texid($func->{instanceofname}) :
+            texref(texid($func->{instanceof}{fullname}), $func->{instanceof})),
+              "\n\n";
+      if( $func->{genericmap} && @{$func->{genericmap}} ) {
+        print $handle "{\\bf Generic map:}\n\\begin{longtabu}[l]{l X}\n";
+        map { print $handle texid($$_[0]), " & \$\\Rightarrow\$ ", texcode($$_[1]), " \\\\\n"; } @{$func->{genericmap}};
+        print $handle "\\end{longtabu}\n\n";
+      }
+    }
+  }
+}
+
+
+# Write TeX code describing a package.
+# -> File handle to print to
+#    Reference to hash representing package
+sub packagetex
+{
+  my ($handle, $pack)= @_;
+
+  my $packstr= @{$pack->{childtype}{generic}} || $pack->{instances} ?
+                "Generic package" : "Package";
+  printobjtex($handle, $pack, $packstr . " " . texid($pack->{fullname}));
+
+# Do we need a summary in the TeX output?
+#  texpackagesummary($handle, $pack) if $config{packagesummary} ne "never";
+
+  if( my @gens= @{$pack->{childtype}{generic}} ) {
+    print $handle "\n\n\\subsubsection*{Generics}\n\n";
+    printportlisttex($handle, \@gens);
+  }
+  if( $pack->{instances} &&
+        (my @insts= grep ! $_->{doc}{internal}, @{$pack->{instances}}) ) {
+    print $handle "\n\n\\subsubsection*{Instances}\n";
+    for my $inst (@insts) {
+#      print $handle "\\multicolumn2{l}{\\bf ", texid($inst->{fullname}), "}\n\\label{", texlabel({$inst}), "} \\\\\n\n";
+      print $handle "\\subsubsubsection*{", texid($inst->{fullname}), "}\n\\label{", texlabel({$inst}), "}\n\n";
+      printcommontex($handle, $inst);
+      if( $inst->{genericmap} && @{$inst->{genericmap}} ) {
+        print $handle "{\\bf Generic map:}\n\\begin{longtabu}[l]{l X}\n";
+        map { print $handle texid($$_[0]), " & \$\\Rightarrow\$ ", texcode($$_[1]), " \\\\\n"; } @{$inst->{genericmap}};
+        print $handle "\\end{longtabu}\n\n";
+      }
+      else {
+        print $handle "{\\bf Default generic values}\n";
+      }
+    }
+  }
+  printtypestex($handle, $pack);
+  if( my @consts= @{$pack->{childtype}{constant}} ) {
+    print $handle "\n\n\\subsubsection*{Constants}\n\n";
+    printportlisttex($handle, \@consts);
+  }
+  printfuncproctex($handle, $pack);
+  if( my @comps= @{$pack->{childtype}{component}} ) {
+    print $handle "\n\n\\subsubsection*{Component declarations}\n\n";
+    for my $comp (@comps) {
+      print $handle "{\\bf ", texid($comp->{name}), "}\n\n";
+      printcommontex($handle, $comp);
+      print $handle "${texindpar}Binding: ", texref(texid($comp->{binding}{fullname}), $comp->{binding}), "\n\n"
+            if $comp->{binding} && ! $comp->{binding}{doc}{internal};
+    }
+  }
+}
 
 
 #sectionmain##################################################################
@@ -7366,6 +8126,22 @@ if( $config{jobs} == 0 ) {
 }
 
 if( $config{texout} ) {
+  my @texconts= sort { lc($a->{fullname}) cmp lc($b->{fullname}) }
+                grep !$_->{doc}{internal}, @contexts;
+  my @texpacks= sort { lc($a->{fullname}) cmp lc($b->{fullname}) }
+                grep !$_->{doc}{internal}, @packages;
+  my @texents= sort { lc($a->{fullname}) cmp lc($b->{fullname}) }
+                grep !$_->{doc}{internal} && !$_->{doc}{testbench}, @entities;
+  for my $obj (@texconts, @texpacks, @texents) {
+    $$obj{docfilename} =~ s/\.html?$/.tex/i;
+    my @texsee;     # retain only "see" references to other TeX'ed units
+    for my $see (@{$obj->{doc}{see}}) {
+      push @texsee, $see if $see->[1] && elem { $_ == $see->[1] } (@texconts, @texpacks, @texents);
+    }
+    $obj->{doc}{see}= \@texsee;
+    # TODO: remove cross-refs to non-TeXed stuff in / to minor declarations, such as type definitions
+  }
+  texall(\@texconts, \@texpacks, \@texents);
 }
 
 benchmark("to generate HTML") if $config{benchmark};
