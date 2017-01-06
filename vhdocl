@@ -1942,9 +1942,30 @@ vhdlline:
     }
     elsif( !$label && $vline =~ s/^(entity|component|package|packagebody)\b//i ) {
       my $type= lc($1);
-      last vhdlline unless defined readuntil( qr/\bis\s+\S/i );
-      if( $vline =~ s/\s+($ID)\s+is\s+new\b/new/io  ) {
-        @newentries= ( { "type", $type, "name", $1 } );
+      while( $vline !~ /\S/ ) {
+        getnextline(0) or last vhdlline;
+      }
+      if( $type eq "package" ) {
+        $vline =~ s/^\s*($ID)//o or goto skipnext;
+        my $newpack= { "type", $type, "name", $1 };
+        # Need to read ahead to potential "is new" to identify generic package
+        # instances
+        while( 13 ) {
+          if( $vline =~ s/^\s*is\s+new\b/new/i ) {
+            $doccomment .= $aheaddoccom;
+            $keepdoccom ||= $keepaheaddoc;
+            $aheaddoccom= "";
+            $keepaheaddoc= 0;
+            readuntil( qr/;/ );
+            @newentries= ( $newpack );
+            last;
+          }
+          elsif( $vline =~ s/^\s*is\b\s+(\S)/$1/i || $vline =~ /^\s*(\S+)/ && $1 ne "is" ) {
+            $newchild= $newpack;
+            last;
+          }
+          getnextline(1) or last vhdlline;
+        }
       }
       elsif( $vline =~ s/\s+($ID)(?:\s+is\b)?//io  ) {
         $newchild= { "type", $type, "name", $1 };
