@@ -6960,8 +6960,8 @@ sub printobjtex
         last;
       }
     }
-    print $handle "{\\bf See also:} ", join(", ", map texref(texid($_->[0]), $_->[1]),
-                    @{$obj->{doc}{see}}), "\n\n";
+    print $handle "{\\bf See also:} ", join(", ",
+            map texref(texid($_->[0]), $_->[1]), @{$obj->{doc}{see}}), "\n\n";
   }
 }
 
@@ -7077,8 +7077,8 @@ sub printcommontex
   print $handle "${texindpar}{\\bf Deprecated}\n\n" 
         if $obj->{doc}{deprecated};
   if( $obj->{doc}{see} && @{$obj->{doc}{see}} ) {
-    print $handle "${texindpar}{\\bf See also:} ",
-       join(", ", texref(texid($_->[0]), $_->[1]), @{$obj->{doc}{see}}), "\n\n";
+    print $handle "${texindpar}See also: ", join(", ",
+            map texref(texid($_->[0]), $_->[1]), @{$obj->{doc}{see}}), "\n\n";
   }
 }
 
