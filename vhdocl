@@ -6608,12 +6608,22 @@ sub texentitity
 my %tag2texblock= ( b => "{\\bf ", i => "{\\it ", tt => "{\\tt ",
     u => "\\underline{", big => "{\\big ", small => "{\\small ",
     em => "{\\em ", strong => "{\\bf " );
-my %tag2texenv= ( ul => "itemize", ol => "enumerate", center => "center", pre => "verbatim" );
+my %tag2texenv= ( ul => "itemize", ol => "enumerate", center => "center", pre => "alltt" );
 my %tag2texother= ( br => [ "\\\\ ", "" ], li => [ "\\item ", "" ],
     sub => [ "\${}_{\\hbox{\\scriptsize ", "}}\$" ],
     sup => [ "\${}^{\\hbox{\\scriptsize ", "}}\$" ],
     a => [ "\\href{<>}{", "}", "href" ],
-    img => [ "\\includegraphics[scale=0.5]{<>}", "", "src" ] );
+    img => [ "\\includegraphics[scale=0.5]{<>}", "", "src" ],
+# The complicated LaTeX table preamble erases the first column by assigning it
+# to a box that is never used and omitting cell spacing.  This allows to
+# transcribe each <td> and <th> to a TeX table separator "&".  The invisible
+# \vrule makes the cells higher.
+    table => [ <<EOF, "\\end{longtable}\n" ],
+\\begin{longtable}[l]{\@{}>{\\setbox0=\\hbox to 0pt\\bgroup}l<{\\hss\\egroup
+}\@{}|*{100}{>{\\vrule width 0pt height 2.5ex depth 1.25 ex}l|}}
+\\hline
+EOF
+    tr => [ "", " \\\\\n\\hline\n" ], td => [ "&", ""], th => [ "&", "" ] );
 
 # Convert an HTML tag allowed in doc comments to equivalent TeX.
 # -> HTML tag
@@ -6626,7 +6636,7 @@ sub tag2tex
     return $end ? "}" : $blockstart;
   }
   elsif( my $envname= $tag2texenv{$tagname} ) {
-    return $end ? "\\end{$envname}\n" : "\\begin{$envname}\n";
+    return $end ? "\\end{$envname}\n" : "\\begin{$envname}";
   }
   elsif( my $other= $tag2texother{$tagname} ) {
     my $tex= $end ? $$other[1] : $$other[0];
@@ -6638,8 +6648,6 @@ sub tag2tex
   }
   return "";
 }
-# TODO: table, tr, td, th
-# TODO: content of <pre> / \\verbatim needs to be treated differently from ordinary docs in doc2tex()
 
 
 # Convert document text that may contain some HTML markup to TeX.
@@ -6714,6 +6722,7 @@ sub texall
 \\usepackage{amsmath}
 \\usepackage{geometry}
 \\usepackage{graphicx}
+\\usepackage{alltt}
 \\usepackage{longtable}
 \\usepackage{tabu}
 \\usepackage{listings}
