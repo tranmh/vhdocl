@@ -8143,26 +8143,46 @@ if( $config{jobs} == 0 ) {
   }
 }
 
+benchmark("to generate HTML") if $config{benchmark};
+
+
 if( $config{texout} ) {
+  print "Generating LaTeX...\n" unless $config{quiet};
+  benchmark() if $config{benchmark};
   my @texconts= sort { lc($a->{fullname}) cmp lc($b->{fullname}) }
                 grep !$_->{doc}{internal}, @contexts;
-  my @texpacks= sort { lc($a->{fullname}) cmp lc($b->{fullname}) }
-                grep !$_->{doc}{internal}, @packages;
-  my @texents= sort { lc($a->{fullname}) cmp lc($b->{fullname}) }
-                grep !$_->{doc}{internal} && !$_->{doc}{testbench}, @entities;
-  for my $obj (@texconts, @texpacks, @texents) {
-    $$obj{docfilename} =~ s/\.html?$/.tex/i;
-    my @texsee;     # retain only "see" references to other TeX'ed units
-    for my $see (@{$obj->{doc}{see}}) {
-      push @texsee, $see if $see->[1] && elem { $_ == $see->[1] } (@texconts, @texpacks, @texents);
+  my (@texpacks, @texents);
+  for my $pack (@packages) {
+    if( ! $pack->{doc}{internal} ) {
+      push @texpacks, $pack;
     }
-    $obj->{doc}{see}= \@texsee;
-    # TODO: remove cross-refs to non-TeXed stuff in / to minor declarations, such as type definitions
+    else {
+      $_->{doc}{internal}= 1 for (@{$pack->{children}});
+    }
+  }
+  @texpacks= sort { lc($a->{fullname}) cmp lc($b->{fullname}) } @texpacks;
+  for my $ent (@entities) {
+    if( ! $ent->{doc}{internal} && ! $ent->{doc}{testbench} ) {
+      push @texents, $ent;
+    }
+    else {
+      $ent->{doc}{internal}= 1;   # simplify future checks
+      $_->{doc}{internal}= 1 for (@{$ent->{children}});
+    }
+  }
+  @texents= sort { lc($a->{fullname}) cmp lc($b->{fullname}) } @texents;
+  for my $obj (@packages, @texents) {
+    next unless $obj->{internal} || $obj->{testbench};
+    $_->{doc}{internal}= 1 for (@{$obj->{children}});
+  }
+  for my $obj (@texconts, @texpacks, @texents, map @{$_->{children}}, (@texpacks, @texents) ) {
+    # retain "see" references only to other TeX'ed declarations
+    @{$obj->{doc}{see}}= grep $_->[1] && ! $_->[1]{doc}{internal}, @{$obj->{doc}{see}};
   }
   texall(\@texconts, \@texpacks, \@texents);
+  benchmark("to generate LaTeX") if $config{benchmark};
 }
 
-benchmark("to generate HTML") if $config{benchmark};
 
 exit 0;
 
