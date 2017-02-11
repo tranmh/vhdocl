@@ -6664,23 +6664,18 @@ sub doc2tex
 
 
 
-# TODO: use docfilename or doclink field to disambiguate declaration labels
-# instead of parent design unit, which may be unknown?  Is fullname field
-# available for constants, types and other minor declarations?
-
 # Return TeX string suitable as a label for a declarative item.
 # -> Reference to hash of declarative item
+# <- String suitable for TeX \label{...} and \ref{...} commands
 sub texlabel
 {
   my ($decl)= @_;
 
   return undef unless $decl->{doclink} || $decl->{docfilename};
   my $label= $decl->{doclink} || ($unitdirs{$decl->{type}} . "/" . $decl->{docfilename});
-#  if( !defined $label ) {
-#    $label= substr($obj->{type},0,4) . ":$obj->{fullname}";
-#    $label .= ":" . substr($decl->{type},0,4) . ":$decl->{name}"
-#        if $decl;
-#  }
+  $label =~ s/\#/::/g;
+  # disambiguate overloaded funtions, see labelfuncproc():
+  $label .= "-$decl->{label}" if $decl->{label};
   return $label;
 }
 
@@ -6692,10 +6687,10 @@ sub texlabel
 #    internal, the hyperlink is also omitted.
 sub texref
 {
-  my ($text, $decl)= shift;
+  my ($text, $decl)= @_;
 
   return $text unless $decl && ($decl->{doclink} || $decl->{docfilename}) && !$decl->{doc}{internal};
-  return "\\hyperref[$text]{" . texlabel($decl) . "}";
+  return "\\hyperref[" . texlabel($decl) . "]{$text}";
 }
 
 
@@ -6727,7 +6722,7 @@ sub texall
 \\usepackage{tabu}
 \\usepackage{listings}
 \\usepackage{color}
-\\usepackage[pdfborder={0 0 0}]{hyperref}
+\\usepackage{hyperref}
 
 \\geometry{top=20mm,bottom=20mm,left=30mm,right=30mm}
 
@@ -6919,10 +6914,6 @@ sub printportlisttex
       print $handle "\\noalign{$texindpar ", ucfirst($_), "} \n"
           if $gp->{doc}{$_};
     }
-#    if( $gp->{doc}{example} && @{$gp->{doc}{example}} ) {
-#      print $handle "\\noalign{$texindpar {\\bf Example", (@{$gp->{doc}{example}} > 1 ? "s":""), ":} ";
-#      print $handle join(", ", map doc2tex($_), @{$gp->{doc}{example}}), "} \n";
-#    }
     if( $gp->{doc}{see} && @{$gp->{doc}{see}} ) {
       print $handle "\\noalign{$texindpar {\\bf See also:} ", join(", ", texref(texid($_->[0]), $_->[1]),
                       @{$gp->{doc}{see}}), "} \n";
@@ -6962,13 +6953,6 @@ sub printobjtex
     printdesctex($handle, $obj->{doc}{description});
   }
   if( $obj->{doc}{see} && @{$obj->{doc}{see}} ) {
-    use Data::Dumper;
-    for (@{$obj->{doc}{see}}) {
-      if( ref($_) ne "ARRAY" ) {
-        print "$obj->{type} $obj->{name}\n", Dumper($_);
-        last;
-      }
-    }
     print $handle "{\\bf See also:} ", join(", ",
             map texref(texid($_->[0]), $_->[1]), @{$obj->{doc}{see}}), "\n\n";
   }
@@ -7103,8 +7087,8 @@ sub printtypestex
   return unless @types;
   print $handle "\n\\subsubsection*{Type declarations}\n\n";
 
-# TODO: set label;  check type hyperrefs generally
   for my $type (@types) {
+    print $handle "\n\\label{", texlabel($type), "}\n";
     my $typestr= ($type->{subtype} eq "subtype"? "subtype ": "type ") . $type->{name} . " is ";
     if( $type->{subtype} eq "record" ) {
       print $handle texcode($typestr . "record"), "\n\n";
@@ -7172,7 +7156,10 @@ sub printfuncproctex
              "generic " : "";
     my $arglist= $func->{parlist} ?  " (" . $func->{parlist} . ")" : "";
 
-# hyperref anchor for crossref from instance to generic function
+    print $handle "\n\\label{", texlabel($func), "}\n"
+        if $func->{label};
+        # ->{label} serves to disambiguate overloaded functions and is set if
+        # the function is referenced elsewhere; otherwise we need no TeX label
     print $handle texcode("$gen$func->{type} $func->{name}$arglist" .
                   ($func->{subtype}? " return $func->{subtype}" : "")),
                   "\n\n";
@@ -7219,7 +7206,7 @@ sub packagetex
         (my @insts= grep ! $_->{doc}{internal}, @{$pack->{instances}}) ) {
     print $handle "\n\n\\subsubsection*{Instances}\n";
     for my $inst (@insts) {
-#      print $handle "\\multicolumn2{l}{\\bf ", texid($inst->{fullname}), "}\n\\label{", texlabel({$inst}), "} \\\\\n\n";
+      print $handle "\n\\label{", texlabel($inst), "}\n";
       print $handle "\\subsubsubsection*{", texid($inst->{fullname}), "}\n\\label{", texlabel({$inst}), "}\n\n";
       printcommontex($handle, $inst);
       if( $inst->{genericmap} && @{$inst->{genericmap}} ) {
@@ -7241,6 +7228,7 @@ sub packagetex
   if( my @comps= @{$pack->{childtype}{component}} ) {
     print $handle "\n\n\\subsubsection*{Component declarations}\n\n";
     for my $comp (@comps) {
+      print $handle "\n\\label{", texlabel($comp), "}\n";
       print $handle "{\\bf ", texid($comp->{name}), "}\n\n";
       printcommontex($handle, $comp);
       print $handle "${texindpar}Binding: ", texref(texid($comp->{binding}{fullname}), $comp->{binding}), "\n\n"
