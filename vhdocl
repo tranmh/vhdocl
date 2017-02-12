@@ -3335,7 +3335,10 @@ sub find_selname
     return $selnames{$type}{lc("$prefix.$name")};
   }
   # Try all types if type is not given:
-  for my $t (keys %selnames) {
+  my @alltypes= keys %unitdirs;
+  # Top-level design units first, then minor declarations
+  push @alltypes, grep ! $unitdirs{$_}, keys %selnames;
+  for my $t (@alltypes) {
     my $obj= find_selname($name, $t, $prefix);
     return $obj if $obj;
   }
