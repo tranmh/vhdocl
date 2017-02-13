@@ -7141,6 +7141,13 @@ sub printtypestex
 }
 
 
+{
+# Regex for splitting function/procedure declarations into shorter strings
+# before markup to allow line breaking:
+my $openchars= "([<\"";
+my $minlenm2= 10;
+my $codepartre= qr/[$openchars\w].{$minlenm2,}?[^$openchars](?:\b(?=\w)|(?=[$openchars]))|.+$/o;
+
 # Print TeX subsubsection describing all function and procedure declarations of
 # a library unit, in the order in which they appear in the source.
 # -> File handle to print to
@@ -7163,9 +7170,12 @@ sub printfuncproctex
         if $func->{label};
         # ->{label} serves to disambiguate overloaded functions and is set if
         # the function is referenced elsewhere; otherwise we need no TeX label
-    print $handle texcode("$gen$func->{type} $func->{name}$arglist" .
-                  ($func->{subtype}? " return $func->{subtype}" : "")),
-                  "\n\n";
+    my $declcode= "$gen$func->{type} $func->{name}$arglist" .
+                  ($func->{subtype}? " return $func->{subtype}" : "");
+    my @declparts= $declcode =~ /\G($codepartre)/g;
+    s/ $// for @declparts;
+    print $handle "\\hangindent 0.5\\texindent \\hangafter=1\n",
+                  join("\n", map texcode($_),  @declparts), "\n\n";
     print $handle "{\\bf impure}\n\n" if $func->{pure} && $func->{pure} eq "impure";
     printcommontex($handle, $func);
     if( $gen ) {
@@ -7184,6 +7194,8 @@ sub printfuncproctex
       }
     }
   }
+}
+
 }
 
 
