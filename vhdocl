@@ -6736,6 +6736,9 @@ sub texall
 \\newdimen\\texindent
 \\texindent=15mm
 
+\\def\\txbrief{\\em}
+\\def\\txdesc{}
+
 \\input{$config{prefix}style.tex}
 
 \\begin{document}
@@ -6794,11 +6797,13 @@ EOF
 }
 
 
-# Create and write TeX file containing style choices, style.tex.
+# Create and write TeX file containing style choices, style.tex, unless it
+# exists already.
 sub texstyle
 {
   my $fname= File::Spec->catfile($config{outputdir}, "latex", "$config{prefix}style.tex");
 
+  return if -e $fname;
   if( !open(TSTYLE, ">$fname") ) {
     limitfileerr("Cannot create output file $fname", \$texfileerr);
     return;
