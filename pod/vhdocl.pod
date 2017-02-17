@@ -122,6 +122,14 @@ systems.  This option is useful mainly when the VHDL sources are located on a
 fast SSD or a RAM disk, so that parsing speed is limited by CPU speed, not disk
 IO.
 
+=item B<--latex>
+
+Generate LaTeX output.  The LaTeX does not have the same content as the regular
+HTML documentation.  LaTeX output only contains interface (entity and package)
+documentation for users of IP cores, and is not intended developer
+documentation as the HTML output.  See L</LATEX OUTPUT> below for more
+information.
+
 =item B<--leftlogo>=I<image>
 
 File name or URL of an image to put in the top left of every HTML page
@@ -848,6 +856,44 @@ The assignment of classes to source listings is based solely on word
 recognition, and as a consequence is not perfect.  For example, the word C<in>
 occurring in C<for...generate> statements will be misidentified as belonging to
 the B<vhdlio> class.
+
+
+=head1 LATEX OUTPUT
+
+If the B<--latex> option is active, VHDocL generates LaTeX documentation in the
+subdirectory C<latex> of the documentation target directory.  The LaTeX output
+is not equivalent to the HTML output.  HTML is much more suitable for code
+documentation due to its unlimited page size, absence of serial page order and
+JavaScript interactivity.  The LaTeX output is provided for inclusion in
+printable manuals aimed at IP core users, not developers.
+
+With that in mind, the LaTeX output includes only interface documentation of
+entities, packages and contexts, and nothing at all on architectures,
+configurations, package bodies and source files.  The markup codes B<@internal>
+and B<@testbench>, which are purely informational in the HTML output, cause a
+declarative item to be omitted from the LaTeX documentation.  If both HTML
+developer documentation and LaTeX user documentation is to be generated from
+the same sources, all design units that are not intended for users should be
+marked B<@internal>.
+
+Four TeX files are generated - a top-level file, C<top.tex>, a file intended
+for style customisation, C<style.tex> and one file each for packages
+(C<packages.tex>) and entities (C<entities.tex>).  Output file names are
+affected by B<--prefix> as usual.  C<style.tex> is included late enough to
+override defaults in the top-level file, and is not overwritten if it exists.
+The documentation of a package or entity takes up one subsection in their
+respective TeX files; the section headlines are in the top-level file.
+
+The documentation comments are translated from HTML to their LaTeX equivalent
+where necessary.  Inline LaTeX in the comments is not supported.
+
+The generated TeX code uses a number of LaTeX packages.  The less common ones
+are C<listings> for VHDL syntax markup and C<longtable> and C<tabu> for tables
+continuing over several pages.  The C<alltt> package is used to translate the
+C<pre> HTML tag, C<amsmath> to translate some HTML entities (special
+characters) and C<inputenc> to allow UTF-8 encoded documentation comments.  If
+the generated LaTeX is to be incorporated into a different document, the
+C<usepackage> statements from C<top.tex> have to be copied.
 
 
 =head1 MACHINE-READABLE OUTPUT
