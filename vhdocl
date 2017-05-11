@@ -1636,7 +1636,7 @@ sub readportlist
       }
     }
     elsif( $entry =~ /^\s*(?:(?:constant|signal)\s+)?($IDLIST)\s*:\s*
-           (?:(in|out|inout)\b)?\s*($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
+           (?:(in|out|inout|buffer|linkage)\b)?\s*($MSTUFF)(?:\s*:=\s*($STUFF))?\s*$/iox ) {
       @newentries= map +{ "type", $type, "name", $_,
                           "direction", $port ? lc($2 || "in") : "",
                           "subtype", $3, "value", $4 }, split(/\s*,\s*/, $1);
