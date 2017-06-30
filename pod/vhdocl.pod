@@ -79,6 +79,12 @@ cumulative; rather, its current value applies to subsequent source files until
 the next B<--exclude> option.  The I<glob> pattern will usually have to be
 escaped from the shell, for example by enclosing it in single quotes.
 
+=item B<--eyecandy>
+
+Adds a block diagram to each entity page that contains no information not
+already present in the page.  With B<--latex>, the block diagrams are also
+included in the LaTeX output.
+
 =item B<-f> I<file.vhdocl>, B<--configfile>=I<file.vhdocl>
 
 Tells VHDocL to interrupt command line argument processing and to read options
@@ -126,9 +132,8 @@ IO.
 
 Generate LaTeX output.  The LaTeX does not have the same content as the regular
 HTML documentation.  LaTeX output only contains interface (entity and package)
-documentation for users of IP cores, and is not intended developer
-documentation as the HTML output.  See L</LATEX OUTPUT> below for more
-information.
+documentation for users of IP cores, and unlike the HTML output is not intended
+as developer documentation.  See L</LATEX OUTPUT> below for more information.
 
 =item B<--leftlogo>=I<image>
 
@@ -894,6 +899,9 @@ C<pre> HTML tag, C<amsmath> to translate some HTML entities (special
 characters) and C<inputenc> to allow UTF-8 encoded documentation comments.  If
 the generated LaTeX is to be incorporated into a different document, the
 C<usepackage> statements from C<top.tex> have to be copied.
+
+If the B<--eyecandy> option is active, entity block diagrams are included in
+the LaTeX output.
 
 
 =head1 MACHINE-READABLE OUTPUT
