@@ -69,3 +69,9 @@ table.vhdocltab td {
     width:50px;
 }
 */
+*.entdiaghead {
+    font-size:80%;
+}
+*.entdiagio {
+    font-size:60%;
+}

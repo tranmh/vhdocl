@@ -56,7 +56,8 @@ my %config= ( outputdir => "doc", prefix => "", libname => "work",
   compat => 0, cwd => "", psl => 1, parsedebug => 0, quiet => 0, 
   texout => 0, stylesheet => "", leftlogo => "", rightlogo => "",
   homehtml => "", title => "", footer => "", topmodules => [],
-  sourcelinks => 1, tabsize => 0, packagesummary => "never" );
+  sourcelinks => 1, tabsize => 0, packagesummary => "never",
+  eyecandy =>  0 );
 
 my %requisites= ( treestyle => "treeview.css", treejava => "treeview.js",
     nodeimg => "node.png", subtrimg => "subtree.png",
@@ -564,6 +565,7 @@ my @options= (
 [ "", "sourcelinks", "?", "sourcelinks" ],
 [ "", "packagesummary", [ qw(always never auto section) ], "packagesummary" ],
 [ "", "latex", "?", "texout" ],
+[ "", "eyecandy", "?", "eyecandy" ],
 );
 
 # Options that apply only to files following them and may be present multiple
@@ -4636,6 +4638,9 @@ sub entityhtml
   printhtmlheader(*ENT{IO}, $ent->{fullname});
   print ENT "\n<h1>Entity $ent->{fullname}</h1>\n";
   printobjhtml(*ENT{IO}, $ent);
+  if( $config{eyecandy} ) {
+    entityhtmldiagram(*ENT{IO}, $ent);
+  }
   if( @{$ent->{architectures}} ) {
     print ENT "\n<h2>Architectures</h2>\n\n$STDTAB\n";
     map { print ENT "<h3><a href=\"../architectures/$_->{docfilename}",
@@ -4668,6 +4673,68 @@ sub entityhtml
   }
   printhtmlfooter(*ENT{IO});
   close ENT;
+}
+
+
+# Write HTML code for an entity block diagram.
+# -> File handle to print to
+#    Reference to hash representing entity
+sub entityhtmldiagram
+{
+  my ($handle, $ent)= @_;
+  my (@inports, @outports, @linkports);
+
+  for (@{$ent->{childtype}{port}}) {
+    my $dir= $_->{direction};
+    if( $dir eq "linkage" ) {
+      push @linkports, $_;
+    }
+    elsif( $dir eq "in" ) {
+      push @inports, $_;
+    }
+    elsif( $dir eq "out" ) {
+      push @outports, $_;
+    }
+    else {  # inout and buffer are / can be bidirectional
+      push @inports, $_;
+      push @outports, $_;
+    }
+  }
+  print $handle <<EOF;
+<center>
+<table border="1" rules="groups">
+<tbody>
+<tr class="entdiaghead"><td colspan="2" align="left">$ent->{fullname}</td></tr>
+EOF
+  for (@{$ent->{childtype}{generic}}) {
+    print $handle "<tr class=\"entdiagio\"><td colspan=\"2\" align=\"left\">$_->{name}</td></tr>\n";
+  }
+  print $handle "</tbody><tbody>\n";
+  while( @inports && @outports ) {
+    my ($in, $out)= map $_->{name}, shift(@inports), shift(@outports);
+    print $handle "<tr class=\"entdiagio\"><td align=\"left\">$in</td><td align=\"right\">$out</td></tr>\n";
+  }
+  while( @inports ) {
+    my $in= ${shift @inports}{name};
+    print $handle "<tr class=\"entdiagio\"><td colspan=\"2\" align=\"left\">$in</td></tr>\n";
+  }
+  while( @outports ) {
+    my $out= ${shift @outports}{name};
+    print $handle "<tr class=\"entdiagio\"><td colspan=\"2\" align=\"right\">$out</td></tr>\n";
+  }
+  print $handle "</tbody>\n";
+  if( @linkports ) {
+    print $handle "<tbody>\n";
+    for( @inports ) {
+      print $handle "<tr class=\"entdiagio\"><td colspan=\"2\" align=\"left\">$_->{name}</td></tr>\n";
+    }
+    print $handle "</tbody>\n";
+  }
+  print $handle <<EOF;
+</table>
+</center>
+
+EOF
 }
 
 
