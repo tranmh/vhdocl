@@ -7056,6 +7056,9 @@ sub entitytex
   my ($handle, $ent)= @_;
 
   printobjtex($handle, $ent);
+  if( $config{eyecandy} ) {
+    entitytexdiagram($handle, $ent);
+  }
   if( my @gens= @{$ent->{childtype}{generic}} ) {
     print $handle "\n\n\\subsubsection*{Generics}\n\n";
     printportlisttex($handle, \@gens);
@@ -7064,6 +7067,79 @@ sub entitytex
     print $handle "\n\n\\subsubsection*{Ports}\n\n";
     printportlisttex($handle, \@ports);
   }
+}
+
+
+# Write TeX code for an entity block diagram.
+# -> File handle to print to
+#    Reference to hash representing entity
+sub entitytexdiagram
+{
+  my ($handle, $ent)= @_;
+  my (@inports, @outports, @linkports);
+
+  for (@{$ent->{childtype}{port}}) {
+    my $dir= $_->{direction};
+    if( $dir eq "linkage" ) {
+      push @linkports, $_;
+    }
+    elsif( $dir eq "in" ) {
+      push @inports, $_;
+    }
+    elsif( $dir eq "out" ) {
+      push @outports, $_;
+    }
+    else {  # inout and buffer are / can be bidirectional
+      push @inports, $_;
+      push @outports, $_;
+    }
+  }
+  my $framewidth= "0.7pt";
+  my $vframe= "\\vrule width $framewidth height 2.4ex depth 1ex ";
+  my $vpad= <<EOF;
+& \\omit \\vrule width $framewidth height 1pt depth 0pt
+  \\hfil \\vrule width $framewidth height 1pt depth 0pt &\\cr
+EOF
+  print $handle <<EOF;
+
+\\vskip 3ex
+\\hbox to \\textwidth{\\hss\\vbox{
+\\fontfamily{cmss}\\fontsize{6}{6}\\selectfont
+\\offinterlineskip
+\\def\\ioarr{{\$\\rightarrow\$}}
+\\halign{\\hbox to 0pt{\\hss #}& $vframe\\  # \\hfil $vframe &\\hbox to 0pt{# \\hss}\\cr
+\\noalign{\\hrule height $framewidth}
+$vpad\%
+EOF
+  print $handle "& \\omit\\scriptsize $vframe\\ ", texid($ent->{fullname}), "\\qquad\\hfil $vframe & \\cr\n";
+  for (@{$ent->{childtype}{generic}}) {
+    print $handle "& ", texid($_->{name}), "\\qquad & \\cr\n";
+  }
+  print $handle "$vpad\\noalign{\\hrule height $framewidth}\n$vpad";
+  while( @inports && @outports ) {
+    my ($in, $out)= map texid($_->{name}), shift(@inports), shift(@outports);
+    print $handle "\\ioarr\\ & $in \\qquad\\hfill $out & \\ \\ioarr\\cr\n";
+  }
+  while( @inports ) {
+    my $in= texid ${shift @inports}{name};
+    print $handle "\\ioarr\\ & $in \\qquad\\hfill & \\cr\n";
+  }
+  while( @outports ) {
+    my $out= texid ${shift @outports}{name};
+    print $handle "& \\qquad\\hfill $out & \\ \\ioarr\\cr\n";
+  }
+  if( @linkports ) {
+    print $handle "$vpad\\noalign{\\hrule height $framewidth}\n$vpad";
+    for (@linkports) {
+      print $handle "& ", texid($_->{name}), "\\qquad & \\cr\n";
+    }
+  }
+  print $handle <<EOF;
+$vpad\%
+\\noalign{\\hrule height $framewidth}
+}}\\hss}
+
+EOF
 }
 
 
