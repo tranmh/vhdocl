@@ -4160,13 +4160,13 @@ $doctitle
 $leftlogo
 </td><td align="center">
 $toplink
-<a href="${prefix}entities.html">Entities</a>
+<a href="${prefix}hierarchy.html">Hierarchy</a>
 &nbsp;&nbsp; -- &nbsp;&nbsp;
 <a href="${prefix}packages.html">Packages</a>
 &nbsp;&nbsp; -- &nbsp;&nbsp;
-<a href="${prefix}instantiations.html">Instantiations</a>
+<a href="${prefix}entities.html">Entities</a>
 &nbsp;&nbsp; -- &nbsp;&nbsp;
-<a href="${prefix}hierarchy.html">Hierarchy</a>
+<a href="${prefix}instantiations.html">Instantiations</a>
 &nbsp;&nbsp; -- &nbsp;&nbsp;
 <a href="${prefix}sources.html">Sources</a>
 $custom
