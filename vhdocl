@@ -6962,14 +6962,18 @@ sub texbriefdescindent
 # be none left).
 # -> File handle to print to
 #    Reference to array of hashes representing the generics/ports/...
+#    (optional) indentation in units of \texindent
 sub printportlisttex
 {
-  my ($handle, $list)= @_;
+  my ($handle, $list, $ind)= @_;
+  my $indskip= $ind ? "\\hskip $ind\\texindent " : "";
+  my $indp1par= "\\hangindent " . (($ind//0)+1) . "\\texindent \\hangafter=0 ";
 
-  print $handle "\\vskip -1ex \\begin{longtabu}[l]{l l l}\n";
+  print $handle "\\vskip -1ex \\begin{longtabu}[l]{\@{}l c\@{}l l}\n";
   for my $gp (@$list) {
-    print $handle texcode($gp->{name}), " & ";
+    print $handle $indskip, texcode($gp->{name}), "&";
     if( $nogenconst{$gp->{subtype}} ) {
+      print $handle "&";
       if( $gp->{subtype} eq "type" ) {
         print $handle texcode("type");
       }
@@ -6988,23 +6992,24 @@ sub printportlisttex
       }
     }
     else {
-      print $handle "\\hbox to 2em{\\hfil\\it $gp->{direction}\\hfil} " if $gp->{direction};
+      print $handle "{\\it $gp->{direction}}\\hbox{\\ \\ }" if $gp->{direction};
+      print $handle "&";
       print $handle textype($gp->{subtype}, $gp);
       print $handle " & ", texcode(":= $gp->{value}")
           if $gp->{value};
     }
     print $handle " \\\\\n";
-    print $handle "\\noalign{$texindpar\\txbrief ", doc2tex($gp->{doc}{brief}) , "} \n"
+    print $handle "\\noalign{$indp1par\\txbrief ", doc2tex($gp->{doc}{brief}) , "} \n"
         if $gp->{doc}{brief};
-    map { print $handle "\\noalign{$texindpar\\txdesc ", doc2tex($_), "} \n"; }
+    map { print $handle "\\noalign{$indp1par\\txdesc ", doc2tex($_), "} \n"; }
                           @{$gp->{doc}{description}};
     next unless $gp->{type} eq "const";
     for( qw(deprecated internal) ) {
-      print $handle "\\noalign{$texindpar ", ucfirst($_), "} \n"
+      print $handle "\\noalign{$indp1par ", ucfirst($_), "} \n"
           if $gp->{doc}{$_};
     }
     if( $gp->{doc}{see} && @{$gp->{doc}{see}} ) {
-      print $handle "\\noalign{$texindpar {\\bf See also:} ", join(", ", texref(texid($_->[0]), $_->[1]),
+      print $handle "\\noalign{$indp1par {\\bf See also:} ", join(", ", texref(texid($_->[0]), $_->[1]),
                       @{$gp->{doc}{see}}), "} \n";
     }
   }
@@ -7190,7 +7195,7 @@ sub contexttex
   }
   if( %conts && $cont->{alluses} && %{$cont->{alluses}} > %uses ) {
     print $handle "\n\n\\subsubsection*{All package declarations made available}\n\n";
-    print $handle "\n\\begin{longtabu}[l]{l l}\n";
+    print $handle "\n\\begin{longtabu}[l]{\@{}l l}\n";
     for my $usepack (sort keys %{$cont->{alluses}}) {
       my $use= $cont->{alluses}{$usepack};
       # The "type" entry distinguishes a hash representing a use statement from
@@ -7223,7 +7228,7 @@ sub printcommontex
 
   texbriefdescindent($handle, $obj);
   if( $obj->{doc}{param} && @{$obj->{doc}{param}} ) {
-    print $handle "${texindpar}{\\bf Parameters:}\n\\begin{longtabu}[l]{l X}\n";
+    print $handle "${texindpar}{\\bf Parameters:}\n\\begin{longtabu}[l]{\@{}l X}\n";
     for my $par (@{$obj->{doc}{param}}) {
       $par =~ /^(?:\[(\w+)\]\s*)?(\w+)\s+(.*)$/s or next;
       print $handle "\\hskip\\texindent ", texid($2), " & \\quad ", doc2tex($3), "\\\\\n";
@@ -7259,8 +7264,8 @@ sub printtypestex
       print $handle texcode($typestr . "record"), "\n\n";
       texbriefdescindent($handle, $type);
       if( my @elements= @{$type->{children} || []} ) {
-        print $handle "$texindpar\nElements:\n\n$texindpar\n";;
-        printportlisttex($handle, \@elements);
+        print $handle "$texindpar\nElements:\n\n";;
+        printportlisttex($handle, \@elements, 1);
       }
     }
     elsif( $type->{subtype} eq "units" ) {
@@ -7350,7 +7355,7 @@ sub printfuncproctex
             texref(texid($func->{instanceof}{fullname}), $func->{instanceof})),
               "\n\n";
       if( $func->{genericmap} && @{$func->{genericmap}} ) {
-        print $handle "{\\bf Generic map:}\n\\begin{longtabu}[l]{l X}\n";
+        print $handle "{\\bf Generic map:}\n\\begin{longtabu}[l]{\@{}l X}\n";
         map { print $handle texid($$_[0]), " & \$\\Rightarrow\$ ", texcode($$_[1]), " \\\\\n"; } @{$func->{genericmap}};
         print $handle "\\end{longtabu}\n\n";
       }
@@ -7387,7 +7392,7 @@ sub packagetex
       print $handle "\\subsubsubsection*{", texid($inst->{fullname}), "}\n\\label{", texlabel({$inst}), "}\n\n";
       printcommontex($handle, $inst);
       if( $inst->{genericmap} && @{$inst->{genericmap}} ) {
-        print $handle "{\\bf Generic map:}\n\\begin{longtabu}[l]{l X}\n";
+        print $handle "{\\bf Generic map:}\n\\begin{longtabu}[l]{\@{}l X}\n";
         map { print $handle texid($$_[0]), " & \$\\Rightarrow\$ ", texcode($$_[1]), " \\\\\n"; } @{$inst->{genericmap}};
         print $handle "\\end{longtabu}\n\n";
       }
