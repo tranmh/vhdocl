@@ -524,6 +524,8 @@ Modification date of this item.
 
 Causes that word to be printed prominently in the top region of the item's HTML
 file.  B<@deprecated> and B<@internal> are also valid for minor declarations.
+Design units marked B<@internal> or B<@testbench> are not included in the LaTeX
+output.
 
 =item B<@frominstance> / B<@fromwrapper> [ I<entity>[I<.port>] ]
 
@@ -870,7 +872,9 @@ subdirectory C<latex> of the documentation target directory.  The LaTeX output
 is not equivalent to the HTML output.  HTML is much more suitable for code
 documentation due to its unlimited page size, absence of serial page order and
 JavaScript interactivity.  The LaTeX output is provided for inclusion in
-printable manuals aimed at IP core users, not developers.
+printable manuals aimed at IP core users, not developers.  Unusually long
+source code fragments such as RAM initialisers may give rise to overlong lines
+and require postprocessing for prettyfication.
 
 With that in mind, the LaTeX output includes only interface documentation of
 entities, packages and contexts, and nothing at all on architectures,
