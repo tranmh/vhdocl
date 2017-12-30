@@ -233,7 +233,7 @@ C<library.entity>) if it is something other than C<work>.
 
 =item B<--tabsize>=I<width>
 
-Set tab alignment four source markup pages.  A zero I<width>, the default,
+Set tab alignment for source markup pages.  A zero I<width>, the default,
 omits tab expansion and leaves it to the browser to display tabs correctly.
 This probably works only for a tab size of 8, however setting this option
 incurs a small but measurable increase in processing time.  This option only
