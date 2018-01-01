@@ -955,10 +955,12 @@ Backfeed is welcome to the e-mail vhdocl at that domain.
 VHDocL is (c) 2007-2018 Volker Schatz.  Credits to Minh Cuong Tran for
 providing a first implementation of the clickable hierarchy view and syntax
 highlighting, and for much efficiency testing.  Many thanks to Torsten Meißner
-for testing on OS X.  Likewise, thanks to Andrea Campera of Campera ES for
-suggesting LaTeX user documentation output and block diagrams, and pointing me
-to a better implementation of the latter.  Thanks to several other users for
-smaller fixes, bug reports and helpful feature requests.
+for testing on OS X.  Also many thanks to Gadiel Auerbach for suggesting PSL
+support and help with testing.  Likewise, thanks to Andrea Campera of for
+suggesting VHDL 2008 support, LaTeX user documentation output and block
+diagrams, and pointing me to a better implementation of the latter.  Thanks to
+several other users for smaller fixes, bug reports and helpful feature
+requests.
 
 VHDocL is free software and may be redistributed and/or modified under the
 terms of the GNU General Public License, version 3 or later.
