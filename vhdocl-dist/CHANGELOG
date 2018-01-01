@@ -1,4 +1,11 @@
 
+0.2.6
+
+  - VHDL 2008 support
+  - LaTeX output with reduced content for IP user manuals
+  - inheritance of port/generic documentation from wrappers or instances
+  - updates and improvements to git support
+
 0.2.5
 
   - parallelised parsing and source file HTML page generation
