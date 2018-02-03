@@ -6580,6 +6580,9 @@ sub texcode
   $vhdl =~ s/^\s+/ /;
   $vhdl =~ s/\s+$/ /;
   $vhdl =~ s/\s+/ /g;   # compress white space and remove newlines
+  if( $vhdl =~ /\&/ ) {
+    return join("{\\tt\\&}", map texcode($_), split /\&/, $vhdl, -1);
+  }
   # Try delimiters not occurring in the code snippet.  Can't easily use "["
   # because \lstinline accepts argument in square brackets.
   for my $delimiter ("\$", "@", "~", "`", "^", "#", "%", "{", "}", "]") {
