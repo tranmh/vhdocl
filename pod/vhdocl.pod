@@ -548,7 +548,9 @@ Revision control system ID of the item.
 
 =item B<@param> I<name> I<description>
 
-Description of function or procedure parameter I<name>.
+Description of function or procedure parameter(s) I<name>.  I<name> may be a
+comma-separated list not containing spaces.  No check is done to verify that
+the subroutine in question has parameters with these names.
 
 =item B<@return> I<description>
 

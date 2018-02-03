@@ -4752,7 +4752,7 @@ sub printcommonhtml
   if( $obj->{doc}{param} && @{$obj->{doc}{param}} ) {
     print $handle "<tr>$TDI<td colspan=\"4\"$CLSDESC>Parameters:</td></tr>\n";
     for my $par (@{$obj->{doc}{param}}) {
-      $par =~ /^(?:\[(\w+)\]\s*)?(\w+)\s+(.*)$/s or next;
+      $par =~ /^(?:\[(\w+)\]\s*)?([,\w]+)\s+(.*)$/s or next;
       print $handle "<tr>$TDI$TDI<td align=\"left\">$SPID$2$SP_</td><td colspan=\"2\" align=\"left\"$CLSDESC>$3</td></tr>\n";
     }
   }
