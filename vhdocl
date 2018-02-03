@@ -1115,39 +1115,38 @@ sub parsedoccom
   {
     next if $line =~ /^$/;
     if( $line =~ /^\@/ ) {
-      if( $line =~ /^\@(brief|date|version|id|return)\s+(.*)$/is ) {
-        $doc{$1}= $2;
+      if( $line =~ /^\@(brief|date|version|id|return)\b\s*(.*)$/is ) {
+        $doc{$1}= $2 if length($2);
       }
       elsif( $line =~ /^\@(frominstance|fromwrapper)\s*(\w(?:.*\w)?)?\s*$/is ) {
         $doc{$1}= lc($2 || "");
         print $err "\@$1 can have only a single module as an argument on or before line $..\n"
             if $doc{$1} =~ s/\s.*$//;
       }
-      elsif( $line =~ /^\@short\s+(.*)$/is ) {
-        $doc{brief}= $1;
+      elsif( $line =~ /^\@short\b\s*(.*)$/is ) {
+        $doc{brief}= $1 if length($1);
       }
       elsif( $line =~ /^\@(param|author)\b\s*(.*)$/is ) {
-        push @{$doc{$1}}, $2;
+        push @{$doc{$1}}, $2 if length($2);
       }
-      elsif( $line =~ /^\@example\s+(.*)$/is ) {
-        push @{$doc{example}}, map examplefilehtml($_, $err), split(/\s*,\s*/, $1);
+      elsif( $line =~ /^\@example\b\s*(.*)$/is ) {
+        push @{$doc{example}}, map examplefilehtml($_, $err), split(/\s*,\s*/, $1) if length($1);
       }
-      elsif( $line =~ /^\@see\s+(.*)$/is ) {
-        push @{$doc{see}}, map( [ $_ ], split(/\s*,\s*/, $1));
+      elsif( $line =~ /^\@see\b\s*(.*)$/is ) {
+        push @{$doc{see}}, map( [ $_ ], split(/\s*,\s*/, $1)) if length($1);
       }
       elsif( $line =~ /^\@(deprecated|internal|simulation|synthesis|testbench)\b/is ) {
         $doc{$1}= 1;
       }
-      elsif( $line =~ /^\@li\s/is ) {
+      elsif( $line =~ /^\@li\b/is ) {
         # This used to be for vhdldoc compatibility only, but doxygen also uses
         # it, so we omit the qualification with $config{compat} now.
         push @{$doc{description}}, $line;
       }
-      elsif( $config{compat} && $line =~ /^\@(generic|port)\s+(\S*)\s+(.*)$/is ) {
-        $doc{$1}{$2}= $3;
+      elsif( $config{compat} && $line =~ /^\@(generic|port)\b(?:\s+(\S+)\s+(.*))?$/is ) {
+        $doc{$1}{$2}= $3 if $2 && length($3);
       }
-      elsif( !$config{quiet} ) {
-        $line =~ /^(\@\w*)\b/;
+      elsif( !$config{quiet} && $line =~ /^(\@\w+)\b/ ) {
         print $err "Unknown markup code $1 on or before line $..\n";
       }
     }
@@ -4365,7 +4364,7 @@ sub printdescription
   print $handle "$DIVDESC\n";
   for my $line (@$desc)
   {
-    if( $line =~ s/^\@li\s*//i ) {
+    if( $line =~ s/^\@li\b\s*//i ) {
       if( !$listnow ) {
         print $handle "<ul>\n";
         $listnow= 1;
