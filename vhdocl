@@ -1129,11 +1129,11 @@ sub parsedoccom
       elsif( $line =~ /^\@(param|author)\b\s*(.*)$/is ) {
         push @{$doc{$1}}, $2 if length($2);
       }
-      elsif( $line =~ /^\@example\b\s*(.*)$/is ) {
-        push @{$doc{example}}, map examplefilehtml($_, $err), split(/\s*,\s*/, $1) if length($1);
+      elsif( $line =~ /^\@example\b\s*(.*\S)\s*$/is ) {
+        push @{$doc{example}}, map examplefilehtml($_, $err), split(/\s*,\s*/, $1);
       }
-      elsif( $line =~ /^\@see\b\s*(.*)$/is ) {
-        push @{$doc{see}}, map( [ $_ ], split(/\s*,\s*/, $1)) if length($1);
+      elsif( $line =~ /^\@see\b\s*(.*\S)\s*$/is ) {
+        push @{$doc{see}}, map( [ $_ ], split(/\s*,\s*/, $1));
       }
       elsif( $line =~ /^\@(deprecated|internal|simulation|synthesis|testbench)\b/is ) {
         $doc{$1}= 1;
