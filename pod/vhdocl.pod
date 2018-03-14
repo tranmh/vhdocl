@@ -527,6 +527,12 @@ file.  B<@deprecated> and B<@internal> are also valid for minor declarations.
 Design units marked B<@internal> or B<@testbench> are not included in the LaTeX
 output.
 
+=item B<@example> I<file1>, I<file2>, ...
+
+Reference to file(s) as a usage example of the documented declaration.  The
+file path is relative to the source file in which this markup code appears.
+Also available for minor declarations.
+
 =item B<@frominstance> / B<@fromwrapper> [ I<entity>[I<.port>] ]
 
 Only for ports and generics of entities: causes the documentation to be
