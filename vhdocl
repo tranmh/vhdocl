@@ -4756,7 +4756,8 @@ sub printcommonhtml
       print $handle "<tr>$TDI$TDI<td align=\"left\">$SPID$2$SP_</td><td colspan=\"2\" align=\"left\"$CLSDESC>$3</td></tr>\n";
     }
   }
-  print $handle "<tr>$TDI<td$CLSDESC>Return value:</td><td colspan=\"3\"$CLSDESC>$obj->{doc}{return}</td></tr>\n"
+  print $handle "<tr>$TDI<td align=\"left\" valign=\"top\" colspan=\"2\"$CLSDESC>",
+   "Return value:</td><td colspan=\"2\"$CLSDESC>$obj->{doc}{return}</td></tr>\n"
       if $obj->{doc}{return};
   for( qw(deprecated internal) ) {
     print $handle "<tr>$TDI<td colspan=\"4\"><b>", ucfirst($_), "</b></td></tr>\n"
