@@ -2340,32 +2340,32 @@ vhdlline:
         push @{$top->{allinstances}}, @newentries;
       }
     }
-    elsif( $vline =~ s/^(elsif|else|begin)\b//i ) {
+    elsif( $vline =~ s/^(elsif|else)\b//i ) {
       my $subtype= lc($1);
       my $havegen= readuntil(qr/\bgenerate\b/i);
       last vhdlline unless defined $havegen;
-      if( @parsestack && $parent->{type} eq "generate" ) {
-        if( $subtype eq "begin" ) {
-          $newchild= { type => "begin" };
+      if( $havegen && @parsestack && $parent->{type} eq "generate" &&
+              $parent->{subtype} =~ /^(?:els)?if$/ &&
+              $vline =~ s/^\s*(?:($ID)\s*:\s*)?($MANY)\bgenerate\b//io ) {
+        my ($label2, $cond)= ($1, $2);
+        $cond =~ s/^\s+//;
+        $cond =~ s/\s+$//;
+        $newchild= { "type", "generate", "subtype", $subtype, "subname", $label2,
+                     "parent", $parent->{parent} || $parent,
+                     "name", $parent->{name}, "parameters", $cond };
+        if( $parsdbg ) {
+          print "$.: $subtype branch of generate $parent->{name}\n";
         }
-        elsif( $havegen && $parent->{subtype} =~ /^(?:els)?if$/ &&
-               $vline =~ s/^\s*(?:($ID)\s*:\s*)?($MANY)\bgenerate\b//io ) {
-          my ($label2, $cond)= ($1, $2);
-          $cond =~ s/^\s+//;
-          $cond =~ s/\s+$//;
-          $newchild= { "type", "generate", "subtype", $subtype, "subname", $label2,
-                       "parent", $parent->{parent} || $parent,
-                       "name", $parent->{name}, "parameters", $cond };
-          if( $parsdbg ) {
-            print "$.: $subtype branch of generate $parent->{name}\n";
-          }
-          $prevlevel= pop @parsestack;
-          $parent= $prevlevel->{backtrack};
-        }
+        $prevlevel= pop @parsestack;
+        $parent= $prevlevel->{backtrack};
       }
-      elsif( $subtype eq "elsif" ) {
+      elsif( ! $havegen && $subtype eq "elsif" ) {
         skipuntil(qr/\bthen\b/i);
       }
+    }
+    elsif( $vline =~ s/^begin\b//i ) {
+      $newchild= { type => "begin" }
+          if @parsestack && $parent->{type} eq "generate";
     }
     elsif( $vline =~ s/^(?:is\b|;)//i ) {}
     elsif( $vline =~ s/^when\b//i ) {
