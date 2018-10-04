@@ -1445,10 +1445,10 @@ my $SEMIENTRY= qr/[^;()"']*(?:(?:$PAREN|$QUOTA)[^;()"']*)*/o;
 # Possibly nested brace expression:
 my $PSLBRACE;
 # This needs Perl 5.10:
-eval { $PSLBRACE= qr/({[^{}"']*(?:(?:(?-1)|$QUOTA)[^{}"']*)*})/o; };
+eval { $PSLBRACE= qr/(\{[^{}"']*(?:(?:(?-1)|$QUOTA)[^{}"']*)*})/o; };
 if( $@ ) {      # fallback for older Perls
   use re 'eval';
-  $PSLBRACE= qr/{[^{}"']*(?:(?:(??{$PSLBRACE})|$QUOTA)[^{}"']*)*}/o;
+  $PSLBRACE= qr/\{[^{}"']*(?:(?:(??{$PSLBRACE})|$QUOTA)[^{}"']*)*}/o;
   print "" if "foo" =~ /$PSLBRACE/;
 };
 # PSL statement:
