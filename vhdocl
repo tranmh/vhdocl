@@ -2398,6 +2398,7 @@ skipnext:
       push @{$parent->{children}}, $newchild;
       if( @parsestack == 0 ) {
         $newchild->{uses}= [ @topuses ];
+        push @{$parent->{childtype}{$newchild->{type}}}, $newchild;
       }
       elsif( @parsestack == 1 ) {
         # List children by type for top-level constructs
@@ -6441,6 +6442,76 @@ EOF
 }
 
 
+# Print HTML list of declarations in a given source file.  The order among the
+# same kind of design element is the same in which they occur in the file.
+# -> File handle to print to
+#    Reference to the hash representing the source file
+sub printfiledeclhtml
+{
+  my ($handle, $file)= @_;
+
+  my $ents= $file->{childtype}{entity} || [];
+  my (%ents, %doneents);
+  @ents{@$ents}= (1) x @$ents;
+  my @entstrs;
+  for my $ac (@{$file->{childtype}{architecture} || []},
+              @{$file->{childtype}{configuration} || []}) {
+    my $ent= $ac->{entity};
+    if( ! $ent ) {
+      push @entstrs, $ac->{objname};
+    }
+    elsif( ! $ents{$ent} ) {
+      push @entstrs, $ent->{fullname};
+    }
+    else {
+      push @entstrs, "<a href=\"entities/$ent->{docfilename}\">$ent->{fullname}</a>";
+    }
+    if( $ac->{type} eq "architecture" ) {
+      $entstrs[-1] .= "(";
+      $entstrs[-1] .= "<a href=\"architectures/$ac->{docfilename}\">"
+          if $ac->{docfilename};
+      $entstrs[-1] .= $ac->{name};
+      $entstrs[-1] .= "</a>"
+          if $ac->{docfilename};
+      $entstrs[-1] .= ")";
+    }
+    else {
+      $entstrs[-1] .= "[";
+      $entstrs[-1] .= "<a href=\"configurations/$ac->{docfilename}\">"
+          if $ac->{docfilename};
+      $entstrs[-1] .= $ac->{name};
+      $entstrs[-1] .= "</a>"
+          if $ac->{docfilename};
+      $entstrs[-1] .= "]";
+    }
+    $doneents{$ent}= 1 if $ent;
+  }
+  for my $ent (grep ! $doneents{$_}, @$ents) {
+    unshift @entstrs, ! $ent->{docfilename} ? $ent->{fullname} :
+        "<a href=\"entities/$ent->{docfilename}\">$ent->{fullname}</a>";
+  }
+  print $handle join(", ", @entstrs);
+  my @packstrs= map "<a href=\"packages/$_->{docfilename}\">$_->{fullname}</a>",
+                  @{$file->{childtype}{package} || []};
+  my %donepbodies= map { $_->{packagebody} || 0 => 1; } @{$file->{childtype}{package} || []};
+  push @packstrs, map "<a href=\"packages/$_->{docfilename}\">$_->{fullname}</a>",
+      grep ! $donepbodies{$_}, @{$file->{childtype}{packagebody} || []};
+  if( @packstrs ) {
+    my $plural= @packstrs > 1 ? "s" : "";
+    print $handle @entstrs ? "; package$plural " : "Package$plural ";
+    print $handle join(", ", @packstrs);
+  }
+  if( @{$file->{childtype}{context} || []} ) {
+    my $plural= @{$file->{childtype}{context}} > 1 ? "s" : "";
+    print $handle @entstrs || @packstrs? "; context$plural " : "Context$plural ";
+    print $handle join(", ",
+            map "<a href=\"contexts/$_->{docfilename}\">$_->{fullname}</a>",
+                @{$file->{childtype}{context}});
+
+  }
+}
+
+
 # Generate list of source files with links to their HTML files.
 # -> Reference to array of hashes representing VHDL source files
 sub sourcelisthtml
@@ -6459,10 +6530,13 @@ sub sourcelisthtml
   my @srclist= sort { $a->{name} cmp $b->{name} } @$sources;
   print SOURCE "\n<table border=\"0\">\n";
   for my $file (@srclist) {
-    print SOURCE "<tr><td><a href=\"sources/$file->{docfilename}\">",
+    print SOURCE "<tr><td valign=\"top\"><a href=\"sources/$file->{docfilename}\">",
                 substr($file->{name}, $config{prepathlen}), "</a>";
-    print SOURCE "&nbsp;&nbsp;&nbsp;</td><td><a href=\"$file->{link}\">[source file]</a>"
+    print SOURCE "&nbsp;&nbsp;&nbsp;</td><td valign=\"top\">",
+                 "<a href=\"$file->{link}\">[source file]</a>"
         if defined $file->{link};
+    print SOURCE "&nbsp;&nbsp;&nbsp;</td>\n<td>";
+    printfiledeclhtml(*SOURCE{IO}, $file);
     print SOURCE "</td></tr>\n";
   }
   print SOURCE "</table>\n";
