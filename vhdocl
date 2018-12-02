@@ -221,6 +221,77 @@ sub commonprepath
 }
 
 
+# Create a tree of hashes with path fragments as keys and arbitrary strings
+# as leaves.
+# -> Reference to hash mapping full paths to strings
+# <- Reference to hash tree
+sub pathtree
+{
+  my $flatlist= shift;
+
+  my @paths= sort { $a cmp $b } keys %$flatlist;
+  my @splitpaths;
+  for (@paths) {
+    my @split= File::Spec->splitpath($_);
+    # replace directory part by list of directories
+    splice @split, 1, 1, File::Spec->splitdir($split[1]);
+    # remove empty directory component at the end arising from trailing slash
+    splice @split, -2, 1 unless length($split[-2]);
+    # remove volume if not present (assuming volume is always there or always
+    # not there)
+    shift @split unless length $split[0];
+    push @splitpaths, [ @split, $$flatlist{$_} ];
+  }
+  return pathary2tree(@splitpaths);
+}
+
+
+# Convert an array of arrays (the last element of which is an arbitrary string
+# and all other elements of which are path components) into a hash tree with
+# the arbitrary strings as leaves.  Unique path components are concatenated
+# with those of the previous level.  Complete paths must be unique.
+# -> List of references to arrays in the format above
+# <- Reference to root of hash tree with path fragments as keys
+sub pathary2tree
+{
+  my $prefix= $_[0][0];
+  my %subtrees= ( $prefix => [ [ @{$_[0]}[1..$#{$_[0]}] ] ] );
+  shift;
+  while( 13 ) {
+    while( @_ && $_[0][0] eq $prefix ) {
+      my $sibling= shift;
+      push @{$subtrees{$prefix}}, [ @$sibling[1..$#$sibling] ];
+    }
+    last unless @_;
+    $prefix= $_[0][0];
+    $subtrees{$prefix}= [ [ @{$_[0]}[1..$#{$_[0]}] ] ];
+    shift;
+  }
+  my %concatsubs;
+  for my $pre (keys %subtrees) {
+    my $sub= $subtrees{$pre};
+    if( @{$$sub[0]} == 1 ) { # $pre is file name, $$sub[0][0] is payload string
+      $subtrees{$pre}= $$sub[0][0];
+    }
+    else {
+      my $newsub= pathary2tree(@$sub);
+      if( keys(%$newsub) == 1 ) {
+        my ($thekey)= keys %$newsub;
+        $concatsubs{File::Spec->catdir($pre, $thekey)}= $$newsub{$thekey};
+            # assumes path concatenation is the same for directories and
+            # directory + file
+        delete $subtrees{$pre};
+      }
+      else {
+        $subtrees{$pre}= $newsub;
+      }
+    }
+  }
+  @subtrees{keys %concatsubs} = values %concatsubs;
+  return \%subtrees;
+}
+
+
 # Quote glob characters in a string by prepending '\x01'.
 # -> String
 # <- Quoted string
@@ -6526,22 +6597,49 @@ sub sourcelisthtml
   }
   printhtmlheader(*SOURCE{IO}, "Source file overview", 1);
   print SOURCE "\n<h1>Source file overview</h1>\n";
-  print SOURCE "\n<p>The file paths link to HTML pages showing the sources; the links in brackets point to the actual source files.</p>\n";
-  my @srclist= sort { $a->{name} cmp $b->{name} } @$sources;
-  print SOURCE "\n<table border=\"0\">\n";
-  for my $file (@srclist) {
-    print SOURCE "<tr><td valign=\"top\"><a href=\"sources/$file->{docfilename}\">",
-                substr($file->{name}, $config{prepathlen}), "</a>";
-    print SOURCE "&nbsp;&nbsp;&nbsp;</td><td valign=\"top\">",
-                 "<a href=\"$file->{link}\">[source file]</a>"
-        if defined $file->{link};
-    print SOURCE "&nbsp;&nbsp;&nbsp;</td>\n<td>";
-    printfiledeclhtml(*SOURCE{IO}, $file);
-    print SOURCE "</td></tr>\n";
-  }
-  print SOURCE "</table>\n";
+  print SOURCE "\n<p>The file names link to HTML pages showing the sources; the links in brackets point to the actual source files.</p>\n";
+  my %byname= map { substr($_->{name}, $config{prepathlen}) => $_; } @$sources;
+  my %name2name= map { $_ => $_; } keys %byname;
+  my $pathtree= pathtree(\%name2name);
+  printpathtreehtml(*SOURCE{IO}, $pathtree, \%byname);
   printhtmlfooter(*SOURCE{IO});
   close LIST;
+}
+
+
+# Print HTML fragment describing part of the source file directory hierarchy.
+# -> File handle to print to
+#    Reference to hash of path tree returned by pathtree()
+#    Reference to hash mapping payload string of path tree to source file
+#    object hashes
+sub printpathtreehtml
+{
+  my ($handle, $tree, $byname)= @_;
+
+  my @pathfrags= sort { $a cmp $b } keys %$tree;
+  for my $pf (@pathfrags) {
+    my $pfprint= $pf;
+    $pfprint =~ s/&/&amp;/g;
+    $pfprint =~ s/</&lt;/g;
+    $pfprint =~ s/>/&gt;/g;
+    $pfprint =~ s/"/&quot;/g;
+    print $handle "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\">",
+                  "<tr><td valign=\"top\">";
+    if( ref $tree->{$pf} ) {
+      print $handle "$pfprint$pathsep</td><td>\n";
+      printpathtreehtml($handle, $tree->{$pf}, $byname);
+    }
+    else {
+      my $file= $byname->{$tree->{$pf}};
+      print $handle "<a href=\"sources/$file->{docfilename}\">$pfprint</a>\n";
+      print $handle "&nbsp;&nbsp;&nbsp;</td><td valign=\"top\">",
+                    "<a href=\"$file->{link}\">[source file]</a>"
+          if defined $file->{link};
+      print $handle "&nbsp;&nbsp;&nbsp;</td>\n<td>";
+      printfiledeclhtml($handle, $file);
+    }
+    print $handle "</td></tr></table>\n";
+  }
 }
 
 
