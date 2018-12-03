@@ -6612,34 +6612,40 @@ sub sourcelisthtml
 #    Reference to hash of path tree returned by pathtree()
 #    Reference to hash mapping payload string of path tree to source file
 #    object hashes
+#    On recursive calls: name of previous path fragment leading to this
+#    subtree, entity-escaped and with trailing path separator
 sub printpathtreehtml
 {
-  my ($handle, $tree, $byname)= @_;
+  my ($handle, $tree, $byname, $prevfrag)= @_;
 
   my @pathfrags= sort { $a cmp $b } keys %$tree;
+  $prevfrag= defined($prevfrag) ? "<td>$prevfrag</td>" : "";
+  print $handle "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\">\n",
+                "<tr>$prevfrag";
   for my $pf (@pathfrags) {
     my $pfprint= $pf;
     $pfprint =~ s/&/&amp;/g;
     $pfprint =~ s/</&lt;/g;
     $pfprint =~ s/>/&gt;/g;
     $pfprint =~ s/"/&quot;/g;
-    print $handle "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\">",
-                  "<tr><td valign=\"top\">";
+    print $handle "<tr><td></td>" unless defined $prevfrag;
+    $prevfrag= undef;
     if( ref $tree->{$pf} ) {
-      print $handle "$pfprint$pathsep</td><td>\n";
-      printpathtreehtml($handle, $tree->{$pf}, $byname);
+      print $handle "<td colspan=\"4\">\n";
+      printpathtreehtml($handle, $tree->{$pf}, $byname, $pfprint.$pathsep);
     }
     else {
       my $file= $byname->{$tree->{$pf}};
-      print $handle "<a href=\"sources/$file->{docfilename}\">$pfprint</a>\n";
-      print $handle "&nbsp;&nbsp;&nbsp;</td><td valign=\"top\">",
-                    "<a href=\"$file->{link}\">[source file]</a>"
+      print $handle "<td><a href=\"sources/$file->{docfilename}\">$pfprint",
+                    "</a>&nbsp;&nbsp;&nbsp;</td><td>";
+      print $handle "<a href=\"$file->{link}\">[source file]</a>&nbsp;&nbsp;&nbsp;"
           if defined $file->{link};
-      print $handle "&nbsp;&nbsp;&nbsp;</td>\n<td>";
+      print $handle "</td><td>";
       printfiledeclhtml($handle, $file);
     }
-    print $handle "</td></tr></table>\n";
+    print $handle "</td></tr>\n";
   }
+  print $handle "</table>\n";
 }
 
 
