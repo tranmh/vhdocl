@@ -6597,7 +6597,8 @@ sub sourcelisthtml
   }
   printhtmlheader(*SOURCE{IO}, "Source file overview", 1);
   print SOURCE "\n<h1>Source file overview</h1>\n";
-  print SOURCE "\n<p>The file names link to HTML pages showing the sources; the links in brackets point to the actual source files.</p>\n";
+  print SOURCE "\n<p>The file names link to HTML pages showing the sources; the links in brackets point to the actual source files.</p>\n"
+      if $config{sourcelinks};
   my %byname= map { substr($_->{name}, $config{prepathlen}) => $_; } @$sources;
   my %name2name= map { $_ => $_; } keys %byname;
   my $pathtree= pathtree(\%name2name);
