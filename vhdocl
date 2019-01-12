@@ -6620,17 +6620,16 @@ sub printpathtreehtml
   my ($handle, $tree, $byname, $prevfrag)= @_;
 
   my @pathfrags= sort { $a cmp $b } keys %$tree;
-  $prevfrag= defined($prevfrag) ? "<td>$prevfrag</td>" : "";
-  print $handle "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\">\n",
-                "<tr>$prevfrag";
+  $prevfrag= "" unless defined $prevfrag;
+  print $handle "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\">\n";
   for my $pf (@pathfrags) {
     my $pfprint= $pf;
     $pfprint =~ s/&/&amp;/g;
     $pfprint =~ s/</&lt;/g;
     $pfprint =~ s/>/&gt;/g;
     $pfprint =~ s/"/&quot;/g;
-    print $handle "<tr><td></td>" unless defined $prevfrag;
-    $prevfrag= undef;
+    print $handle "<tr><td>$prevfrag</td>";
+    $prevfrag= "";
     if( ref $tree->{$pf} ) {
       print $handle "<td colspan=\"4\">\n";
       printpathtreehtml($handle, $tree->{$pf}, $byname, $pfprint.$pathsep);
