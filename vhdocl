@@ -60,8 +60,8 @@ my %config= ( outputdir => "doc", prefix => "", libname => "work",
   eyecandy =>  0 );
 
 my %requisites= ( treestyle => "treeview.css", treejava => "treeview.js",
-    nodeimg => "node.png", subtrimg => "subtree.png",
-    leafimg => "leaf.png", basestyle => "vhdocl.css" );
+    sourcejava => "sourceview.js", nodeimg => "node.png",
+    subtrimg => "subtree.png", leafimg => "leaf.png", basestyle => "vhdocl.css" );
 
 my @vhdlfiles;
 
@@ -6583,6 +6583,32 @@ sub printfiledeclhtml
 }
 
 
+# Modify the HTML header and body tag to allow the hierarchical tree view to
+# work.
+# -> Reference to scalar containing the start of the HTML file returned by
+#    printhtmlheader()
+#    List of IDs of tags enclosing tree views
+# (<-) modified HTML header scalar
+sub makesourceviewheader
+{
+  my ($header, @ids)= @_;
+
+  return unless @ids;
+  $$header =~ s!(?=</head>)!<<EOF!ie;
+    <link type="text/css" rel="stylesheet" href="style/$requisites{treestyle}">
+    <script type="text/javascript" src="style/$requisites{sourcejava}"></script>
+EOF
+  my $ind= -1;
+  my $onload= join " ", map scalar(++$ind, "treeMenu_init(document.getElementById('$_'), unescape(window.name).split(',')[$ind]);"), @ids;
+  my $onunload= join ").concat(',').concat(", map "escape(treeMenu_store(document.getElementById('$_')))", @ids;
+  $onunload= "window.name = ($onunload);";
+  $$header =~ s!<body>!<<EOF!ie;
+<body
+  onload="$onload"
+  onunload="$onunload">
+EOF
+}
+
 # Generate list of source files with links to their HTML files.
 # -> Reference to array of hashes representing VHDL source files
 sub sourcelisthtml
@@ -6590,15 +6616,35 @@ sub sourcelisthtml
   my ($sources)= @_;
   my $fname= File::Spec->catfile($config{outputdir},
                                 "$config{prefix}sources.html");
+  my $header;
 
   if( !open(SOURCE, ">$fname") ) {
     print STDERR "Cannot create output file $fname - $!\n";
     return;
   }
-  printhtmlheader(*SOURCE{IO}, "Source file overview", 1);
+  printhtmlheader(\$header, "Source file overview", 1);
+  $header =~ s!(?=</head>)!<<EOF!ie;
+    <link type="text/css" rel="stylesheet" href="style/$requisites{treestyle}">
+    <script type="text/javascript" src="style/$requisites{sourcejava}"></script>
+EOF
+  $header =~ s!<body>!<<EOF!ie;
+<body
+  onload="sourceView_init(document.getElementById('sourcetab'), unescape(window.name));"
+  onunload="window.name= escape(sourceView_store(document.getElementById('sourcetab')));">
+EOF
+  print SOURCE $header;
   print SOURCE "\n<h1>Source file overview</h1>\n";
   print SOURCE "\n<p>The file names link to HTML pages showing the sources; the links in brackets point to the actual source files.</p>\n"
       if $config{sourcelinks};
+  print SOURCE <<EOF;
+<p>Click on <img src="style/$requisites{nodeimg}">&nbsp; to open or close one
+directory, on <img src="style/$requisites{subtrimg}">&nbsp; to open or close a
+directory subtree.</p>
+<p><form>
+<input type="button" value="Open all" onclick="sourceView_closeOrOpenAll(document.getElementById('sourcetab'), false);">
+<input type="button" value="Close all" onclick="sourceView_closeOrOpenAll(document.getElementById('sourcetab'), true);">
+</form></p>
+EOF
   my %byname= map { substr($_->{name}, $config{prepathlen}) => $_; } @$sources;
   my %name2name= map { $_ => $_; } keys %byname;
   my $pathtree= pathtree(\%name2name);
@@ -6619,9 +6665,12 @@ sub printpathtreehtml
 {
   my ($handle, $tree, $byname, $prevfrag)= @_;
 
+  my $toplevel= ! defined $prevfrag;
+  my $tabid= defined($prevfrag)? "" : " id=\"sourcetab\"";
+  print $handle "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\">",
+                "<tbody$tabid>\n";
   my @pathfrags= sort { $a cmp $b } keys %$tree;
   $prevfrag= "" unless defined $prevfrag;
-  print $handle "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\">\n";
   for my $pf (@pathfrags) {
     my $pfprint= $pf;
     $pfprint =~ s/&/&amp;/g;
@@ -6632,6 +6681,7 @@ sub printpathtreehtml
     $prevfrag= "";
     if( ref $tree->{$pf} ) {
       print $handle "<td colspan=\"4\">\n";
+      $pfprint= "<img src=\"style/$requisites{nodeimg}\"><img src=\"style/$requisites{subtrimg}\">&nbsp;" . $pfprint;
       printpathtreehtml($handle, $tree->{$pf}, $byname, $pfprint.$pathsep);
     }
     else {
@@ -6645,7 +6695,7 @@ sub printpathtreehtml
     }
     print $handle "</td></tr>\n";
   }
-  print $handle "</table>\n";
+  print $handle "</tbody></table>\n";
 }
 
 
