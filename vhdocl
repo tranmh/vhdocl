@@ -6281,8 +6281,8 @@ sub maketreeviewheader
 
   return unless @ids;
   $$header =~ s!(?=</head>)!<<EOF!ie;
-    <link type="text/css" rel="stylesheet" href="style/treeview.css">
-    <script type="text/javascript" src="style/treeview.js"></script>
+    <link type="text/css" rel="stylesheet" href="style/$requisites{treestyle}">
+    <script type="text/javascript" src="style/$requisites{treejava}"></script>
 EOF
   my $ind= -1;
   my $onload= join " ", map scalar(++$ind, "treeMenu_init(document.getElementById('$_'), unescape(window.name).split(',')[$ind]);"), @ids;
