@@ -6462,9 +6462,9 @@ sub instantiationhtml
         if $haveconfs;
   print INST <<EOF;
 
-<p>Click on <img src="style/$requisites{nodeimg}"> to open or close one level,
-on <img src="style/$requisites{subtrimg}"> to open or close all levels (only
-for configurations).</p>
+<p>Click on <img src="style/$requisites{nodeimg}">&nbsp; to open or close one
+level, on <img src="style/$requisites{subtrimg}">&nbsp; to open or close all
+levels (only for configurations).</p>
 EOF
   printhierarchy(*INST{IO}, $hier, 0, "treeview");
   printhtmlfooter(*INST{IO});
@@ -6498,8 +6498,9 @@ sub hierarchyhtml
         if $haveconfs;
   print HIER <<EOF;
 
-<p>Click on <img src="style/$requisites{nodeimg}"> to open or close one level,
-on <img src="style/$requisites{subtrimg}"> to open or close all levels.</p>
+<p>Click on <img src="style/$requisites{nodeimg}">&nbsp; to open or close one
+level, on <img src="style/$requisites{subtrimg}">&nbsp; to open or close all
+levels.</p>
 EOF
   if( @{$$topmods[0]} ) {
     print HIER "<h3>Designated top modules</h3>\n\n";
