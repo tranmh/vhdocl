@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 #    This is VHDocL, a VHDL documentation utility.
 #    Copyright (c) 2007-2018 Volker Schatz (vhdocl at volkerschatz dot com).
