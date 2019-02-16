@@ -960,7 +960,7 @@ Backfeed is welcome to the e-mail vhdocl at that domain.
 
 =head1 COPYRIGHT AND CREDITS
 
-VHDocL is (c) 2007-2018 Volker Schatz.  Credits to Minh Cuong Tran for
+VHDocL is (c) 2007-2019 Volker Schatz.  Credits to Minh Cuong Tran for
 providing a first implementation of the clickable hierarchy view and syntax
 highlighting, and for much efficiency testing.  Many thanks to Torsten Meißner
 for testing on OS X.  Also many thanks to Gadiel Auerbach for suggesting PSL
