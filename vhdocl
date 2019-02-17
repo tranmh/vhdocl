@@ -488,7 +488,7 @@ sub counthexbits
 # <- 1 OK, 0 error
 sub senddata
 {
-  return senddata_osx(@_) if $^O eq "darwin";
+  return senddata_retry(@_) if $^O =~ /^(darwin|.*bsd)$/;
 
   my ($sock, @refs)= @_;
   my $msg;
@@ -508,15 +508,15 @@ sub senddata
 }
 
 
-# Implementation of senddata() for Max OS X.  OS X seems to return with an
-# error when an internal queue is full rather than blocking.  So we implement
-# retries explicitly.
+# Implementation of senddata() for the BSDs and Max OS X.  These systems seem
+# to return with an error when an internal queue is full rather than blocking.
+# So we implement retries explicitly.
 # -> Socket handle reference
 #    Hash or array references (no non-ref scalars, since Storable does not
 #    work on those)
 # <- 1 OK, 0 error
-my ($osx_retrydelay, $osx_retries) = (0.001, 100);
-sub senddata_osx
+my ($senddata_retrydelay, $senddata_retries) = (0.001, 100);
+sub senddata_retry
 {
   my ($sock, @refs)= @_;
   my $msg;
@@ -526,9 +526,9 @@ sub senddata_osx
     $msg= Storable::freeze($dataref);
     while( length($msg) >= $config{maxmsgsize} ) {
       $sent= send($sock, substr($msg, 0, $config{maxmsgsize}), 0);
-      my $tries= $osx_retries;
+      my $tries= $senddata_retries;
       while( !defined($sent) && $tries ) {
-        select(undef, undef, undef, $osx_retrydelay);
+        select(undef, undef, undef, $senddata_retrydelay);
         $sent= send($sock, substr($msg, 0, $config{maxmsgsize}), 0);
         --$tries;
       }
@@ -536,9 +536,9 @@ sub senddata_osx
       substr($msg, 0, $config{maxmsgsize})= "";
     }
     $sent= send($sock, $msg, 0);
-    my $tries= $osx_retries;
+    my $tries= $senddata_retries;
     while( !defined($sent) && $tries ) {
-      select(undef, undef, undef, $osx_retrydelay);
+      select(undef, undef, undef, $senddata_retrydelay);
       $sent= send($sock, $msg, 0);
       --$tries;
     }
