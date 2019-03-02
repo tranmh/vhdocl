@@ -6522,8 +6522,11 @@ sub printfiledeclhtml
 {
   my ($handle, $file)= @_;
 
+  # Unlike most other code, this function has to deal with declarations that
+  # were discarded because they were duplicates and were not processed further.
+  # Therefore we deduplicate by name and prepend the library name if necessary.
   my $ents= $file->{childtype}{entity} || [];
-  my (%ents, %doneents);
+  my (%ents, %doneentnames);
   @ents{@$ents}= (1) x @$ents;
   my @entstrs;
   for my $ac (@{$file->{childtype}{architecture} || []},
@@ -6531,6 +6534,7 @@ sub printfiledeclhtml
     my $ent= $ac->{entity};
     if( ! $ent ) {
       push @entstrs, $ac->{objname};
+      $entstrs[-1]= $file->{libname}.".".$entstrs[-1] unless $entstrs[-1] =~ /\./;
     }
     elsif( ! $ents{$ent} ) {
       push @entstrs, $ent->{fullname};
@@ -6556,18 +6560,32 @@ sub printfiledeclhtml
           if $ac->{docfilename};
       $entstrs[-1] .= "]";
     }
-    $doneents{$ent}= 1 if $ent;
+    my $entname= $ac->{objname};
+    $entname =~ s/^.*\.//;
+    $doneentnames{$entname}= 1;
   }
-  for my $ent (grep ! $doneents{$_}, @$ents) {
-    unshift @entstrs, ! $ent->{docfilename} ? $ent->{fullname} :
-        "<a href=\"entities/$ent->{docfilename}\">$ent->{fullname}</a>";
+  for my $ent (grep ! $doneentnames{$$_{name}}, @$ents) {
+    unshift @entstrs, $ent->{docfilename} ?
+          "<a href=\"entities/$ent->{docfilename}\">$ent->{fullname}</a>" :
+          $ent->{fullname} || $file->{libname}.".".$ent->{name};
   }
   print $handle join(", ", @entstrs);
-  my @packstrs= map "<a href=\"packages/$_->{docfilename}\">$_->{fullname}</a>",
-                  @{$file->{childtype}{package} || []};
-  my %donepbodies= map { $_->{packagebody} || 0 => 1; } @{$file->{childtype}{package} || []};
-  push @packstrs, map "<a href=\"packages/$_->{docfilename}\">$_->{fullname}</a>",
-      grep ! $donepbodies{$_}, @{$file->{childtype}{packagebody} || []};
+  my %donepbods;
+  my @packstrs;
+  for my $pack (@{$file->{childtype}{package} || []}) {
+    push @packstrs, $pack->{docfilename} ?
+          "<a href=\"packages/$pack->{docfilename}\">$pack->{fullname}</a>" :
+          $pack->{fullname} || $file->{libname}.".".$pack->{name};
+    $donepbods{$pack->{name}}= 1;
+  }
+  # Here we list orphaned package bodies as packages to make things simple and
+  # concise.  So we filter out all package names that occurred already
+  # regardless of matching package bodies.
+  for my $pbod (grep ! $donepbods{$_->{name}}, @{$file->{childtype}{packagebody} || []}) {
+    push @packstrs, $pbod->{docfilename} ?
+          "<a href=\"packages/$pbod->{docfilename}\">$pbod->{fullname}</a>" :
+          $pbod->{fullname} || $file->{libname}.".".$pbod->{name};
+  }
   if( @packstrs ) {
     my $plural= @packstrs > 1 ? "s" : "";
     print $handle @entstrs ? "; package$plural " : "Package$plural ";
