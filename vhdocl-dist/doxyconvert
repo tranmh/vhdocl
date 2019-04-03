@@ -14,23 +14,30 @@ my $doxunsuppre= qr/\@(?!(?:$doxwordstylere|param|return|brief|short|author
 
 my $inverbatim;
 my %haveunsupp;
+my $firstdoc;
+my $infiledoc;
+my $filedoc;
 
 while( <> )
 {
+    if( defined($filedoc) && /^\s*(?:entity|architecture|configuration|package|context)\b/i ) {
+        print $filedoc;
+    }
     if( ! /^([^"]*(?:"[^"]*"[^"]*)*)--!(.*)$/ ) {
         print;
-        $inverbatim= undef;
-# Note about verbatim state between doc comment blocks:  $inverbatim should
-# really be reset only between documentation blocks of different declarations,
-# but unlike vhdocl, this script does not parse VHDL.  Therefore it is reset on
-# every line not containing a doc comment, which is a small restriction.
+        $infiledoc= undef;
         next;
     }
     my ($vhdl, $doc)= ($1, $2);
+    $firstdoc= defined($firstdoc) ? "" : 1;
+    if( $firstdoc && $doc =~ /^\s*[\\\@]file\b/i ) {
+        $infiledoc= 1;
+        next;
+    }
+    $infiledoc= undef unless $vhdl =~ /^\s*$/;
     if( $inverbatim && $doc !~ /[\\\@]endverbatim\b/i ) {
         $doc =~ s/(^|\s)\@/$1&#x40;/g;
-        print "$vhdl--*$doc\n";
-        next;
+        goto output;
     }
     my @vblocks;
     while( $doc =~ s/[\\\@]verbatim\b(.*?)[\\\@]endverbatim\b/\x05/i ) {
@@ -67,7 +74,15 @@ while( <> )
         $doc =~ s/$doxunsuppre//go;     # discard unsupported doxygen codes
     }
     $doc =~ s/\x05/shift @vblocks/eg;
-    print "$vhdl--*$doc\n";
+output:
+    if( ! $infiledoc ) {
+        print "$vhdl--*$doc\n";
+    }
+    else {
+        $filedoc= "--*\n" unless defined $filedoc;
+        $filedoc .= "--*$doc\n";
+    }
+    $inverbatim= undef unless $vhdl =~ /^\s*$/;     # terminate at declaration
 }
 
 print STDERR "Warning: unsupported doxygen markup codes were discarded:\n", join(", ", keys %haveunsupp), "\n" if %haveunsupp;
