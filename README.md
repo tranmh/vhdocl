@@ -18,14 +18,5 @@ store a branch on github.
 
 # This fork
 
-To aid the unwary, fork developers should probably put some or all of the
-following information here:
-
-* what is the topic / development aim of this fork?
-* what is its scope? (private patches; destined for upstream; diverging fork)
-* development status (experimental; stable; merged upstream)
-* documentation of added features / modifications
-
-If you read this on github unmodified, you know the fork author is sloppy with
-documentation.  :-P
-
+Intended to have a copy of Volkers version for better collaboration with other
+developers.
