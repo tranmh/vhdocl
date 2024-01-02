@@ -1,0 +1,31 @@
+/*  Tree view functionality based on example by Daniel Thoma, see
+    http://aktuell.de.selfhtml.org/artikel/javascript/treemenu/     */
+
+/* for instantiation hierarchy: */
+dd.treeMenu_opened dl {
+  display: block;
+}
+dd.treeMenu_closed dl {
+  display: none;
+}
+
+/* for source overview: */
+tbody.sourceView_closed > tr {
+  display: none;
+}
+tbody.sourceView_closed > tr.sourceView_closed {
+  display: table-row;
+}
+tbody.sourceView_opened > tr {
+  display: table-row;
+}
+tr.sourceView_closed > td {
+  display: none;
+}
+tr.sourceView_closed > td.always {
+  display: table-cell;
+}
+tr.sourceView_opened > td {
+  display: table-cell;
+}
+

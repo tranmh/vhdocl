@@ -1,0 +1,77 @@
+*.doccom {
+    color:navy;
+}
+*.vhdlcom {
+    color:navy;
+}
+*.identifier {
+    color:blue;
+}
+*.declid {
+    color:blue;
+}
+*.typeid {
+    color:blue;
+}
+*.pslid {
+    color:blue;
+}
+*.vhdlstr {
+    color:green;
+}
+*.vhdlio {
+    color:maroon;
+}
+*.vhdlvar {
+    color:maroon;
+}
+*.vhdldecl {
+    color:maroon;
+}
+*.vhdlword {
+    color:maroon;
+}
+*.pslword {
+    color:maroon;
+}
+*.vhdlieee {
+    color:olive !important;
+}
+*.vhdlcode {
+    font-family:monospace;
+    font-style:normal;
+}
+*.nocode {
+    color:navy;
+}
+*.shaded {
+    background-color:#f8f8f8;
+}
+*.packsum {
+    font-size:90%;
+}
+table.vhdocltab td {
+    vertical-align:top;
+}
+/* Shading of the headlines of minor declarations (functions etc.):
+*.archdecl {
+    background-color:#f8f8f8;
+}
+*.packdecl {
+    background-color:#f6fcf6;
+}
+*/
+/* Modify the numbers and uncomment to set table padding and indentation
+table.vhdocltab td {
+    padding:3px;
+}
+*.vhdoclind {
+    width:50px;
+}
+*/
+*.entdiaghead {
+    font-size:80%;
+}
+*.entdiagio {
+    font-size:60%;
+}

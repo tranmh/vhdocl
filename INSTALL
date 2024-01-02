@@ -1,0 +1,18 @@
+
+Instructions for installing VHDocL from the git repository
+===========================================================
+
+If you are reading this, you have already successfully cloned the git
+repository from http://volkerschatz.com/repositories/vhdocl.  Congratulations.
+
+The Perl script "install-from-git.pl" in the top directory prepares the install
+by copying the development versions of VHDocL and its .pod documentation to the
+distribution directory and then runs the conventional install script there
+(vhdocl-dist/install-vhdocl.pl).  "install-from-git.pl" takes the same options
+as that installer and passes its command line on unchanged.  The -h option
+prints brief documentation.  See also vhdocl-dist/INSTALL.
+
+If you want to package and distribute an intermediate (non-release) version, be
+it the newest development version or an older one, you can use the shell script
+"mkvhdocldist.sh" to create a package tarball.
+
